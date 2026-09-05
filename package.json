@@ -1,0 +1,49 @@
+{
+  "name": "crl-transport-api",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "nodemon src/server.js",
+    "build": "node --check src/server.js",
+    "start": "node src/server.js",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "set NODE_ENV=test&& set NODE_OPTIONS=--experimental-vm-modules&& jest --runInBand",
+    "test:integration": "set NODE_ENV=test&& set RUN_MONGO_INTEGRATION=true&& set NODE_OPTIONS=--experimental-vm-modules&& jest tests/integration.test.js --runInBand",
+    "test:stress": "set NODE_ENV=test&& set RUN_MONGO_INTEGRATION=true&& set RUN_STRESS=true&& set NODE_OPTIONS=--experimental-vm-modules&& jest tests/integration.test.js --runInBand",
+    "test:watch": "set NODE_ENV=test&& set NODE_OPTIONS=--experimental-vm-modules&& jest --watch",
+    "test:coverage": "set NODE_ENV=test&& set NODE_OPTIONS=--experimental-vm-modules&& jest --coverage",
+    "test:coverage:integration": "set NODE_ENV=test&& set RUN_MONGO_INTEGRATION=true&& set NODE_OPTIONS=--experimental-vm-modules&& jest --coverage --runInBand",
+    "seed": "node src/scripts/seed.js",
+    "db:indexes": "node src/scripts/ensure-indexes.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.9.5",
+    "morgan": "^1.10.0",
+    "multer": "^1.4.5-lts.1",
+    "pino": "^9.5.0",
+    "pino-http": "^10.3.0",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "eslint": "^9.17.0",
+    "globals": "^15.14.0",
+    "jest": "^29.7.0",
+    "mongodb-memory-server": "^10.1.4",
+    "nodemon": "^3.1.9",
+    "prettier": "^3.4.2",
+    "supertest": "^7.0.0"
+  }
+}
