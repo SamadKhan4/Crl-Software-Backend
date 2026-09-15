@@ -1,7 +1,7 @@
 import { ACTIVE, ROLES } from "../constants/workflow.js";
 import { Branch } from "../models/index.js";
 import { AuthorizationError, ConflictError, NotFoundError } from "../utils/errors.js";
-import { listQuery, paginated } from "../utils/query.js";
+import { escapeSearch, listQuery, paginated } from "../utils/query.js";
 import { audit } from "./audit.service.js";
 
 const find = async (id) => {
@@ -29,7 +29,9 @@ export async function listBranches(query, user) {
   const filter = user.role === ROLES.ADMIN ? {} : { _id: user.branchId };
   if (query.status) filter.status = query.status;
   if (query.search)
-    filter.$or = ["branchCode", "name", "city"].map((field) => ({ [field]: { $regex: query.search, $options: "i" } }));
+    filter.$or = ["branchCode", "name", "city"].map((field) => ({
+      [field]: { $regex: escapeSearch(query.search), $options: "i" },
+    }));
   const [items, total] = await Promise.all([
     Branch.find(filter).sort(options.sort).skip(options.skip).limit(options.limit).lean(),
     Branch.countDocuments(filter),

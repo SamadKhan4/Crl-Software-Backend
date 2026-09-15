@@ -60,11 +60,12 @@ The API returns `X-Request-ID` for every request. Clients may provide their own 
 
 Only internal CRL users authenticate. There is no customer account, registration, or customer JWT flow.
 
-| Role       | Access                                                                                                        |
-| ---------- | ------------------------------------------------------------------------------------------------------------- |
-| `ADMIN`    | Full access; employee administration, all branches, LR verification, shipment closure, and audited overrides. |
-| `EMPLOYEE` | Internal operations restricted to their assigned origin/destination branch.                                   |
-| Customer   | Public tracking and a short-lived, one-time LR upload token only.                                             |
+| Role       | Access                                                                                                                    |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `ADMIN`    | Full access; manager and employee administration, all branches, LR verification, shipment closure, and audited overrides. |
+| `MANAGER`  | Assigned-branch employee management and shipment operations; destination LR verification and closure.                     |
+| `EMPLOYEE` | Internal operations restricted to their assigned origin/destination branch.                                               |
+| Customer   | Public tracking and a short-lived, one-time LR upload token only.                                                         |
 
 For every internal endpoint, send:
 
@@ -106,9 +107,9 @@ BOOKED -> IN_TRANSIT -> RECEIVED -> LR_IMAGE_UPLOADED
 | `BOOKED`              | `IN_TRANSIT`, `CANCELLED`       | `POST /shipments/:id/status`                                      |
 | `IN_TRANSIT`          | `RECEIVED`, `CANCELLED`         | `POST /shipments/:id/receive` or status endpoint for cancellation |
 | `RECEIVED`            | `LR_IMAGE_UPLOADED`             | Upload LR document                                                |
-| `LR_IMAGE_UPLOADED`   | `LR_IMAGE_VERIFIED`, `RECEIVED` | Admin verifies or rejects document                                |
+| `LR_IMAGE_UPLOADED`   | `LR_IMAGE_VERIFIED`, `RECEIVED` | Admin or destination manager verifies or rejects document         |
 | `LR_IMAGE_VERIFIED`   | `COMPLETED`                     | Complete shipment                                                 |
-| `COMPLETED`           | `CLOSED`                        | Admin closes shipment                                             |
+| `COMPLETED`           | `CLOSED`                        | Admin or destination manager closes shipment                      |
 | `CLOSED`, `CANCELLED` | None                            | Terminal statuses                                                 |
 
 Each valid status change writes an immutable tracking event and an audit record. Shipments can be normally edited only while `BOOKED`; later corrections require an administrator override with a recorded reason.
@@ -171,7 +172,7 @@ Accepted files: JPG/JPEG, PNG, WEBP, and PDF. The maximum size is 10 MB by defau
 
 ## Internal APIs
 
-Every endpoint in this section requires `Authorization: Bearer <accessToken>`. “Scoped” means employees may operate only on their permitted branch; administrators can operate across all branches.
+Every endpoint in this section requires `Authorization: Bearer <accessToken>`. “Scoped” means managers and employees may operate only on their permitted branch; administrators can operate across all branches.
 
 ### Dashboard and reports
 
@@ -183,7 +184,7 @@ Every endpoint in this section requires `Authorization: Bearer <accessToken>`. �
 
 Reports accept optional `dateFrom`, `dateTo`, `status`, `branch`, and `customer` values. `branch` and `customer` must be ObjectIds.
 
-### Employee management (administrator only)
+### Employee management (administrator or assigned-branch manager)
 
 | Method  | Path                        | Body                       | Description                                                   |
 | ------- | --------------------------- | -------------------------- | ------------------------------------------------------------- |
@@ -265,18 +266,18 @@ Customer create/update payload:
 
 ### Shipments
 
-| Method | Path                            | Access                    | Description                                          |
-| ------ | ------------------------------- | ------------------------- | ---------------------------------------------------- |
-| `POST` | `/shipments`                    | Origin scoped             | Creates a shipment and server-generated LR number.   |
-| `GET`  | `/shipments`                    | Scoped                    | Lists shipments.                                     |
-| `GET`  | `/shipments/:id`                | Scoped                    | Full shipment details and document metadata.         |
-| `PUT`  | `/shipments/:id`                | Origin scoped             | Edits a `BOOKED` shipment only.                      |
-| `GET`  | `/shipments/:id/history`        | Scoped                    | Immutable status/event timeline.                     |
-| `POST` | `/shipments/:id/status`         | Origin/destination scoped | Moves to `IN_TRANSIT` or cancels as workflow allows. |
-| `POST` | `/shipments/:id/receive`        | Destination scoped        | Marks an in-transit shipment as received.            |
-| `POST` | `/shipments/:id/complete`       | Destination scoped        | Completes a verified shipment.                       |
-| `POST` | `/shipments/:id/close`          | `ADMIN`                   | Closes an eligible completed shipment.               |
-| `POST` | `/shipments/:id/admin-override` | `ADMIN`                   | Applies an explicit audited correction.              |
+| Method | Path                            | Access                           | Description                                          |
+| ------ | ------------------------------- | -------------------------------- | ---------------------------------------------------- |
+| `POST` | `/shipments`                    | Origin scoped                    | Creates a shipment and server-generated LR number.   |
+| `GET`  | `/shipments`                    | Scoped                           | Lists shipments.                                     |
+| `GET`  | `/shipments/:id`                | Scoped                           | Full shipment details and document metadata.         |
+| `PUT`  | `/shipments/:id`                | Origin scoped                    | Edits a `BOOKED` shipment only.                      |
+| `GET`  | `/shipments/:id/history`        | Scoped                           | Immutable status/event timeline.                     |
+| `POST` | `/shipments/:id/status`         | Origin/destination scoped        | Moves to `IN_TRANSIT` or cancels as workflow allows. |
+| `POST` | `/shipments/:id/receive`        | Destination scoped               | Marks an in-transit shipment as received.            |
+| `POST` | `/shipments/:id/complete`       | Destination scoped               | Completes a verified shipment.                       |
+| `POST` | `/shipments/:id/close`          | `ADMIN` or destination `MANAGER` | Closes an eligible completed shipment.               |
+| `POST` | `/shipments/:id/admin-override` | `ADMIN`                          | Applies an explicit audited correction.              |
 
 Create shipment payload:
 
@@ -291,11 +292,65 @@ Create shipment payload:
   "packageCount": 4,
   "weightKg": 125.5,
   "description": "Electrical components",
-  "expectedDeliveryDate": "2026-09-10T00:00:00.000Z"
+  "expectedDeliveryDate": "2026-09-10T00:00:00.000Z",
+  "lrDetails": {
+    "consignorCode": "RAVI-001",
+    "consignorAddress": "MIDC, Nagpur",
+    "consignorPincode": "440016",
+    "consignorGstin": "27ABCDE1234F1Z5",
+    "consigneeAddress": "Andheri East, Mumbai",
+    "consigneePincode": "400093",
+    "bookingDate": "2026-09-10T09:30:00.000Z",
+    "bookingBranch": "Nagpur",
+    "from": "Nagpur",
+    "to": "Mumbai",
+    "contactNo": "+919876543210",
+    "invoiceNo": "INV-2026-0091",
+    "invoiceDate": "2026-09-09T00:00:00.000Z",
+    "packageNumber": "1/4",
+    "packageType": "Carton",
+    "actualWeight": 120.5,
+    "chargedWeight": 125.5,
+    "dimensions": "100 x 50 x 40 cm",
+    "declaredValue": 85000,
+    "paymentMode": "TO_PAY",
+    "riskType": "CARRIER_RISK",
+    "insuranceType": "INSURED",
+    "freightCharges": 1500,
+    "fuelCharges": 150,
+    "handlingCharges": 50,
+    "gstRate": 18,
+    "gstAmount": 306,
+    "totalAmount": 2006
+  }
 }
 ```
 
-Use a unique `Idempotency-Key` header when creating a shipment. Retrying the same request with the same key returns the originally created shipment instead of allocating another LR number.
+`lrDetails` is an optional nested print-data object. It contains the LR template fields: consignor/consignee address and tax details; booking, invoice and e-way bill data; package, measurement and declared-value data; receiver/signature data; payment/risk/insurance modes; and all charge values. Supplied fields are strictly validated: PIN codes are six digits, GSTIN uses the Indian GSTIN format, mobile fields use the internal mobile format, date fields must be valid dates, numeric values must be positive, and enum values are limited to the documented choices. Unknown fields are rejected with `422 VALIDATION_ERROR`.
+
+`GET /shipments/:id` returns the complete `lrDetails` object so the frontend can regenerate its LR PDF. `GET /shipments` intentionally omits it to keep listing responses light. Legacy shipments created before this addition remain valid and simply return no `lrDetails` field.
+
+Detail response excerpt:
+
+```json
+{
+  "success": true,
+  "message": "Shipment fetched",
+  "data": {
+    "id": "66d8f14124b86f067a916604",
+    "lrNumber": "CRL-NGP-2026-000001",
+    "currentStatus": "BOOKED",
+    "lrDetails": {
+      "invoiceNo": "INV-2026-0091",
+      "paymentMode": "TO_PAY",
+      "totalAmount": 2006
+    },
+    "documents": []
+  }
+}
+```
+
+Use a unique `Idempotency-Key` header when creating a shipment. Retrying the same request with the same key and identical top-level and `lrDetails` data returns the originally created shipment instead of allocating another LR number. A changed LR field with the same key returns `409 IDEMPOTENCY_KEY_CONFLICT`.
 
 ```bash
 curl -X POST http://localhost:5000/api/shipments \
@@ -350,14 +405,28 @@ Administrator override:
 
 The reason must be 8–500 characters. `changes` can include only editable shipment fields, not customer or branch references.
 
+Edit a booked shipment's LR print data with `PUT /shipments/:id` or `PATCH /shipments/:id`. The caller must retain the normal origin-branch authorization. A supplied `lrDetails` object is merged into existing LR details, so a partial print-data edit does not remove fields that were previously saved.
+
+```json
+{
+  "lrDetails": {
+    "receiverNamePrint": "Neha Sharma",
+    "receiverMobilePrint": "+919876543211",
+    "receiverDateTime": "2026-09-11T14:20:00.000Z"
+  }
+}
+```
+
+LR creation and LR-detail edits create audit/activity entries containing only changed field names, never signature data, addresses, invoice values, or other full print payload.
+
 ### LR document operations
 
-| Method | Path                                            | Access             | Description                                    |
-| ------ | ----------------------------------------------- | ------------------ | ---------------------------------------------- |
-| `POST` | `/shipments/:id/lr-image`                       | Destination scoped | Internal LR upload after receipt.              |
-| `POST` | `/shipments/:id/lr-image/verify`                | `ADMIN`            | Verifies or rejects the pending LR document.   |
-| `POST` | `/shipments/:id/lr-upload-token`                | Destination scoped | Generates a customer one-time upload token.    |
-| `GET`  | `/shipments/:id/documents/:documentId/download` | Scoped             | Streams/downloads only an authorized document. |
+| Method | Path                                            | Access                           | Description                                    |
+| ------ | ----------------------------------------------- | -------------------------------- | ---------------------------------------------- |
+| `POST` | `/shipments/:id/lr-image`                       | Destination scoped               | Internal LR upload after receipt.              |
+| `POST` | `/shipments/:id/lr-image/verify`                | `ADMIN` or destination `MANAGER` | Verifies or rejects the pending LR document.   |
+| `POST` | `/shipments/:id/lr-upload-token`                | Destination scoped               | Generates a customer one-time upload token.    |
+| `GET`  | `/shipments/:id/documents/:documentId/download` | Scoped                           | Streams/downloads only an authorized document. |
 
 Internal upload example:
 
@@ -431,3 +500,45 @@ shipmentId = <shipment ObjectId>
 Set the collection authorization to **Bearer Token** and use `{{accessToken}}`. Keep cookie handling enabled in Postman if using refresh/logout without explicitly sending `refreshToken` in the JSON body.
 
 For a browser frontend, send `credentials: "include"` for login, refresh, and logout so the HTTP-only refresh cookie can be stored and sent. Keep the access token in memory rather than long-lived browser storage.
+
+## CRUD completion
+
+All four resources (`users`, `branches`, `customers`, `shipments`) support `PATCH /api/{resource}/:id` for nonempty partial updates and `DELETE /api/{resource}/:id`. Existing PUT routes remain available. PATCH preserves existing role restrictions and BOOKED-only shipment editing.
+
+DELETE is ADMIN-only and returns `data: { id, deleted: true }`. Employees, branches and customers must first be INACTIVE. Referenced records return 409 `RECORD_IN_USE`; retain them inactive for history. Administrator accounts cannot be deleted. Only BOOKED shipments without documents or an idempotency key can be deleted; use cancellation for other eligible shipments. Deletion and audit logging are transactional. Eligible shipment booking events and upload sessions are removed; audit history is retained.
+
+`GET /api/branches/options` returns active branch IDs, codes, names and cities for internal destination selection, including employees. Existing branch details remain scoped.
+
+Shipment details now correctly authorize populated branch IDs. Idempotency replay requires the original creator, permitted origin branch and matching supplied fields; mismatches return 409 `IDEMPOTENCY_KEY_CONFLICT`.
+
+## Manager panel and role hierarchy
+
+The internal hierarchy is **ADMIN > MANAGER > EMPLOYEE**. Managers have an assigned branch and sign in through the existing `/api/auth/login` endpoint; login, refresh and `/auth/me` return `role: "MANAGER"`. No customer login is added.
+
+| Capability                                      | Admin        | Manager                            | Employee                           |
+| ----------------------------------------------- | ------------ | ---------------------------------- | ---------------------------------- |
+| Manage manager accounts                         | Yes          | No                                 | No                                 |
+| Create/edit/activate/deactivate/reset employees | All branches | Assigned branch only               | No                                 |
+| Create/edit branches                            | Yes          | No                                 | No                                 |
+| Shipment dashboard, reports and details         | All branches | Assigned origin/destination branch | Assigned origin/destination branch |
+| Booking/dispatch/edit/cancel                    | All branches | Assigned origin branch             | Assigned origin branch             |
+| Receive/upload/complete                         | All branches | Assigned destination branch        | Assigned destination branch        |
+| Verify/reject LR and close shipment             | All branches | Assigned destination branch        | No                                 |
+| Admin override and guarded deletion             | Yes          | No                                 | No                                 |
+| Customer directory                              | Yes          | Yes                                | Yes                                |
+
+Admin-only manager directory: `POST/GET /api/managers`, `GET/PUT/PATCH/DELETE /api/managers/:id`, `PATCH /api/managers/:id/status`, `POST /api/managers/:id/reset-password`. Creation uses the employee fields: name, email, optional mobile, active branchId, password (12?128 characters). The server assigns MANAGER; clients cannot set or promote roles. Manager deletion follows inactive/unreferenced checks. Existing `/users` endpoints remain employee-only.
+
+Frontend: Admin uses `/admin/managers` to provision managers. Manager login redirects to `/manager/dashboard`, with shipments, create LR, customers, employees, receive parcel, documents, reports, activity and password settings. Assigned-branch limits are enforced by the backend on each request. Managers can use the existing active-branch options endpoint for destination selection.
+
+## Activity feed
+
+`GET /api/activity` returns paginated activity records with `actor` (ID/name/role), action, entityType, entityId, entityLabel, createdAt and changedFields. Filters: page, limit (up to 100), search (actor snapshot name, action, record label/type/ID), action, entityType, dateFrom and dateTo. Dates must be ordered. Results are newest first.
+
+Admin sees all audit events. Manager sees events performed by team members in their assigned branch at the time of the event, plus their own events. Employee sees only their own events. New events preserve actor name, role and branch snapshots across account updates/deletion/transfers. Legacy events have no historical branch snapshot: Admin and the original actor can see them; they are not assigned to a manager retroactively. Existing actor names are used as a fallback for legacy display. Passwords, tokens, raw before/after objects, IP addresses and user agents are not returned.
+
+Tracked operations include record creation/update/status changes/deletion, password changes/reset, shipment transitions, document upload/verification and overrides. This is an operations feed, not page-view or login tracking. Admin panel: Team Activity (`/admin/audit`); Manager: Branch Activity (`/manager/activity`); Employee: My Activity (`/employee/activity`). The feed refreshes every 30 seconds and supports manual refresh.
+
+## Bounded report responses
+
+`GET /api/reports/shipments` now uses server-side pagination: `page` defaults to 1, `limit` defaults to 20 and is capped at 100. `data` remains an array but contains only the requested page. `pagination` supplies page/limit/total/pages. `summary: { total, statuses }` counts the complete authorized filtered result, not only the current page. Frontend reports consume these fields. CSV export remains a full filtered stream with backpressure and disconnect cleanup; page/limit do not restrict the export.

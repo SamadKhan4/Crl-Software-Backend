@@ -1,9 +1,20 @@
 import { AppError } from "../utils/errors.js";
 export const notFound = (req, _res, next) =>
   next(new AppError(`Route ${req.method} ${req.originalUrl} was not found`, 404, "ROUTE_NOT_FOUND"));
-export const errorHandler = (error, req, res, _next) => {
+export const errorHandler = (error, req, res, next) => {
+  if (res.headersSent) return next(error);
   const duplicate = error?.code === 11000;
-  const appError = duplicate ? new AppError("A record with this value already exists", 409, "DUPLICATE_RECORD") : error;
+  const unsupportedTransactions =
+    error?.code === 20 && /Transaction numbers are only allowed on a replica set member or mongos/i.test(error.message);
+  const appError = unsupportedTransactions
+    ? new AppError(
+        "MongoDB transactions are unavailable. Configure a replica set or use MongoDB Atlas, then retry.",
+        503,
+        "DATABASE_TRANSACTIONS_UNAVAILABLE",
+      )
+    : duplicate
+      ? new AppError("A record with this value already exists", 409, "DUPLICATE_RECORD")
+      : error;
   const status = appError instanceof AppError ? appError.statusCode : 500;
   req.log?.error(
     { requestId: req.id, status, errorCode: appError.errorCode, message: error.message },

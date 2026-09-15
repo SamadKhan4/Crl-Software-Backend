@@ -40,6 +40,14 @@ const resourcePaths = (base, tag, schema) => ({
   },
   [`${base}/{id}`]: {
     get: operation(`Get ${tag.slice(0, -1).toLowerCase()}`, tag, { parameters: [id] }),
+    delete: operation("Delete inactive unreferenced record", tag, { roles: "ADMIN", parameters: [id] }),
+    patch: {
+      ...operation("Partially update record", tag, { parameters: [id] }),
+      requestBody: {
+        required: true,
+        content: { "application/json": { schema: { type: "object", minProperties: 1 } } },
+      },
+    },
     put: operation(`Replace ${tag.slice(0, -1).toLowerCase()}`, tag, { parameters: [id], body: schema }),
   },
   [`${base}/{id}/status`]: {
@@ -48,6 +56,13 @@ const resourcePaths = (base, tag, schema) => ({
 });
 
 const paths = {
+  "/activity": {
+    get: operation("List scoped team activity", "Activity", {
+      roles: "ADMIN, MANAGER, EMPLOYEE",
+      description:
+        "Admin sees all events; manager sees historical assigned-branch actor events and their own; employee sees their own. Supports page, limit, search, action, entityType, dateFrom and dateTo.",
+    }),
+  },
   "/auth/login": { post: operation("Authenticate an internal user", "Auth", { public: true, body: "Login" }) },
   "/auth/refresh": { post: operation("Rotate refresh token", "Auth", { public: true, body: "Refresh" }) },
   "/auth/logout": { post: operation("Revoke refresh token", "Auth", { public: true, body: "Refresh" }) },
@@ -59,7 +74,10 @@ const paths = {
     get: operation("List employees", "Users", { roles: "ADMIN" }),
     post: operation("Create employee", "Users", { roles: "ADMIN", body: "User", created: true }),
   },
+  "/branches/options": { get: operation("List active branch options", "Branches") },
   "/users/{id}": {
+    delete: operation("Delete inactive unreferenced employee", "Users", { roles: "ADMIN", parameters: [id] }),
+    patch: operation("Partially update employee", "Users", { roles: "ADMIN", parameters: [id], body: "UserUpdate" }),
     get: operation("Get employee", "Users", { roles: "ADMIN", parameters: [id] }),
     put: operation("Update employee", "Users", { roles: "ADMIN", parameters: [id], body: "UserUpdate" }),
   },
@@ -104,9 +122,15 @@ const paths = {
         { name: "lrNumber", in: "query", schema: { type: "string" } },
       ],
     }),
-    post: operation("Create a shipment and allocate an LR number", "Shipments", { body: "Shipment", created: true }),
+    post: operation("Create a shipment and allocate an LR number", "Shipments", {
+      body: "Shipment",
+      created: true,
+      parameters: [{ name: "Idempotency-Key", in: "header", schema: { type: "string", maxLength: 255 } }],
+    }),
   },
   "/shipments/{id}": {
+    delete: operation("Delete eligible booked shipment", "Shipments", { roles: "ADMIN", parameters: [id] }),
+    patch: operation("Partially update booked shipment", "Shipments", { parameters: [id], body: "ShipmentUpdate" }),
     get: operation("Get shipment detail", "Shipments", { parameters: [id] }),
     put: operation("Update booked shipment", "Shipments", { parameters: [id], body: "ShipmentUpdate" }),
   },
@@ -126,7 +150,7 @@ const paths = {
     post: operation("Upload LR document", "Documents", {
       parameters: [id],
       description: "multipart/form-data field: lrImage; JPG, PNG, WEBP, or PDF; 10 MB maximum",
-      roles: "ADMIN, EMPLOYEE",
+      roles: "ADMIN, MANAGER, EMPLOYEE",
     }),
   },
   "/shipments/{id}/lr-image/verify": {
@@ -182,6 +206,29 @@ const paths = {
   "/health/live": { get: operation("Process liveness", "Health", { public: true }) },
   "/health/ready": { get: operation("Deployment readiness", "Health", { public: true }) },
 };
+
+// Manager accounts use the same validated fields as employees, with an admin-only directory.
+for (const suffix of ["", "/{id}", "/{id}/status", "/{id}/reset-password"]) {
+  paths[`/managers${suffix}`] = Object.fromEntries(
+    Object.entries(paths[`/users${suffix}`]).map(([method, spec]) => [
+      method,
+      {
+        ...spec,
+        tags: ["Managers"],
+        summary: spec.summary.replaceAll("employee", "manager"),
+        description: "Roles: ADMIN. Manage branch manager accounts.",
+      },
+    ]),
+  );
+  for (const [method, spec] of Object.entries(paths[`/users${suffix}`])) {
+    if (method !== "delete")
+      spec.description = "Roles: ADMIN, MANAGER. Managers can manage only employees in their assigned branch.";
+  }
+}
+paths["/shipments/{id}/lr-image/verify"].post.description =
+  "Roles: ADMIN, MANAGER. Managers may verify only destination-branch shipments.";
+paths["/shipments/{id}/close"].post.description =
+  "Roles: ADMIN, MANAGER. Managers may close only destination-branch shipments.";
 
 export const swaggerSpec = swaggerJsdoc({
   definition: {
@@ -301,6 +348,7 @@ export const swaggerSpec = swaggerJsdoc({
             weightKg: { type: "number" },
             description: { type: "string" },
             expectedDeliveryDate: { type: "string", format: "date-time" },
+            lrDetails: { $ref: "#/components/schemas/LrDetails" },
           },
         },
         ShipmentUpdate: {
@@ -312,6 +360,62 @@ export const swaggerSpec = swaggerJsdoc({
             packageCount: { type: "integer" },
             weightKg: { type: "number" },
             description: { type: "string" },
+            expectedDeliveryDate: { type: "string", format: "date-time" },
+            lrDetails: { $ref: "#/components/schemas/LrDetails" },
+          },
+        },
+        LrDetails: {
+          type: "object",
+          additionalProperties: false,
+          description: "Optional print-only LR fields. Returned by shipment detail, not shipment list.",
+          properties: {
+            consignorCode: { type: "string" },
+            consignorAddress: { type: "string" },
+            consignorAddress2: { type: "string" },
+            consignorPincode: { type: "string", pattern: "^\\d{6}$" },
+            consignorGstin: { type: "string", pattern: "^\\d{2}[A-Z]{5}\\d{4}[A-Z]\\dZ[A-Z\\d]$" },
+            consigneeAddress: { type: "string" },
+            consigneeAddress2: { type: "string" },
+            consigneeAddress3: { type: "string" },
+            consigneePincode: { type: "string", pattern: "^\\d{6}$" },
+            consigneeGstin: { type: "string", pattern: "^\\d{2}[A-Z]{5}\\d{4}[A-Z]\\dZ[A-Z\\d]$" },
+            bookingDate: { type: "string", format: "date-time" },
+            bookingBranch: { type: "string" },
+            from: { type: "string" },
+            to: { type: "string" },
+            deliveryAddress: { type: "string" },
+            contactNo: { type: "string" },
+            invoiceNo: { type: "string" },
+            invoiceDate: { type: "string", format: "date-time" },
+            eWayBillNo: { type: "string" },
+            eWayBillDate: { type: "string", format: "date-time" },
+            poStnNo: { type: "string" },
+            customerReference: { type: "string" },
+            packageNumber: { type: "string" },
+            packageType: { type: "string" },
+            actualWeight: { type: "number", exclusiveMinimum: 0 },
+            chargedWeight: { type: "number", exclusiveMinimum: 0 },
+            dimensions: { type: "string" },
+            volume: { type: "number", exclusiveMinimum: 0 },
+            declaredValue: { type: "number", exclusiveMinimum: 0 },
+            shipperSignature: { type: "string" },
+            remarks: { type: "string" },
+            receiverNamePrint: { type: "string" },
+            receiverMobilePrint: { type: "string" },
+            receiverDateTime: { type: "string", format: "date-time" },
+            receiverSignature: { type: "string" },
+            paymentMode: { type: "string", enum: ["PAID", "TO_PAY", "CREDIT"] },
+            riskType: { type: "string", enum: ["CARRIER_RISK", "OWNER_RISK"] },
+            insuranceType: { type: "string", enum: ["INSURED", "NOT_INSURED"] },
+            freightCharges: { type: "number", exclusiveMinimum: 0 },
+            fuelCharges: { type: "number", exclusiveMinimum: 0 },
+            handlingCharges: { type: "number", exclusiveMinimum: 0 },
+            fodCodCharges: { type: "number", exclusiveMinimum: 0 },
+            rovCharges: { type: "number", exclusiveMinimum: 0 },
+            docketCharges: { type: "number", exclusiveMinimum: 0 },
+            gstRate: { type: "number", exclusiveMinimum: 0, maximum: 100 },
+            gstAmount: { type: "number", exclusiveMinimum: 0 },
+            totalAmount: { type: "number", exclusiveMinimum: 0 },
           },
         },
         ShipmentStatus: {

@@ -11,6 +11,12 @@ const pincode = z
   .trim()
   .regex(/^\d{6}$/, "Invalid pincode");
 const optionalText = (max) => z.string().trim().max(max).optional();
+const gstin = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(/^\d{2}[A-Z]{5}\d{4}[A-Z]\dZ[A-Z\d]$/, "Invalid GSTIN");
+const positiveNumber = z.coerce.number().positive().max(1000000000);
 const strictEmpty = z.object({}).strict();
 
 export const ids = z.object({ id: objectId }).strict();
@@ -84,12 +90,58 @@ export const customerSchema = z
     city: optionalText(80),
     state: optionalText(80),
     pincode: pincode.optional(),
-    gstNumber: z
-      .string()
-      .trim()
-      .toUpperCase()
-      .regex(/^\d{2}[A-Z]{5}\d{4}[A-Z]\d[Z][A-Z\d]$/)
-      .optional(),
+    gstNumber: gstin.optional(),
+  })
+  .strict();
+export const lrDetailsSchema = z
+  .object({
+    consignorCode: optionalText(80),
+    consignorAddress: optionalText(500),
+    consignorAddress2: optionalText(500),
+    consignorPincode: pincode.optional(),
+    consignorGstin: gstin.optional(),
+    consigneeAddress: optionalText(500),
+    consigneeAddress2: optionalText(500),
+    consigneeAddress3: optionalText(500),
+    consigneePincode: pincode.optional(),
+    consigneeGstin: gstin.optional(),
+    bookingDate: z.coerce.date().optional(),
+    bookingBranch: optionalText(120),
+    from: optionalText(120),
+    to: optionalText(120),
+    deliveryAddress: optionalText(500),
+    contactNo: mobile.optional(),
+    invoiceNo: optionalText(120),
+    invoiceDate: z.coerce.date().optional(),
+    eWayBillNo: optionalText(120),
+    eWayBillDate: z.coerce.date().optional(),
+    poStnNo: optionalText(120),
+    customerReference: optionalText(250),
+    packageNumber: optionalText(80),
+    packageType: optionalText(120),
+    actualWeight: positiveNumber.optional(),
+    chargedWeight: positiveNumber.optional(),
+    dimensions: optionalText(200),
+    volume: positiveNumber.optional(),
+    declaredValue: positiveNumber.optional(),
+    shipperSignature: optionalText(50000),
+    remarks: optionalText(1000),
+    receiverNamePrint: optionalText(120),
+    receiverMobilePrint: mobile.optional(),
+    receiverDateTime: z.coerce.date().optional(),
+    receiverSignature: optionalText(50000),
+    paymentMode: z.enum(["PAID", "TO_PAY", "CREDIT"]).optional(),
+    riskType: z.enum(["CARRIER_RISK", "OWNER_RISK"]).optional(),
+    insuranceType: z.enum(["INSURED", "NOT_INSURED"]).optional(),
+    freightCharges: positiveNumber.optional(),
+    fuelCharges: positiveNumber.optional(),
+    handlingCharges: positiveNumber.optional(),
+    fodCodCharges: positiveNumber.optional(),
+    rovCharges: positiveNumber.optional(),
+    docketCharges: positiveNumber.optional(),
+    gstRate: positiveNumber.max(100).optional(),
+    gstAmount: positiveNumber.optional(),
+    totalAmount: positiveNumber.optional(),
   })
   .strict();
 export const shipmentSchema = z
@@ -104,6 +156,7 @@ export const shipmentSchema = z
     weightKg: z.coerce.number().positive().max(100000),
     description: optionalText(500),
     expectedDeliveryDate: z.coerce.date().optional(),
+    lrDetails: lrDetailsSchema.optional(),
   })
   .strict();
 export const shipmentUpdateSchema = shipmentSchema
@@ -140,6 +193,8 @@ export const publicRequestSchema = z
 export const tokenSchema = z.object({ token: z.string().regex(/^[a-f\d]{64}$/i, "Invalid upload token") }).strict();
 export const reportSchema = z
   .object({
+    page: z.coerce.number().int().positive().optional(),
+    limit: z.coerce.number().int().positive().max(100).optional(),
     dateFrom: z.coerce.date().optional(),
     dateTo: z.coerce.date().optional(),
     status: z.enum(Object.values(SHIPMENT_STATUS)).optional(),
@@ -148,3 +203,31 @@ export const reportSchema = z
   })
   .strict();
 export const emptySchema = strictEmpty;
+
+const nonEmptyUpdate = (schema) =>
+  schema
+    .partial()
+    .strict()
+    .refine((data) => Object.keys(data).length > 0, "Provide at least one field to update");
+export const branchUpdateSchema = nonEmptyUpdate(branchSchema);
+export const customerUpdateSchema = nonEmptyUpdate(customerSchema);
+export const employeePatchSchema = nonEmptyUpdate(userSchema.omit({ password: true }));
+export const shipmentPatchSchema = nonEmptyUpdate(
+  shipmentSchema.omit({ customerId: true, originBranchId: true, destinationBranchId: true }),
+);
+
+export const activitySchema = z
+  .object({
+    page: z.coerce.number().int().positive().optional(),
+    limit: z.coerce.number().int().positive().max(100).optional(),
+    search: z.string().trim().max(100).optional(),
+    action: z
+      .string()
+      .regex(/^[A-Z_]{2,80}$/)
+      .optional(),
+    entityType: z.enum(["User", "Branch", "Customer", "Shipment", "ShipmentDocument", "UploadSession"]).optional(),
+    dateFrom: z.coerce.date().optional(),
+    dateTo: z.coerce.date().optional(),
+  })
+  .strict()
+  .refine((data) => !data.dateFrom || !data.dateTo || data.dateFrom <= data.dateTo, "Start date must precede end date");

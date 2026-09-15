@@ -6,10 +6,13 @@ export const listQuery = (query) => {
     page,
     limit,
     skip: (page - 1) * limit,
-    sort: { [query.sortBy || "createdAt"]: sortOrder },
+    sort: { [query.sortBy || "createdAt"]: sortOrder, _id: sortOrder },
   };
 };
 export const paginated = (items, total, { page, limit }) => ({
   items,
   pagination: { page, limit, total, pages: Math.ceil(total / limit) },
 });
+
+// Treat user searches as literal text, not executable regular expressions.
+export const escapeSearch = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

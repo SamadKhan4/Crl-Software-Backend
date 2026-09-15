@@ -4,7 +4,7 @@ import { ACTIVE, ROLES } from "../constants/workflow.js";
 import { Branch, RefreshToken, User } from "../models/index.js";
 import { AuthorizationError, ConflictError, NotFoundError } from "../utils/errors.js";
 import { generateEmployeeCode } from "../utils/ids.js";
-import { listQuery, paginated } from "../utils/query.js";
+import { escapeSearch, listQuery, paginated } from "../utils/query.js";
 import { audit } from "./audit.service.js";
 
 export const userDto = (user) => ({
@@ -27,13 +27,30 @@ const activeBranch = async (branchId, session) => {
   return branch;
 };
 
-const findUser = async (id) => {
-  const user = await User.findById(id);
+const managedRole = (req) => req.managementRole || ROLES.EMPLOYEE;
+const assertManagement = (req, target, branchId = target?.branchId) => {
+  if (req.user.role === ROLES.ADMIN) {
+    if (target && target.role !== managedRole(req)) throw new AuthorizationError("Account is outside this directory");
+    return;
+  }
+  if (
+    req.user.role !== ROLES.MANAGER ||
+    managedRole(req) !== ROLES.EMPLOYEE ||
+    (target && target.role !== ROLES.EMPLOYEE) ||
+    !req.user.branchId ||
+    String(branchId?._id ?? branchId) !== String(req.user.branchId)
+  )
+    throw new AuthorizationError("Managers can manage employees only in their assigned branch");
+};
+const findUser = async (id, req, session = null) => {
+  const user = await User.findById(id).session(session);
   if (!user) throw new NotFoundError("Employee not found", "USER_NOT_FOUND");
+  assertManagement(req, user);
   return user;
 };
 
 export async function createEmployee(data, req) {
+  assertManagement(req, null, data.branchId);
   const session = await mongoose.startSession();
   try {
     let user;
@@ -46,7 +63,7 @@ export async function createEmployee(data, req) {
               ...data,
               employeeCode: await generateEmployeeCode(session),
               passwordHash: await bcrypt.hash(data.password, 12),
-              role: ROLES.EMPLOYEE,
+              role: managedRole(req),
             },
           ],
           { session },
@@ -67,13 +84,14 @@ export async function createEmployee(data, req) {
   }
 }
 
-export async function listEmployees(query) {
+export async function listEmployees(query, req) {
+  assertManagement(req, null, req.user.branchId);
   const options = listQuery(query);
-  const filter = { role: ROLES.EMPLOYEE };
+  const filter = { role: managedRole(req), ...(req.user.role === ROLES.MANAGER && { branchId: req.user.branchId }) };
   if (query.status) filter.status = query.status;
   if (query.search)
     filter.$or = ["employeeCode", "name", "email", "mobile"].map((field) => ({
-      [field]: { $regex: query.search, $options: "i" },
+      [field]: { $regex: escapeSearch(query.search), $options: "i" },
     }));
   const [items, total] = await Promise.all([
     User.find(filter)
@@ -88,12 +106,9 @@ export async function listEmployees(query) {
   return paginated(items.map(userDto), total, options);
 }
 
-export async function getEmployee(id) {
-  const user = await User.findOne({ _id: id, role: ROLES.EMPLOYEE })
-    .select("-passwordHash")
-    .populate("branchId", "branchCode name city")
-    .lean();
-  if (!user) throw new NotFoundError("Employee not found", "USER_NOT_FOUND");
+export async function getEmployee(id, req) {
+  const user = await findUser(id, req);
+  await user.populate("branchId", "branchCode name city");
   return userDto(user);
 }
 
@@ -102,9 +117,8 @@ export async function updateEmployee(id, data, req) {
   try {
     let updated;
     await session.withTransaction(async () => {
-      const user = await findUser(id);
-      if (user.role !== ROLES.EMPLOYEE)
-        throw new AuthorizationError("Administrator accounts cannot be modified through employee management");
+      const user = await findUser(id, req, session);
+      assertManagement(req, user, data.branchId || user.branchId);
       if (data.branchId) await activeBranch(data.branchId, session);
       const before = userDto(user);
       Object.assign(user, data);
@@ -122,9 +136,8 @@ export async function updateEmployee(id, data, req) {
 }
 
 export async function setEmployeeStatus(id, status, req) {
-  const user = await findUser(id);
-  if (user.role !== ROLES.EMPLOYEE)
-    throw new AuthorizationError("Administrator accounts cannot be disabled through employee management");
+  const user = await findUser(id, req);
+
   const before = userDto(user);
   user.status = status;
   await user.save();
@@ -143,9 +156,8 @@ export async function setEmployeeStatus(id, status, req) {
 }
 
 export async function resetEmployeePassword(id, newPassword, req) {
-  const user = await findUser(id);
-  if (user.role !== ROLES.EMPLOYEE)
-    throw new AuthorizationError("Administrator passwords cannot be reset through employee management");
+  const user = await findUser(id, req);
+
   user.passwordHash = await bcrypt.hash(newPassword, 12);
   await user.save();
   await RefreshToken.updateMany({ userId: user._id, revokedAt: null }, { revokedAt: new Date() });

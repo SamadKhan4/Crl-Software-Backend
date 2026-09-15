@@ -20,4 +20,4 @@ export const allow =
   (...roles) =>
   (req, _res, next) =>
     roles.includes(req.user.role) ? next() : next(new AuthorizationError());
-export const internalRoles = allow(ROLES.ADMIN, ROLES.EMPLOYEE);
+export const internalRoles = allow(ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE);

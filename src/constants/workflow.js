@@ -1,4 +1,4 @@
-export const ROLES = Object.freeze({ ADMIN: "ADMIN", EMPLOYEE: "EMPLOYEE" });
+export const ROLES = Object.freeze({ ADMIN: "ADMIN", MANAGER: "MANAGER", EMPLOYEE: "EMPLOYEE" });
 export const ACTIVE = Object.freeze({ ACTIVE: "ACTIVE", INACTIVE: "INACTIVE" });
 export const SHIPMENT_STATUS = Object.freeze({
   BOOKED: "BOOKED",

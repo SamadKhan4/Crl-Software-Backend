@@ -4,7 +4,7 @@ import { ACTIVE, DOCUMENT_STATUS, ROLES, SHIPMENT_STATUS, TRANSITIONS } from "..
 import { Branch, Customer, Shipment, ShipmentDocument, ShipmentEvent, UploadSession } from "../models/index.js";
 import { AuthenticationError, AuthorizationError, ConflictError, NotFoundError } from "../utils/errors.js";
 import { generateLRNumber } from "../utils/ids.js";
-import { listQuery, paginated } from "../utils/query.js";
+import { escapeSearch, listQuery, paginated } from "../utils/query.js";
 import { audit } from "./audit.service.js";
 import { storageService } from "./storage.service.js";
 import { env } from "../config/env.js";
@@ -16,7 +16,8 @@ const getShipment = async (id, session) => {
   return shipment;
 };
 const assertBranch = (user, branchId, message = "You are not authorized for this branch operation") => {
-  if (!isAdmin(user) && user?.branchId?.toString() !== branchId?.toString()) throw new AuthorizationError(message);
+  if (!isAdmin(user) && user?.branchId?.toString() !== (branchId?._id ?? branchId)?.toString())
+    throw new AuthorizationError(message);
 };
 const assertShipmentBranchAccess = (user, shipment, operation) => {
   if (isAdmin(user)) return;
@@ -52,6 +53,34 @@ const documentDto = (document) => ({
   rejectionReason: document.rejectionReason,
 });
 const shipmentDto = (shipment) => ({ ...(shipment.toObject?.() ?? shipment), id: shipment._id });
+const canonicalValue = (value) => {
+  if (value === undefined) return undefined;
+  if (value instanceof Date) return value.toISOString();
+  if (value?.toHexString) return value.toHexString();
+  if (Array.isArray(value)) return value.map(canonicalValue);
+  if (value && typeof value === "object")
+    return Object.fromEntries(
+      Object.keys(value)
+        .sort()
+        .flatMap((key) => {
+          const normalized = canonicalValue(value[key]);
+          return normalized === undefined ? [] : [[key, normalized]];
+        }),
+    );
+  return value;
+};
+const matchesCreatePayload = (shipment, data) => {
+  const prior = shipment.toObject?.() ?? shipment;
+  const savedPayload = Object.fromEntries(Object.keys(data).map((key) => [key, prior[key]]));
+  return JSON.stringify(canonicalValue(savedPayload)) === JSON.stringify(canonicalValue(data));
+};
+const lrDetailsAuditSummary = (lrDetails) => ({
+  fields: Object.keys(lrDetails?.toObject?.() ?? lrDetails ?? {}).sort(),
+});
+const mergeLrDetails = (shipment, lrDetails) => ({
+  ...(shipment.lrDetails?.toObject?.() ?? shipment.lrDetails ?? {}),
+  ...lrDetails,
+});
 const createEvent = async (session, shipment, status, location, branchId, remarks, updatedBy) =>
   ShipmentEvent.create([{ shipmentId: shipment._id, status, location, branchId, remarks, updatedBy }], { session });
 const applyStatus = async (session, shipment, targetStatus, { location, branchId, remarks, updatedBy }) => {
@@ -79,7 +108,14 @@ const activeEntities = async (data, session) => {
 export async function createShipment(data, req, idempotencyKey) {
   if (idempotencyKey) {
     const prior = await Shipment.findOne({ idempotencyKey });
-    if (prior) return { shipment: shipmentDto(prior), replayed: true };
+    if (prior) {
+      assertShipmentBranchAccess(req.user, prior, "origin");
+      if (String(prior.createdBy) !== String(req.user._id))
+        throw new ConflictError("Idempotency key belongs to another request", "IDEMPOTENCY_KEY_CONFLICT");
+      if (!matchesCreatePayload(prior, data))
+        throw new ConflictError("Idempotency key was already used with different data", "IDEMPOTENCY_KEY_CONFLICT");
+      return { shipment: shipmentDto(prior), replayed: true };
+    }
   }
   const session = await mongoose.startSession();
   try {
@@ -113,13 +149,22 @@ export async function createShipment(data, req, idempotencyKey) {
       await audit(session, req, "SHIPMENT_CREATED", "Shipment", shipment._id, null, {
         lrNumber: shipment.lrNumber,
         status: shipment.currentStatus,
+        hasLrDetails: Boolean(shipment.lrDetails),
+        ...(shipment.lrDetails && { lrDetails: lrDetailsAuditSummary(shipment.lrDetails) }),
       });
     });
     return { shipment: shipmentDto(shipment), replayed: false };
   } catch (error) {
     if (error.code === 11000 && idempotencyKey) {
       const prior = await Shipment.findOne({ idempotencyKey });
-      if (prior) return { shipment: shipmentDto(prior), replayed: true };
+      if (prior) {
+        assertShipmentBranchAccess(req.user, prior, "origin");
+        if (String(prior.createdBy) !== String(req.user._id))
+          throw new ConflictError("Idempotency key belongs to another request", "IDEMPOTENCY_KEY_CONFLICT");
+        if (!matchesCreatePayload(prior, data))
+          throw new ConflictError("Idempotency key was already used with different data", "IDEMPOTENCY_KEY_CONFLICT");
+        return { shipment: shipmentDto(prior), replayed: true };
+      }
     }
     if (error.code === 11000) throw new ConflictError("LR number already exists", "LR_NUMBER_EXISTS");
     throw error;
@@ -139,7 +184,7 @@ export async function listShipments(query, user) {
   if (query.search)
     criteria.push({
       $or: ["lrNumber", "senderName", "receiverName"].map((field) => ({
-        [field]: { $regex: query.search, $options: "i" },
+        [field]: { $regex: escapeSearch(query.search), $options: "i" },
       })),
     });
   if (query.lrNumber) criteria.push({ lrNumber: query.lrNumber.toUpperCase() });
@@ -176,7 +221,9 @@ export async function shipmentDetails(id, user) {
   assertShipmentBranchAccess(
     user,
     shipment,
-    shipment.destinationBranchId?.toString() === user?.branchId?.toString() ? "destination" : "origin",
+    (shipment.destinationBranchId?._id ?? shipment.destinationBranchId)?.toString() === user?.branchId?.toString()
+      ? "destination"
+      : "origin",
   );
   const documents = await ShipmentDocument.find({ shipmentId: id }).sort({ documentType: 1, version: -1 }).lean();
   return { ...shipment, id: shipment._id, documents: documents.map(documentDto) };
@@ -187,7 +234,9 @@ export async function shipmentHistory(id, user) {
   assertShipmentBranchAccess(
     user,
     shipment,
-    shipment.destinationBranchId?.toString() === user?.branchId?.toString() ? "destination" : "origin",
+    (shipment.destinationBranchId?._id ?? shipment.destinationBranchId)?.toString() === user?.branchId?.toString()
+      ? "destination"
+      : "origin",
   );
   const events = await ShipmentEvent.find({ shipmentId: id }).sort({ createdAt: 1 }).lean();
   return events.map(eventDto);
@@ -198,7 +247,9 @@ export async function openDocument(id, documentId, user) {
   assertShipmentBranchAccess(
     user,
     shipment,
-    shipment.destinationBranchId?.toString() === user?.branchId?.toString() ? "destination" : "origin",
+    (shipment.destinationBranchId?._id ?? shipment.destinationBranchId)?.toString() === user?.branchId?.toString()
+      ? "destination"
+      : "origin",
   );
   const document = await ShipmentDocument.findOne({ _id: documentId, shipmentId: id }).select("+storageKey +fileUrl");
   if (!document) throw new NotFoundError("Document not found", "DOCUMENT_NOT_FOUND");
@@ -216,9 +267,24 @@ export async function updateShipment(id, data, req) {
       if (shipment.currentStatus !== SHIPMENT_STATUS.BOOKED)
         throw new ConflictError("Shipment can only be edited while booked", "SHIPMENT_NOT_EDITABLE");
       const before = shipmentDto(shipment);
+      const existingLrDetails = shipment.lrDetails;
       Object.assign(shipment, data);
+      if (data.lrDetails) shipment.lrDetails = mergeLrDetails({ lrDetails: existingLrDetails }, data.lrDetails);
       await shipment.save({ session });
-      await audit(session, req, "SHIPMENT_UPDATED", "Shipment", id, before, shipmentDto(shipment));
+      const { lrDetails, ...beforeWithoutLrDetails } = before;
+      const { lrDetails: updatedLrDetails, ...afterWithoutLrDetails } = shipmentDto(shipment);
+      if (Object.keys(data).some((key) => key !== "lrDetails"))
+        await audit(session, req, "SHIPMENT_UPDATED", "Shipment", id, beforeWithoutLrDetails, afterWithoutLrDetails);
+      if (data.lrDetails)
+        await audit(
+          session,
+          req,
+          "LR_DETAILS_UPDATED",
+          "Shipment",
+          id,
+          lrDetailsAuditSummary(lrDetails),
+          lrDetailsAuditSummary(updatedLrDetails),
+        );
     });
     return shipmentDto(shipment);
   } finally {
@@ -234,7 +300,10 @@ export async function adminOverride(id, data, req) {
     await session.withTransaction(async () => {
       shipment = await getShipment(id, session);
       const before = shipmentDto(shipment);
+      const existingLrDetails = shipment.lrDetails;
       Object.assign(shipment, data.changes);
+      if (data.changes.lrDetails)
+        shipment.lrDetails = mergeLrDetails({ lrDetails: existingLrDetails }, data.changes.lrDetails);
       await shipment.save({ session });
       await createEvent(
         session,
@@ -245,10 +314,23 @@ export async function adminOverride(id, data, req) {
         `Admin override: ${data.reason}`,
         req.user._id,
       );
-      await audit(session, req, "ADMIN_OVERRIDE", "Shipment", id, before, {
-        changes: data.changes,
+      const { lrDetails, ...changesWithoutLrDetails } = data.changes;
+      const { lrDetails: beforeLrDetails, ...beforeWithoutLrDetails } = before;
+      await audit(session, req, "ADMIN_OVERRIDE", "Shipment", id, beforeWithoutLrDetails, {
+        changes: changesWithoutLrDetails,
+        ...(lrDetails && { lrDetails: lrDetailsAuditSummary(lrDetails) }),
         reason: data.reason,
       });
+      if (lrDetails)
+        await audit(
+          session,
+          req,
+          "LR_DETAILS_UPDATED",
+          "Shipment",
+          id,
+          lrDetailsAuditSummary(beforeLrDetails),
+          lrDetailsAuditSummary(shipment.lrDetails),
+        );
     });
     return shipmentDto(shipment);
   } finally {
@@ -395,7 +477,9 @@ export async function verifyLR(id, data, req) {
     let document;
     await session.withTransaction(async () => {
       const shipment = await getShipment(id, session);
-      if (!isAdmin(req.user)) throw new AuthorizationError("Only administrators can verify LR documents");
+      if (![ROLES.ADMIN, ROLES.MANAGER].includes(req.user.role))
+        throw new AuthorizationError("Only administrators and destination managers can verify LR documents");
+      assertShipmentBranchAccess(req.user, shipment, "destination");
       if (shipment.currentStatus !== SHIPMENT_STATUS.LR_IMAGE_UPLOADED)
         throw new ConflictError("No LR image is awaiting verification", "INVALID_DOCUMENT_WORKFLOW");
       document = await ShipmentDocument.findOne({
@@ -447,12 +531,14 @@ export async function complete(id, req) {
 }
 
 export async function close(id, req) {
-  if (!isAdmin(req.user)) throw new AuthorizationError("Only administrators can close shipments");
+  if (![ROLES.ADMIN, ROLES.MANAGER].includes(req.user.role))
+    throw new AuthorizationError("Only administrators and destination managers can close shipments");
   const session = await mongoose.startSession();
   try {
     let shipment;
     await session.withTransaction(async () => {
       shipment = await getShipment(id, session);
+      assertShipmentBranchAccess(req.user, shipment, "destination");
       const verified = await ShipmentDocument.exists({
         shipmentId: id,
         documentType: "LR_IMAGE",

@@ -61,7 +61,7 @@ export const createApp = () => {
     res.json({ success: true, status: "live", timestamp: new Date().toISOString() }),
   );
   app.get("/api/health/ready", (_req, res) => {
-    const connected = mongoose.connection.readyState === 1;
+    const connected = mongoose.connection.readyState === 1 && !app.locals.draining;
     res.status(connected ? 200 : 503).json({
       success: connected,
       status: connected ? "ready" : "not_ready",

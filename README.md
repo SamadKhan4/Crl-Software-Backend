@@ -1,6 +1,6 @@
 # CRL Transport Shipment & LR API
 
-Production-oriented JavaScript backend for CRL Transport internal shipment operations and public LR tracking. It exposes a stable `/api` REST contract for a React/Vite client. Only `ADMIN` and `EMPLOYEE` users authenticate—there is deliberately no customer account, password, JWT, dashboard, or registration flow.
+Production-oriented JavaScript backend for CRL Transport internal shipment operations and public LR tracking. It exposes a stable `/api` REST contract for a React/Vite client. Only `ADMIN`, `MANAGER`, and `EMPLOYEE` users authenticate—there is deliberately no customer account, password, JWT, dashboard, or registration flow.
 
 ## Stack and architecture
 
@@ -54,7 +54,8 @@ Production startup fails fast when database/JWT/CORS configuration is missing, J
 
 `POST /api/auth/login` returns a short-lived access token and sets a refresh token in an HTTP-only, SameSite cookie. Send the access token as `Authorization: Bearer <token>`. Refresh tokens are SHA-256 hashed in the database, rotated for every refresh, revoked at logout, and their family is revoked if a previously used token is reused.
 
-- `ADMIN`: full access, employee management, all branches, document verification, closure, and explicit overrides.
+- `ADMIN`: full access, manager and employee management, all branches, document verification, closure, and explicit overrides.
+- `MANAGER`: employee management within the assigned branch, branch shipment operations, destination document verification and closure.
 - `EMPLOYEE`: customer access, only their assigned branch in branch views, and shipment operations tied to their origin/destination branch.
 - Customer: no authentication. They use an LR number, customer code, and a short-lived one-time document-upload token.
 
@@ -183,3 +184,31 @@ For Atlas, configure scheduled snapshots and test point-in-time restore. Never d
 - `X-Request-ID` is generated or safely reused, returned to clients, and included in structured logs/audit entries.
 - API errors are standardized and do not return stack traces, database details, token data, or filesystem paths.
 - Closed shipments are protected, tracking events have no deletion API, and all critical workflows use transactions.
+
+## Manager workspace
+
+Admin can provision a manager from **Admin ? Managers ? Add manager**, assign an active branch and set the initial password. Managers use the same login screen and land at `/manager/dashboard`. They manage employees within their branch and can verify LR documents and close destination-branch shipments. Manager accounts and branch configuration remain admin-only. See `API_DOCUMENTATION.md` for the complete permissions matrix and manager CRUD endpoints. Existing accounts need no migration; restart the backend to load the new MANAGER role. No production accounts are created automatically.
+
+## Local MongoDB status-update failure
+
+If a write returns `DATABASE_TRANSACTIONS_UNAVAILABLE` (503), MongoDB is running standalone. Shipment changes must retain transactional event/audit writes. Do not remove transactions to bypass this error.
+
+For the local Windows MongoDB 8.3 service, open PowerShell as Administrator from this backend directory and run:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\src\scripts\enable-local-replica-set.ps1
+```
+
+The helper requires a localhost-only service, backs up `mongod.cfg`, preserves the data directory, enables `rs0`, restarts MongoDB and initializes the single-node replica set. For a different installation, pass `-ConfigPath` and `-ServiceName`. If replication is already configured differently, it stops for inspection. This helper is for local development only; use your managed replica set or Atlas in production. Once MongoDB is primary, retry the failed action. The `.env.example` includes the rs0 connection URI.
+
+## Database model structure and query optimization
+
+`src/models/` contains separate `*.model.js` modules for User, Branch, Customer, Shipment, ShipmentEvent, ShipmentDocument, AuditLog, RefreshToken, UploadSession and Counter. `shared.js` holds common schema settings. `index.js` re-exports the same model names, so imports, collection names, existing data, unique constraints, TTL expiration and references remain compatible. Admin/Manager/Employee remain roles within User to retain one authentication system and globally unique user emails.
+
+Compound indexes cover recent shipments, origin/destination/customer/status shipment lists, employee directories by role/branch, recent/branch/actor activity and active branch choices. Index definitions are registered before models compile. Pagination uses `_id` as a deterministic tie-breaker. Searches treat metacharacters as literal text. Activity reads project only display fields and allowed changed fields; CSV reads use projected lean documents.
+
+- `npm run db:indexes:check`: inspect missing and extra indexes without building or dropping indexes.
+- `npm run db:indexes`: add required indexes sequentially; never drop existing indexes.
+- `npm run db:explain`: read-only execution plans for representative list queries in the configured database.
+
+Index additions need no data migration. Extra indexes listed by the check command are retained intentionally; assess workload before manually removing them. Case-insensitive substring searches and arbitrary secondary sort combinations may still scan; large reports still return all matching rows for API compatibility. Offset pagination becomes more expensive at deep pages. Query-plan results on development data are not production load benchmarks.

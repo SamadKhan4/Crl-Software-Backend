@@ -1,0 +1,40 @@
+import { Router } from "express";
+import * as c from "../controllers/shipments.controller.js";
+import { validate } from "../middlewares/validate.js";
+import * as v from "../validators/schemas.js";
+import { ROLES } from "../constants/workflow.js";
+import { allow } from "../middlewares/auth.js";
+import { uploadLR } from "../middlewares/upload.js";
+import { addResourceMutations } from "./resource-mutations.js";
+
+const router = Router();
+router.post("/shipments", validate(v.shipmentSchema), c.createShipment);
+router.get("/shipments", validate(v.shipmentListSchema, "query"), c.listShipments);
+router.get("/shipments/:id", validate(v.ids, "params"), c.shipmentDetails);
+router.put("/shipments/:id", validate(v.ids, "params"), validate(v.shipmentUpdateSchema), c.updateShipment);
+router.get("/shipments/:id/history", validate(v.ids, "params"), c.shipmentHistory);
+router.get("/shipments/:id/documents/:documentId/download", validate(v.documentIds, "params"), c.downloadDocument);
+router.post("/shipments/:id/status", validate(v.ids, "params"), validate(v.statusSchema), c.updateStatus);
+router.post("/shipments/:id/receive", validate(v.ids, "params"), validate(v.receiveSchema), c.receiveShipment);
+router.post("/shipments/:id/lr-image", validate(v.ids, "params"), uploadLR, c.uploadLRImage);
+router.post(
+  "/shipments/:id/lr-image/verify",
+  allow(ROLES.ADMIN, ROLES.MANAGER),
+  validate(v.ids, "params"),
+  validate(v.verifySchema),
+  c.verifyLRImage,
+);
+router.post("/shipments/:id/lr-upload-token", validate(v.ids, "params"), c.createUploadToken);
+router.post("/shipments/:id/complete", validate(v.ids, "params"), c.completeShipment);
+router.post("/shipments/:id/close", allow(ROLES.ADMIN, ROLES.MANAGER), validate(v.ids, "params"), c.closeShipment);
+router.post(
+  "/shipments/:id/admin-override",
+  allow(ROLES.ADMIN),
+  validate(v.ids, "params"),
+  validate(v.overrideSchema),
+  c.adminOverride,
+);
+
+addResourceMutations(router, "shipments", v.shipmentPatchSchema, c.updateShipment);
+
+export default router;

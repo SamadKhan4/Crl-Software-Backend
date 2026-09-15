@@ -22,6 +22,9 @@ const integer = (name, fallback, min, max) => {
 export const env = Object.freeze({
   nodeEnv,
   port: integer("PORT", 5000, 1, 65535),
+  mongoMaxPoolSize: integer("MONGO_MAX_POOL_SIZE", 30, 1, 500),
+  mongoWaitQueueTimeoutMs: integer("MONGO_WAIT_QUEUE_TIMEOUT_MS", 5000, 100, 60000),
+  shutdownTimeoutMs: integer("SHUTDOWN_TIMEOUT_MS", 30000, 1000, 60000),
   mongoUri: process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/crl_transport",
   corsOrigins: (process.env.CORS_ORIGIN || "http://localhost:5173")
     .split(",")

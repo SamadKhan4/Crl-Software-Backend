@@ -3,7 +3,7 @@ import { ACTIVE } from "../constants/workflow.js";
 import { Customer } from "../models/index.js";
 import { ConflictError, NotFoundError } from "../utils/errors.js";
 import { generateCustomerCode } from "../utils/ids.js";
-import { listQuery, paginated } from "../utils/query.js";
+import { escapeSearch, listQuery, paginated } from "../utils/query.js";
 import { audit } from "./audit.service.js";
 
 const dto = (customer) => ({ ...(customer.toObject?.() ?? customer), id: customer._id });
@@ -40,7 +40,7 @@ export async function listCustomers(query) {
   const filter = query.status ? { status: query.status } : {};
   if (query.search)
     filter.$or = ["customerCode", "name", "companyName", "mobile", "email", "gstNumber"].map((field) => ({
-      [field]: { $regex: query.search, $options: "i" },
+      [field]: { $regex: escapeSearch(query.search), $options: "i" },
     }));
   const [items, total] = await Promise.all([
     Customer.find(filter).sort(options.sort).skip(options.skip).limit(options.limit).lean(),

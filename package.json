@@ -17,7 +17,9 @@
     "test:coverage": "set NODE_ENV=test&& set NODE_OPTIONS=--experimental-vm-modules&& jest --coverage",
     "test:coverage:integration": "set NODE_ENV=test&& set RUN_MONGO_INTEGRATION=true&& set NODE_OPTIONS=--experimental-vm-modules&& jest --coverage --runInBand",
     "seed": "node src/scripts/seed.js",
-    "db:indexes": "node src/scripts/ensure-indexes.js"
+    "db:indexes": "node src/scripts/ensure-indexes.js",
+    "db:indexes:check": "node src/scripts/ensure-indexes.js --check",
+    "db:explain": "node src/scripts/explain-queries.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
