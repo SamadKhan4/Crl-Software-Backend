@@ -146,13 +146,14 @@ describeIntegration("CRL API integration workflow", () => {
         senderName: "Test Sender",
         receiverName: "Test Receiver",
         receiverMobile: "9876543211",
+        lrNumber: "MANUAL-001",
         packageCount: 2,
         weightKg: 10.5,
         lrDetails: fullLrDetails,
       });
     expect(created.status).toBe(201);
     const shipment = created.body.data;
-    expect(shipment.lrNumber).toMatch(/^CRL-TNG-\d{4}-\d{6}$/);
+    expect(shipment.lrNumber).toBe("MANUAL-001");
     expect(shipment.lrDetails).toMatchObject(fullLrDetails);
     const replay = await request(app)
       .post("/api/shipments")
@@ -164,6 +165,7 @@ describeIntegration("CRL API integration workflow", () => {
         senderName: "Test Sender",
         receiverName: "Test Receiver",
         receiverMobile: "9876543211",
+        lrNumber: "MANUAL-001",
         packageCount: 2,
         weightKg: 10.5,
         lrDetails: fullLrDetails,
@@ -239,6 +241,38 @@ describeIntegration("CRL API integration workflow", () => {
     expect(tokenAttempt.body.data.uploadToken).toBeUndefined();
   });
 
+  test("persists manual LR goods, rejects duplicates, replays safely and recalculates edits", async () => {
+    const goods = [
+      { description: "Cartons", quantity: 2, actualWeight: 5, length: 30, breadth: 30, height: 30, dimensionUnit: "CM" },
+      { description: "Machine", quantity: 1, actualWeight: 20, length: 12, breadth: 12, height: 12, dimensionUnit: "IN" },
+    ];
+    const payload = { lrNumber: "  manual/42  ", customerId: customer.id, originBranchId: originBranch.id, destinationBranchId: destinationBranch.id,
+      senderName: "Goods Sender", receiverName: "Goods Receiver", packageCount: 1, weightKg: 1,
+      lrDetails: { goods, fodCharges: 0, codCharges: 75, freightCharges: 1000, gstRate: 18, gstAmount: 1, totalAmount: 1, chargedWeight: 1, remarks: "Keep this" } };
+    const create = (body, key) => request(app).post("/api/shipments").set({ ...auth(), "Idempotency-Key": key }).send(body);
+    const created = await create(payload, "goods-create");
+    expect(created.status).toBe(201);
+    const id = created.body.data.id;
+    expect(created.body.data).toMatchObject({ lrNumber: "MANUAL/42", packageCount: 3, weightKg: 25,
+      lrDetails: { actualWeight: 25, volume: 3, volumetricWeight: 21, chargedWeight: 25, fodCharges: 0, codCharges: 75, gstAmount: 193.5, totalAmount: 1268.5 } });
+    expect((await create(payload, "goods-create")).status).toBe(200);
+    expect((await create({ ...payload, lrNumber: "MANUAL/43" }, "goods-create")).body.errorCode).toBe("IDEMPOTENCY_KEY_CONFLICT");
+    expect((await create(payload, "goods-duplicate")).body.errorCode).toBe("LR_NUMBER_EXISTS");
+    expect((await request(app).get(`/api/shipments/${id}`).set(auth())).body.data.lrDetails.goods).toHaveLength(2);
+    expect((await request(app).get('/api/public/track/MANUAL%2F42')).status).toBe(200);
+    const edited = await request(app).patch(`/api/shipments/${id}`).set(auth()).send({ lrDetails: { goods: [{ ...goods[0], quantity: 4 }] } });
+    expect(edited.status).toBe(200);
+    expect(edited.body.data).toMatchObject({ packageCount: 4, weightKg: 5, lrDetails: { volume: 4, volumetricWeight: 28, chargedWeight: 28, codCharges: 75, remarks: "Keep this" } });
+    const forged = await request(app).patch(`/api/shipments/${id}`).set(auth()).send({ weightKg: 999, lrDetails: { chargedWeight: 1 } });
+    expect(forged.body.data).toMatchObject({ weightKg: 5, lrDetails: { chargedWeight: 28 } });
+    const charges = await request(app).patch(`/api/shipments/${id}`).set(auth()).send({ lrDetails: { freightCharges: 1500, gstAmount: 1, totalAmount: 1 } });
+    expect(charges.status).toBe(200);
+    expect(charges.body.data.lrDetails).toMatchObject({ codCharges: 75, gstRate: 18, gstAmount: 283.5, totalAmount: 1858.5 });
+    const racing = await Promise.all([create({ ...payload, lrNumber: "RACE-42" }, "race-a"), create({ ...payload, lrNumber: "RACE-42" }, "race-b")]);
+    expect(racing.map(result => result.status).sort()).toEqual([201, 409]);
+    expect(await Shipment.countDocuments({ lrNumber: "RACE-42" })).toBe(1);
+  }, 15000);
+
   test("enforces employee and refresh-token restrictions", async () => {
     const employee = await request(app).post("/api/users").set(auth()).send({
       name: "Test Employee",
@@ -300,6 +334,7 @@ describeIntegration("CRL API integration workflow", () => {
       destinationBranchId: destinationBranch.id,
       senderName: "Sender",
       receiverName: "Receiver",
+      lrNumber: "MANUAL-003",
       packageCount: 1,
       weightKg: 2,
     };
@@ -431,6 +466,7 @@ describeIntegration("CRL API integration workflow", () => {
       destinationBranchId: destinationBranch.id,
       senderName: "Manager Sender",
       receiverName: "Manager Receiver",
+      lrNumber: "MANUAL-004",
       packageCount: 1,
       weightKg: 2,
     });
@@ -618,7 +654,7 @@ describeIntegration("CRL API integration workflow", () => {
     expect(csv.status).toBe(200);
     expect(csv.headers["content-type"]).toContain("text/csv");
     expect(csv.text).toContain("LR Number,Customer,Origin,Destination,Status,Packages,Weight Kg,Booked At");
-    expect(csv.text).toContain("CRL-TNG-");
+    expect(csv.text).toContain("MANUAL-001");
   });
 
   test("report pagination keeps totals over the complete filtered result", async () => {
@@ -651,7 +687,7 @@ describeIntegration("CRL API integration workflow", () => {
   });
 
   stressTest(
-    "allocates 100 unique sequential LRs during concurrent creation",
+    "preserves 100 unique manual LRs during concurrent creation",
     async () => {
       const payload = {
         customerId: customer.id,
@@ -659,26 +695,22 @@ describeIntegration("CRL API integration workflow", () => {
         destinationBranchId: destinationBranch._id,
         senderName: "Bulk Sender",
         receiverName: "Bulk Receiver",
+        lrNumber: "MANUAL-005",
         packageCount: 1,
         weightKg: 1,
       };
-      const counterBefore = await Counter.findOne({ key: { $regex: "TNG" } });
-      const firstNumber = (counterBefore?.value ?? 0) + 1;
       const responses = await Promise.all(
         Array.from({ length: 100 }, (_, index) =>
           request(app)
             .post("/api/shipments")
             .set({ ...auth(), "Idempotency-Key": `concurrency-${index}` })
-            .send(payload),
+            .send({ ...payload, lrNumber: `BULK-${index}` }),
         ),
       );
       expect(responses.every((response) => response.status === 201)).toBe(true);
       const numbers = responses.map((response) => response.body.data.lrNumber);
       expect(new Set(numbers).size).toBe(100);
-      expect(numbers.every((number) => /^CRL-TNG-\d{4}-\d{6}$/.test(number))).toBe(true);
-      expect(numbers.map((number) => Number(number.slice(-6))).sort((left, right) => left - right)).toEqual(
-        Array.from({ length: 100 }, (_, index) => index + firstNumber),
-      );
+      expect(numbers).toEqual(Array.from({ length: 100 }, (_, index) => `BULK-${index}`));
     },
     120000,
   );

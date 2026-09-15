@@ -4,8 +4,26 @@ import { base, objectId } from "./shared.js";
 
 const { Schema, model } = mongoose;
 
+const goodsRowSchema = new Schema({
+  packageNumber: { type: String, trim: true, maxlength: 80 },
+  description: { type: String, required: true, trim: true, maxlength: 500 },
+  packageType: { type: String, trim: true, maxlength: 120 },
+  quantity: { type: Number, required: true, min: 1, max: 10000 },
+  actualWeight: { type: Number, required: true, min: 0.01, max: 100000 },
+  length: { type: Number, min: 0, max: 100000 },
+  breadth: { type: Number, min: 0, max: 100000 },
+  height: { type: Number, min: 0, max: 100000 },
+  dimensionUnit: { type: String, required: true, enum: ['CM', 'IN', 'FT'] },
+  declaredValue: { type: Number, min: 0, max: 100000000 },
+  volume: { type: Number, min: 0 },
+  volumetricWeight: { type: Number, min: 0 },
+  chargedWeight: { type: Number, min: 0 },
+}, { _id: false, strict: true });
+
 const lrDetailsSchema = new Schema(
   {
+    goods: { type: [goodsRowSchema], default: undefined },
+    volumetricWeight: { type: Number, min: 0 },
     consignorCode: { type: String, trim: true, maxlength: 80 },
     consignorAddress: { type: String, trim: true, maxlength: 500 },
     consignorAddress2: { type: String, trim: true, maxlength: 500 },
@@ -33,8 +51,8 @@ const lrDetailsSchema = new Schema(
     actualWeight: { type: Number, min: 0.000001 },
     chargedWeight: { type: Number, min: 0.000001 },
     dimensions: { type: String, trim: true, maxlength: 200 },
-    volume: { type: Number, min: 0.000001 },
-    declaredValue: { type: Number, min: 0.000001 },
+    volume: { type: Number, min: 0 },
+    declaredValue: { type: Number, min: 0 },
     shipperSignature: { type: String, trim: true, maxlength: 50000 },
     remarks: { type: String, trim: true, maxlength: 1000 },
     receiverNamePrint: { type: String, trim: true, maxlength: 120 },
@@ -44,22 +62,24 @@ const lrDetailsSchema = new Schema(
     paymentMode: { type: String, enum: ["PAID", "TO_PAY", "CREDIT"] },
     riskType: { type: String, enum: ["CARRIER_RISK", "OWNER_RISK"] },
     insuranceType: { type: String, enum: ["INSURED", "NOT_INSURED"] },
-    freightCharges: { type: Number, min: 0.000001 },
-    fuelCharges: { type: Number, min: 0.000001 },
-    handlingCharges: { type: Number, min: 0.000001 },
-    fodCodCharges: { type: Number, min: 0.000001 },
-    rovCharges: { type: Number, min: 0.000001 },
-    docketCharges: { type: Number, min: 0.000001 },
-    gstRate: { type: Number, min: 0.000001, max: 100 },
-    gstAmount: { type: Number, min: 0.000001 },
-    totalAmount: { type: Number, min: 0.000001 },
+    freightCharges: { type: Number, min: 0 },
+    fuelCharges: { type: Number, min: 0 },
+    handlingCharges: { type: Number, min: 0 },
+    fodCharges: { type: Number, min: 0 },
+    codCharges: { type: Number, min: 0 },
+    fodCodCharges: { type: Number, min: 0 },
+    rovCharges: { type: Number, min: 0 },
+    docketCharges: { type: Number, min: 0 },
+    gstRate: { type: Number, min: 0, max: 100 },
+    gstAmount: { type: Number, min: 0 },
+    totalAmount: { type: Number, min: 0 },
   },
   { _id: false, strict: true },
 );
 
 const shipmentSchema = new Schema(
   {
-    lrNumber: { type: String, required: true, unique: true, uppercase: true, index: true },
+    lrNumber: { type: String, required: true, unique: true, trim: true, maxlength: 50, uppercase: true, index: true },
     idempotencyKey: { type: String, sparse: true, unique: true, index: true },
     customerId: { ...objectId, ref: "Customer", required: true, index: true },
     originBranchId: { ...objectId, ref: "Branch", required: true, index: true },

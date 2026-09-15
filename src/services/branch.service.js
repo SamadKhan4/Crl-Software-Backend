@@ -29,7 +29,7 @@ export async function listBranches(query, user) {
   const filter = user.role === ROLES.ADMIN ? {} : { _id: user.branchId };
   if (query.status) filter.status = query.status;
   if (query.search)
-    filter.$or = ["branchCode", "name", "city"].map((field) => ({
+    filter.$or = ["branchCode", "name", "city", "pincode", "address"].map((field) => ({
       [field]: { $regex: escapeSearch(query.search), $options: "i" },
     }));
   const [items, total] = await Promise.all([

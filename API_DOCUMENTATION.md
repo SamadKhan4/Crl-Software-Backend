@@ -268,7 +268,7 @@ Customer create/update payload:
 
 | Method | Path                            | Access                           | Description                                          |
 | ------ | ------------------------------- | -------------------------------- | ---------------------------------------------------- |
-| `POST` | `/shipments`                    | Origin scoped                    | Creates a shipment and server-generated LR number.   |
+| `POST` | `/shipments`                    | Origin scoped                    | Creates a shipment with a required manual LR number.   |
 | `GET`  | `/shipments`                    | Scoped                           | Lists shipments.                                     |
 | `GET`  | `/shipments/:id`                | Scoped                           | Full shipment details and document metadata.         |
 | `PUT`  | `/shipments/:id`                | Origin scoped                    | Edits a `BOOKED` shipment only.                      |
@@ -283,6 +283,7 @@ Create shipment payload:
 
 ```json
 {
+  "lrNumber": "MANUAL-001",
   "customerId": "66d8f14124b86f067a916602",
   "originBranchId": "66d8f14124b86f067a916601",
   "destinationBranchId": "66d8f14124b86f067a916603",
@@ -326,7 +327,27 @@ Create shipment payload:
 }
 ```
 
-`lrDetails` is an optional nested print-data object. It contains the LR template fields: consignor/consignee address and tax details; booking, invoice and e-way bill data; package, measurement and declared-value data; receiver/signature data; payment/risk/insurance modes; and all charge values. Supplied fields are strictly validated: PIN codes are six digits, GSTIN uses the Indian GSTIN format, mobile fields use the internal mobile format, date fields must be valid dates, numeric values must be positive, and enum values are limited to the documented choices. Unknown fields are rejected with `422 VALIDATION_ERROR`.
+### Manual LR and multiple goods
+
+New bookings require a manually entered, globally unique `lrNumber` (1-50 characters; letters, digits, slash, dot, underscore or hyphen). The server trims and uppercases it. No LR number is generated. Duplicate numbers return `409 LR_NUMBER_EXISTS`; the same idempotency key and identical request replay the original booking. Existing LR numbers remain unchanged. LR numbers cannot be edited after booking.
+
+Send rows in `lrDetails.goods` (1-100). Each row contains `description`, `quantity`, `actualWeight` (total kg for that row), `dimensionUnit` (`CM`, `IN`, `FT`), optional `packageNumber`, `packageType`, `declaredValue`, and optional `length`, `breadth`, `height`. Supply all three dimensions or omit all three. Dimensions describe one package; volume is multiplied by quantity.
+
+- CM: CFT = L * B * H * quantity / 27000.
+- Inches: CFT = L * B * H * quantity / 1728.
+- Feet: CFT = L * B * H * quantity.
+- Volumetric kg = CFT * 7 for every unit.
+- Invoice chargeable kg = max(total actual kg, total volumetric kg), rounded to six decimal places after comparing.
+
+The server recalculates row `volume`, `volumetricWeight`, `chargedWeight` and LR totals on create, edit and admin override. It derives `packageCount` and `weightKg` from rows; supply these existing required top-level fields on create, but client totals are not trusted. `lrDetails.chargedWeight` is the invoice weight; `weightKg` remains actual transport weight. Row charged weights are individual comparisons; invoice weight compares shipment totals, not their sum.
+
+The server calculates `gstAmount` = sum of freight, fuel, handling, FOD, COD, ROV and docket charges * `gstRate` / 100; `totalAmount` = charges sum + GST. Amounts round to two decimal places. Blank charges or GST rate count as zero. Create, PATCH and admin override recalculate these fields after merging details; client-supplied totals are ignored.
+
+`fodCharges` and `codCharges` are separate nonnegative amounts. `fodCodCharges` remains readable for legacy records. A PATCH replaces the supplied goods array and merges other LR fields. Existing records without goods keep their original print data.
+
+Example row: `{ "description": "Cartons", "quantity": 2, "actualWeight": 5, "length": 30, "breadth": 30, "height": 30, "dimensionUnit": "CM" }` produces 2 CFT, 14 volumetric kg and 14 chargeable kg.
+
+`lrDetails` is an optional nested print-data object. It contains the LR template fields: consignor/consignee address and tax details; booking, invoice and e-way bill data; package, measurement and declared-value data; receiver/signature data; payment/risk/insurance modes; and all charge values. Supplied fields are strictly validated: PIN codes are six digits, GSTIN uses the Indian GSTIN format, mobile fields use the internal mobile format, date fields must be valid dates, weights and dimensions must be positive; charges may be zero, and enum values are limited to the documented choices. Unknown fields are rejected with `422 VALIDATION_ERROR`.
 
 `GET /shipments/:id` returns the complete `lrDetails` object so the frontend can regenerate its LR PDF. `GET /shipments` intentionally omits it to keep listing responses light. Legacy shipments created before this addition remain valid and simply return no `lrDetails` field.
 
@@ -350,7 +371,7 @@ Detail response excerpt:
 }
 ```
 
-Use a unique `Idempotency-Key` header when creating a shipment. Retrying the same request with the same key and identical top-level and `lrDetails` data returns the originally created shipment instead of allocating another LR number. A changed LR field with the same key returns `409 IDEMPOTENCY_KEY_CONFLICT`.
+Use a unique `Idempotency-Key` header when creating a shipment. Retrying the same request with the same key and identical top-level and `lrDetails` data returns the originally created shipment without creating another shipment. A changed LR field with the same key returns `409 IDEMPOTENCY_KEY_CONFLICT`.
 
 ```bash
 curl -X POST http://localhost:5000/api/shipments \

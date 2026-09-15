@@ -19,6 +19,7 @@ describe("HTTP validation", () => {
   });
   test("strictly validates supplied print-only LR details", () => {
     const base = {
+      lrNumber: "123",
       customerId: "66d8f14124b86f067a916602",
       originBranchId: "66d8f14124b86f067a916601",
       destinationBranchId: "66d8f14124b86f067a916603",
@@ -45,7 +46,7 @@ describe("HTTP validation", () => {
       { consigneeGstin: "not-a-gstin" },
       { bookingDate: "not-a-date" },
       { receiverMobilePrint: "123" },
-      { freightCharges: 0 },
+      { freightCharges: -1 },
       { paymentMode: "CASH" },
       { unknownPrintField: "not allowed" },
     ])

@@ -93,8 +93,40 @@ export const customerSchema = z
     gstNumber: gstin.optional(),
   })
   .strict();
+const lrAmount = z.coerce.number().finite().min(0).max(100000000);
+const goodsNumber = z.coerce.number().finite().positive().max(100000);
+const goodsDimension = z.preprocess((value) => value === '' ? undefined : value, goodsNumber.optional());
+export const goodsSchema = z.object({
+  packageNumber: z.string().trim().max(80).optional(),
+  description: z.string().trim().min(1, 'Enter goods description').max(500),
+  packageType: z.string().trim().max(120).optional(),
+  quantity: z.coerce.number().int().min(1).max(10000),
+  actualWeight: z.coerce.number().finite().min(0.01).max(100000),
+  length: goodsDimension, breadth: goodsDimension, height: goodsDimension,
+  dimensionUnit: z.enum(['CM', 'IN', 'FT']),
+  declaredValue: z.preprocess((value) => value === '' ? undefined : value, lrAmount.optional()),
+  volume: z.number().finite().min(0).optional(),
+  volumetricWeight: z.number().finite().min(0).optional(),
+  chargedWeight: z.number().finite().min(0).optional(),
+}).strict().superRefine((row, ctx) => {
+  const dimensions = ['length', 'breadth', 'height'];
+  if (dimensions.some(key => row[key] !== undefined)) {
+    for (const key of dimensions) if (row[key] === undefined)
+      ctx.addIssue({ code: 'custom', path: [key], message: 'Enter all three dimensions' });
+  }
+});
+const goodsList = z.array(goodsSchema).min(1).max(100).superRefine((rows, ctx) => {
+  if (rows.reduce((sum, row) => sum + row.quantity, 0) > 10000)
+    ctx.addIssue({ code: 'custom', message: 'Maximum 10,000 packages per LR' });
+  if (rows.reduce((sum, row) => sum + row.actualWeight, 0) > 100000)
+    ctx.addIssue({ code: 'custom', message: 'Maximum total actual weight is 100,000 kg' });
+});
+const manualLrNumber = z.string().trim().toUpperCase().min(1, 'Enter LR number').max(50)
+  .regex(/^[A-Z0-9][A-Z0-9/._-]*$/, 'Use letters, numbers, /, ., _ or -');
 export const lrDetailsSchema = z
   .object({
+    goods: goodsList.optional(),
+    volumetricWeight: z.number().finite().min(0).optional(),
     consignorCode: optionalText(80),
     consignorAddress: optionalText(500),
     consignorAddress2: optionalText(500),
@@ -122,8 +154,8 @@ export const lrDetailsSchema = z
     actualWeight: positiveNumber.optional(),
     chargedWeight: positiveNumber.optional(),
     dimensions: optionalText(200),
-    volume: positiveNumber.optional(),
-    declaredValue: positiveNumber.optional(),
+    volume: z.coerce.number().finite().min(0).optional(),
+    declaredValue: lrAmount.optional(),
     shipperSignature: optionalText(50000),
     remarks: optionalText(1000),
     receiverNamePrint: optionalText(120),
@@ -133,19 +165,22 @@ export const lrDetailsSchema = z
     paymentMode: z.enum(["PAID", "TO_PAY", "CREDIT"]).optional(),
     riskType: z.enum(["CARRIER_RISK", "OWNER_RISK"]).optional(),
     insuranceType: z.enum(["INSURED", "NOT_INSURED"]).optional(),
-    freightCharges: positiveNumber.optional(),
-    fuelCharges: positiveNumber.optional(),
-    handlingCharges: positiveNumber.optional(),
-    fodCodCharges: positiveNumber.optional(),
-    rovCharges: positiveNumber.optional(),
-    docketCharges: positiveNumber.optional(),
-    gstRate: positiveNumber.max(100).optional(),
-    gstAmount: positiveNumber.optional(),
-    totalAmount: positiveNumber.optional(),
+    freightCharges: lrAmount.optional(),
+    fuelCharges: lrAmount.optional(),
+    handlingCharges: lrAmount.optional(),
+    fodCodCharges: lrAmount.optional(),
+    fodCharges: lrAmount.optional(),
+    codCharges: lrAmount.optional(),
+    rovCharges: lrAmount.optional(),
+    docketCharges: lrAmount.optional(),
+    gstRate: lrAmount.max(100).optional(),
+    gstAmount: lrAmount.optional(),
+    totalAmount: lrAmount.optional(),
   })
   .strict();
 export const shipmentSchema = z
   .object({
+    lrNumber: manualLrNumber,
     customerId: objectId,
     originBranchId: objectId,
     destinationBranchId: objectId,
@@ -153,14 +188,14 @@ export const shipmentSchema = z
     receiverName: z.string().trim().min(2).max(120),
     receiverMobile: mobile.optional(),
     packageCount: z.coerce.number().int().min(1).max(10000),
-    weightKg: z.coerce.number().positive().max(100000),
+    weightKg: z.coerce.number().min(0.01).max(100000),
     description: optionalText(500),
     expectedDeliveryDate: z.coerce.date().optional(),
     lrDetails: lrDetailsSchema.optional(),
   })
   .strict();
 export const shipmentUpdateSchema = shipmentSchema
-  .omit({ customerId: true, originBranchId: true, destinationBranchId: true })
+  .omit({ lrNumber: true, customerId: true, originBranchId: true, destinationBranchId: true })
   .partial()
   .strict();
 export const overrideSchema = z
@@ -182,12 +217,12 @@ export const verifySchema = z
     remarks: z.string().trim().min(2).max(500),
   })
   .strict();
-export const publicTrackSchema = z.object({ lrNumber: z.string().trim().min(5).max(50) }).strict();
+export const publicTrackSchema = z.object({ lrNumber: manualLrNumber }).strict();
 export const customerCodeParams = z.object({ customerCode: z.string().trim().toUpperCase().min(6).max(30) }).strict();
 export const publicRequestSchema = z
   .object({
     customerCode: z.string().trim().toUpperCase().min(6).max(30),
-    lrNumber: z.string().trim().toUpperCase().min(5).max(50),
+    lrNumber: manualLrNumber,
   })
   .strict();
 export const tokenSchema = z.object({ token: z.string().regex(/^[a-f\d]{64}$/i, "Invalid upload token") }).strict();

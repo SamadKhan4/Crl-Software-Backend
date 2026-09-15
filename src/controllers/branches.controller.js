@@ -2,6 +2,11 @@ import { Branch } from "../models/branch.model.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { success, successPaginated } from "../utils/response.js";
 import * as branches from "../services/branch.service.js";
+import { searchDestinations } from "../services/destination.service.js";
+
+export const destinationOptions = asyncHandler(async (req, res) =>
+  success(res, 200, "Vidarbha destinations fetched", await searchDestinations(String(req.query.search || "").slice(0, 100))),
+);
 
 export const createBranch = asyncHandler(async (req, res) =>
   success(res, 201, "Branch created successfully", await branches.createBranch(req.body, req)),
@@ -24,6 +29,6 @@ export const branchOptions = asyncHandler(async (_req, res) =>
     res,
     200,
     "Active branch options fetched",
-    await Branch.find({ status: "ACTIVE" }).select("branchCode name city").sort({ name: 1 }).lean(),
+    await Branch.find({ status: "ACTIVE" }).select("branchCode name city pincode address").sort({ name: 1 }).lean(),
   ),
 );

@@ -7,6 +7,7 @@ import { allow } from "../middlewares/auth.js";
 import { addResourceMutations } from "./resource-mutations.js";
 
 const router = Router();
+router.get("/destinations", c.destinationOptions);
 router.post("/branches", allow(ROLES.ADMIN), validate(v.branchSchema), c.createBranch);
 router.get("/branches", validate(v.listSchema, "query"), c.listBranches);
 router.get("/branches/options", c.branchOptions);

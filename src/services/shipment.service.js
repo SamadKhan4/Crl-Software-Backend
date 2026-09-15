@@ -3,7 +3,8 @@ import mongoose from "mongoose";
 import { ACTIVE, DOCUMENT_STATUS, ROLES, SHIPMENT_STATUS, TRANSITIONS } from "../constants/workflow.js";
 import { Branch, Customer, Shipment, ShipmentDocument, ShipmentEvent, UploadSession } from "../models/index.js";
 import { AuthenticationError, AuthorizationError, ConflictError, NotFoundError } from "../utils/errors.js";
-import { generateLRNumber } from "../utils/ids.js";
+import { calculateGoods } from "../utils/goods.js";
+import { calculateCharges } from "../utils/charges.js";
 import { escapeSearch, listQuery, paginated } from "../utils/query.js";
 import { audit } from "./audit.service.js";
 import { storageService } from "./storage.service.js";
@@ -81,6 +82,18 @@ const mergeLrDetails = (shipment, lrDetails) => ({
   ...(shipment.lrDetails?.toObject?.() ?? shipment.lrDetails ?? {}),
   ...lrDetails,
 });
+const applyLrCalculations = (data) => {
+  if (!data.lrDetails) return data;
+  const details = data.lrDetails.toObject?.() ?? data.lrDetails;
+  if (details.goods?.length) {
+    const { packageCount, ...totals } = calculateGoods(details.goods);
+    data.packageCount = packageCount;
+    data.weightKg = totals.actualWeight;
+    Object.assign(details, totals);
+  }
+  data.lrDetails = { ...details, ...calculateCharges(details) };
+  return data;
+};
 const createEvent = async (session, shipment, status, location, branchId, remarks, updatedBy) =>
   ShipmentEvent.create([{ shipmentId: shipment._id, status, location, branchId, remarks, updatedBy }], { session });
 const applyStatus = async (session, shipment, targetStatus, { location, branchId, remarks, updatedBy }) => {
@@ -106,6 +119,7 @@ const activeEntities = async (data, session) => {
 };
 
 export async function createShipment(data, req, idempotencyKey) {
+  data = applyLrCalculations(data);
   if (idempotencyKey) {
     const prior = await Shipment.findOne({ idempotencyKey });
     if (prior) {
@@ -129,7 +143,6 @@ export async function createShipment(data, req, idempotencyKey) {
             {
               ...data,
               idempotencyKey,
-              lrNumber: await generateLRNumber(origin.branchCode, session),
               currentLocation: origin.name,
               createdBy: req.user._id,
             },
@@ -270,6 +283,7 @@ export async function updateShipment(id, data, req) {
       const existingLrDetails = shipment.lrDetails;
       Object.assign(shipment, data);
       if (data.lrDetails) shipment.lrDetails = mergeLrDetails({ lrDetails: existingLrDetails }, data.lrDetails);
+      applyLrCalculations(shipment);
       await shipment.save({ session });
       const { lrDetails, ...beforeWithoutLrDetails } = before;
       const { lrDetails: updatedLrDetails, ...afterWithoutLrDetails } = shipmentDto(shipment);
@@ -304,6 +318,7 @@ export async function adminOverride(id, data, req) {
       Object.assign(shipment, data.changes);
       if (data.changes.lrDetails)
         shipment.lrDetails = mergeLrDetails({ lrDetails: existingLrDetails }, data.changes.lrDetails);
+      applyLrCalculations(shipment);
       await shipment.save({ session });
       await createEvent(
         session,

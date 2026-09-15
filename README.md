@@ -121,7 +121,7 @@ Swagger UI documents endpoint parameters, roles, bodies, and standard error resp
 
 ## Database models and indexes
 
-`Counter` atomically allocates customer, employee, and branch-year LR sequences. `User` has unique email/employee code and a branch assignment. `RefreshToken` belongs to users and refresh-token families. `Branch`, `Customer`, `Shipment`, `ShipmentEvent`, `ShipmentDocument`, `UploadSession`, and `AuditLog` cover the operational workflow.
+`Counter` atomically allocates customer and employee sequences; shipment LR numbers are entered manually and protected by a unique index. `User` has unique email/employee code and a branch assignment. `RefreshToken` belongs to users and refresh-token families. `Branch`, `Customer`, `Shipment`, `ShipmentEvent`, `ShipmentDocument`, `UploadSession`, and `AuditLog` cover the operational workflow.
 
 Unique indexes protect user email/code, customer code, branch code, LR number, idempotency keys, document versions, and pending LR-document conflicts. Targeted indexes cover shipment filters, tracking history, document lookup, customer lookup, and token expiry. Run `npm run db:indexes` during deployment because production disables automatic index creation.
 
@@ -143,7 +143,7 @@ npm run db:indexes
 npm run seed
 ```
 
-`npm test` runs fast unit/request-validation checks. `npm run test:integration` starts an isolated MongoDB replica set and verifies the full shipment lifecycle, idempotency, events, audit logging, and public tracking. `npm run test:stress` additionally sends 100 simultaneous LR creation requests and verifies unique, contiguous sequences. Do not point either at a production database.
+`npm test` runs fast unit/request-validation checks. `npm run test:integration` starts an isolated MongoDB replica set and verifies the full shipment lifecycle, idempotency, events, audit logging, and public tracking. `npm run test:stress` additionally sends 100 simultaneous LR creation requests and verifies unique manually supplied LR numbers. Do not point either at a production database.
 
 ## Deployment
 

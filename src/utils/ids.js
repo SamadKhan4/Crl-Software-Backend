@@ -20,12 +20,3 @@ const padded = (sequence) => String(sequence).padStart(6, "0");
 
 export const generateCustomerCode = async (session) => `CRLCUST${padded(await nextSequence("customer", session))}`;
 export const generateEmployeeCode = async (session) => `CRLEMP${padded(await nextSequence("employee", session))}`;
-export const generateLRNumber = async (branchCode, session, date = new Date()) => {
-  const year = date.getUTCFullYear();
-  const normalizedBranch = branchCode
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, "")
-    .slice(0, 8);
-  const sequence = await nextSequence(`lr:${normalizedBranch}:${year}`, session);
-  return `CRL-${normalizedBranch}-${year}-${padded(sequence)}`;
-};
