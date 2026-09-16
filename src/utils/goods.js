@@ -14,5 +14,6 @@ export function calculateGoods(goods = []) {
     goods: rows.map((row) => ({ ...row, volume: round(row.volume), volumetricWeight: round(row.volumetricWeight), chargedWeight: round(row.chargedWeight) })),
     packageCount: sum('quantity'), actualWeight: round(actualWeight), volume: round(volume),
     volumetricWeight: round(volumetricWeight), chargedWeight: round(Math.max(actualWeight, volumetricWeight)),
+    declaredValue: round(sum('declaredValue')),
   };
 }

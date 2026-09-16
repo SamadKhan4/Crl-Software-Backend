@@ -80,10 +80,11 @@ const run = async () => {
     Array.from({ length: 5 }, (_, index) => {
       const number = index + 1;
       return Customer.findOneAndUpdate(
-        { customerCode: `CRLCUST${String(number).padStart(6, "0")}` },
+        { customerCode: String(number).padStart(5, "0") },
         {
           $set: {
             name: `Sample Contact ${number}`,
+            customerType: "TO_PAY_PAID",
             companyName: `Sample Company ${number}`,
             mobile: `90000000${String(number).padStart(2, "0")}`,
             email: `customer${number}@example.test`,

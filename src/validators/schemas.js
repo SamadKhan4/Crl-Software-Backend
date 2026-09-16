@@ -17,6 +17,18 @@ const gstin = z
   .toUpperCase()
   .regex(/^\d{2}[A-Z]{5}\d{4}[A-Z]\dZ[A-Z\d]$/, "Invalid GSTIN");
 const positiveNumber = z.coerce.number().positive().max(1000000000);
+const customerCharge = z.coerce.number().finite().min(0).max(100000000);
+const creditChargesSchema = z.object({
+  freightBasis: z.enum(["PER_KG", "PER_BOX"]),
+  freightRate: customerCharge,
+  fuelRatePercent: customerCharge.max(100),
+  handlingCharges: customerCharge,
+  fodCharges: customerCharge,
+  codCharges: customerCharge,
+  rovRatePercent: customerCharge.max(100),
+  docketCharges: customerCharge,
+  gstRate: customerCharge.max(100),
+}).strict();
 const strictEmpty = z.object({}).strict();
 
 export const ids = z.object({ id: objectId }).strict();
@@ -79,8 +91,9 @@ export const branchSchema = z
     email: z.string().email().optional(),
   })
   .strict();
-export const customerSchema = z
-  .object({
+const customerBaseSchema = z.object({
+    customerType: z.enum(["CREDIT", "TO_PAY_PAID"]),
+    creditCharges: creditChargesSchema.optional(),
     name: z.string().trim().min(2).max(120),
     companyName: optionalText(150),
     mobile,
@@ -91,8 +104,12 @@ export const customerSchema = z
     state: optionalText(80),
     pincode: pincode.optional(),
     gstNumber: gstin.optional(),
-  })
-  .strict();
+  }).strict();
+export const customerSchema = customerBaseSchema
+  .superRefine((data, ctx) => {
+    if (data.customerType === "CREDIT" && !data.creditCharges)
+      ctx.addIssue({ code: "custom", path: ["creditCharges"], message: "Enter credit customer charges" });
+  });
 const lrAmount = z.coerce.number().finite().min(0).max(100000000);
 const goodsNumber = z.coerce.number().finite().positive().max(100000);
 const goodsDimension = z.preprocess((value) => value === '' ? undefined : value, goodsNumber.optional());
@@ -218,10 +235,10 @@ export const verifySchema = z
   })
   .strict();
 export const publicTrackSchema = z.object({ lrNumber: manualLrNumber }).strict();
-export const customerCodeParams = z.object({ customerCode: z.string().trim().toUpperCase().min(6).max(30) }).strict();
+export const customerCodeParams = z.object({ customerCode: z.string().trim().regex(/^\d{5}$/, "Customer code must be 5 digits") }).strict();
 export const publicRequestSchema = z
   .object({
-    customerCode: z.string().trim().toUpperCase().min(6).max(30),
+    customerCode: z.string().trim().regex(/^\d{5}$/, "Customer code must be 5 digits"),
     lrNumber: manualLrNumber,
   })
   .strict();
@@ -245,7 +262,9 @@ const nonEmptyUpdate = (schema) =>
     .strict()
     .refine((data) => Object.keys(data).length > 0, "Provide at least one field to update");
 export const branchUpdateSchema = nonEmptyUpdate(branchSchema);
-export const customerUpdateSchema = nonEmptyUpdate(customerSchema);
+export const customerUpdateSchema = customerBaseSchema.partial().strict()
+  .refine((data) => Object.keys(data).length > 0, "Provide at least one field to update")
+  .refine((data) => data.customerType !== "CREDIT" || data.creditCharges, { path: ["creditCharges"], message: "Enter credit customer charges" });
 export const employeePatchSchema = nonEmptyUpdate(userSchema.omit({ password: true }));
 export const shipmentPatchSchema = nonEmptyUpdate(
   shipmentSchema.omit({ customerId: true, originBranchId: true, destinationBranchId: true }),

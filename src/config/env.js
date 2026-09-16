@@ -18,6 +18,7 @@ const integer = (name, fallback, min, max) => {
     throw new Error(`${name} must be an integer between ${min} and ${max}`);
   return value;
 };
+const refreshDays = integer("REFRESH_TOKEN_DAYS", 7, 1, 30);
 
 export const env = Object.freeze({
   nodeEnv,
@@ -33,8 +34,8 @@ export const env = Object.freeze({
   accessSecret: process.env.JWT_ACCESS_SECRET || "development-access-secret-must-be-replaced",
   refreshSecret: process.env.JWT_REFRESH_SECRET || "development-refresh-secret-must-be-replaced",
   accessExpiresIn: process.env.ACCESS_TOKEN_EXPIRES_IN || "15m",
-  refreshExpiresIn: process.env.REFRESH_TOKEN_EXPIRES_IN || "7d",
-  refreshDays: integer("REFRESH_TOKEN_DAYS", 7, 1, 30),
+  refreshExpiresIn: `${refreshDays}d`,
+  refreshDays,
   uploadTokenMinutes: integer("UPLOAD_TOKEN_MINUTES", 20, 5, 60),
   uploadDir: path.resolve(process.env.UPLOAD_DIR || "uploads"),
   maxFileSize: integer("MAX_FILE_SIZE", 10485760, 1024, 52428800),

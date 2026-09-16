@@ -18,5 +18,9 @@ const nextSequence = async (key, session) => {
 
 const padded = (sequence) => String(sequence).padStart(6, "0");
 
-export const generateCustomerCode = async (session) => `CRLCUST${padded(await nextSequence("customer", session))}`;
+export const generateCustomerCode = async (session) => {
+  const sequence = await nextSequence("customer", session);
+  if (sequence > 99999) throw new Error("Customer code limit reached");
+  return String(sequence).padStart(5, "0");
+};
 export const generateEmployeeCode = async (session) => `CRLEMP${padded(await nextSequence("employee", session))}`;

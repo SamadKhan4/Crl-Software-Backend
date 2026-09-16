@@ -312,8 +312,21 @@ export const swaggerSpec = swaggerJsdoc({
         },
         Customer: {
           type: "object",
-          required: ["name", "mobile"],
+          required: ["customerType", "name", "mobile"],
           properties: {
+            customerCode: { type: "string", pattern: "^\\d{5}$", readOnly: true },
+            customerType: { type: "string", enum: ["CREDIT", "TO_PAY_PAID"] },
+            creditCharges: {
+              type: "object",
+              properties: {
+                freightBasis: { type: "string", enum: ["PER_KG", "PER_BOX"] },
+                ...Object.fromEntries(
+                  ["freightRate", "fuelRatePercent", "handlingCharges", "fodCharges", "codCharges", "rovRatePercent", "docketCharges", "gstRate"]
+                    .map((key) => [key, { type: "number", minimum: 0 }]),
+                ),
+              },
+              required: ["freightBasis", "freightRate", "fuelRatePercent", "rovRatePercent"],
+            },
             name: { type: "string" },
             companyName: { type: "string" },
             mobile: { type: "string" },
