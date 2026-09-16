@@ -1,5 +1,8 @@
 import { asyncHandler } from "../utils/asyncHandler.js";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import { success, successPaginated } from "../utils/response.js";
+import { AppError } from "../utils/errors.js";
 import { env } from "../config/env.js";
 import * as shipments from "../services/shipment.service.js";
 
@@ -23,10 +26,16 @@ export const shipmentHistory = asyncHandler(async (req, res) =>
 );
 export const downloadDocument = asyncHandler(async (req, res) => {
   const document = await shipments.openDocument(req.params.id, req.params.documentId, req.user);
-  if (document.url) return res.redirect(302, document.url);
+  let stream = document.stream;
+  if (document.url) {
+    const response = await fetch(document.url);
+    if (!response.ok || !response.body)
+      throw new AppError("Cloud document is unavailable", 503, "STORAGE_UNAVAILABLE");
+    stream = Readable.fromWeb(response.body);
+  }
   res.type(document.mimeType);
   res.attachment(document.originalFileName);
-  document.stream.pipe(res);
+  await pipeline(stream, res);
 });
 export const updateShipment = asyncHandler(async (req, res) =>
   success(res, 200, "Shipment updated successfully", await shipments.updateShipment(req.params.id, req.body, req)),

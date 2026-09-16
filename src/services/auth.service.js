@@ -75,7 +75,7 @@ export async function changePassword(userId, currentPassword, newPassword) {
   const user = await User.findById(userId).select("+passwordHash");
   if (!user) throw new NotFoundError("User not found", "USER_NOT_FOUND");
   if (!(await bcrypt.compare(currentPassword, user.passwordHash)))
-    throw new BusinessRuleError("Current password is incorrect", "INVALID_PASSWORD", 401);
+    throw new BusinessRuleError("Current password is incorrect", "INVALID_PASSWORD");
   user.passwordHash = await bcrypt.hash(newPassword, 12);
   await user.save();
   await RefreshToken.updateMany({ userId, revokedAt: null }, { revokedAt: new Date() });
