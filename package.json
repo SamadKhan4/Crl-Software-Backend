@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "nodemon src/server.js",
+    "dev": "set NODE_ENV=development&& nodemon src/server.js",
     "build": "node --check src/server.js",
     "start": "node src/server.js",
     "lint": "eslint .",
@@ -16,7 +16,7 @@
     "test:watch": "set NODE_ENV=test&& set NODE_OPTIONS=--experimental-vm-modules&& jest --watch",
     "test:coverage": "set NODE_ENV=test&& set NODE_OPTIONS=--experimental-vm-modules&& jest --coverage",
     "test:coverage:integration": "set NODE_ENV=test&& set RUN_MONGO_INTEGRATION=true&& set NODE_OPTIONS=--experimental-vm-modules&& jest --coverage --runInBand",
-    "seed": "node src/scripts/seed.js",
+    "seed": "set NODE_ENV=development&& node src/scripts/seed.js",
     "db:indexes": "node src/scripts/ensure-indexes.js",
     "db:indexes:check": "node src/scripts/ensure-indexes.js --check",
     "db:explain": "node src/scripts/explain-queries.js"

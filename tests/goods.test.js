@@ -1,5 +1,6 @@
 import { calculateGoods } from '../src/utils/goods.js';
-import { goodsSchema, shipmentSchema, publicTrackSchema } from '../src/validators/schemas.js';
+import { calculateCharges } from '../src/utils/charges.js';
+import { customerSchema, goodsSchema, shipmentSchema, publicTrackSchema } from '../src/validators/schemas.js';
 import { Shipment } from '../src/models/shipment.model.js';
 
 const row = { description: 'Cartons', quantity: 2, actualWeight: 5, length: 30, breadth: 30, height: 30, dimensionUnit: 'CM' };
@@ -21,4 +22,16 @@ test('validates manual LR numbers and complete dimensions', () => {
   for (const patch of [{ height: undefined }, { length: -1 }, { quantity: 0 }, { dimensionUnit: 'M' }]) expect(goodsSchema.safeParse({ ...row, ...patch }).success).toBe(false);
   expect(shipmentSchema.safeParse({ ...base, lrDetails: { goods: [], fodCharges: 0, codCharges: 75 } }).success).toBe(false);
   expect(shipmentSchema.safeParse({ ...base, lrDetails: { goods: [row], fodCharges: 0, codCharges: 75 } }).success).toBe(true);
+});
+test('calculates charges from rates saved on each LR', () => {
+  expect(calculateCharges({ freightBasis: 'PER_KG', freightRate: 20, chargedWeight: 10 })).toMatchObject({ freightCharges: 200, totalAmount: 200 });
+  expect(calculateCharges({ freightBasis: 'PER_BOX', freightRate: 100, packageCount: 4 })).toMatchObject({ freightCharges: 400, totalAmount: 400 });
+  expect(calculateCharges({ freightBasis: 'FIXED', freightRate: 1000, fuelRatePercent: 10, handlingCharges: 50, declaredValue: 5000, rovRatePercent: 1, gstRate: 18 })).toEqual({
+    freightCharges: 1000, fuelCharges: 100, rovCharges: 50, gstAmount: 216, totalAmount: 1416,
+  });
+});
+test('keeps customer type without accepting customer-level commercial rates', () => {
+  const customer = { customerType: 'CREDIT', name: 'Credit Customer', mobile: '+919876543210' };
+  expect(customerSchema.safeParse(customer).success).toBe(true);
+  expect(customerSchema.safeParse({ ...customer, creditCharges: { freightRate: 10 } }).success).toBe(false);
 });

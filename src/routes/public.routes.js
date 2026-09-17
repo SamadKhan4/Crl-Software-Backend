@@ -4,6 +4,7 @@ import { validate } from "../middlewares/validate.js";
 import * as v from "../validators/schemas.js";
 import { uploadLR } from "../middlewares/upload.js";
 import { publicLimiter, publicUploadLimiter } from "./limits.js";
+import { createPublicQuotation } from "../controllers/tms.controller.js";
 
 const router = Router();
 router.get("/public/track/:lrNumber", publicLimiter, validate(v.publicTrackSchema, "params"), c.publicTrack);
@@ -25,5 +26,6 @@ router.post(
   uploadLR,
   c.publicUploadLR,
 );
+router.post("/public/quotations", publicLimiter, validate(v.publicQuotationSchema), createPublicQuotation);
 
 export default router;

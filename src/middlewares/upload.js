@@ -2,19 +2,20 @@ import multer from "multer";
 import { env } from "../config/env.js";
 import { AppError } from "../utils/errors.js";
 const allowed = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]);
-const multerUpload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: env.maxFileSize, files: 1 },
-  fileFilter: (_req, file, callback) =>
-    callback(
-      allowed.has(file.mimetype)
-        ? null
-        : new AppError("Only JPG, PNG, WEBP, and PDF files are allowed", 422, "INVALID_FILE_TYPE"),
-      allowed.has(file.mimetype),
-    ),
-}).single("lrImage");
-export const uploadLR = (req, res, next) =>
-  multerUpload(req, res, (error) => {
+const uploader = (field) =>
+  multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: env.maxFileSize, files: 1 },
+    fileFilter: (_req, file, callback) =>
+      callback(
+        allowed.has(file.mimetype)
+          ? null
+          : new AppError("Only JPG, PNG, WEBP, and PDF files are allowed", 422, "INVALID_FILE_TYPE"),
+        allowed.has(file.mimetype),
+      ),
+  }).single(field);
+const handleUpload = (field) => (req, res, next) =>
+  uploader(field)(req, res, (error) => {
     if (!error) return next();
     if (error instanceof multer.MulterError)
       return next(
@@ -26,3 +27,5 @@ export const uploadLR = (req, res, next) =>
       );
     return next(error);
   });
+export const uploadLR = handleUpload("lrImage");
+export const uploadPOD = handleUpload("pod");

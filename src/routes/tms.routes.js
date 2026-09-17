@@ -1,0 +1,79 @@
+import { Router } from "express";
+import { allow } from "../middlewares/auth.js";
+import { uploadPOD } from "../middlewares/upload.js";
+import { validate } from "../middlewares/validate.js";
+import { ROLES } from "../constants/workflow.js";
+import * as c from "../controllers/tms.controller.js";
+import * as v from "../validators/schemas.js";
+
+const router = Router();
+const adminManager = allow(ROLES.ADMIN, ROLES.MANAGER);
+
+router.post("/vendors", allow(ROLES.ADMIN), validate(v.vendorSchema), c.createVendor);
+router.get("/vendors", validate(v.businessListSchema, "query"), c.listVendors);
+router.get("/vendors/:id", validate(v.ids, "params"), c.getVendor);
+router.put("/vendors/:id", allow(ROLES.ADMIN), validate(v.ids, "params"), validate(v.vendorSchema), c.updateVendor);
+router.patch(
+  "/vendors/:id",
+  allow(ROLES.ADMIN),
+  validate(v.ids, "params"),
+  validate(v.vendorUpdateSchema),
+  c.updateVendor,
+);
+router.patch(
+  "/vendors/:id/status",
+  allow(ROLES.ADMIN),
+  validate(v.ids, "params"),
+  validate(v.activeStatusSchema),
+  c.vendorStatus,
+);
+
+router.post("/manifests", validate(v.manifestSchema), c.createManifest);
+router.get("/manifests", validate(v.businessListSchema, "query"), c.listManifests);
+router.get("/manifests/:id", validate(v.ids, "params"), c.getManifest);
+router.patch("/manifests/:id/status", validate(v.ids, "params"), validate(v.manifestStatusSchema), c.manifestStatus);
+
+router.post("/trips", validate(v.tripSchema), c.createTrip);
+router.get("/trips", validate(v.businessListSchema, "query"), c.listTrips);
+router.get("/trips/:id", validate(v.ids, "params"), c.getTrip);
+router.patch("/trips/:id/status", validate(v.ids, "params"), validate(v.tripStatusSchema), c.tripStatus);
+
+router.post("/drs", validate(v.drsSchema), c.createDrs);
+router.get("/drs", validate(v.businessListSchema, "query"), c.listDrs);
+router.get("/drs/:id", validate(v.ids, "params"), c.getDrs);
+router.patch("/drs/:id/vehicle", validate(v.ids, "params"), validate(v.drsVehicleSchema), c.updateDrsVehicle);
+router.post("/drs/:id/pod/:shipmentId", validate(v.drsPodParams, "params"), uploadPOD, c.uploadDrsPod);
+router.post("/drs/:id/close", validate(v.ids, "params"), c.closeDrs);
+
+router.post("/invoices", adminManager, validate(v.invoiceSchema), c.createInvoice);
+router.get("/invoices", adminManager, validate(v.businessListSchema, "query"), c.listInvoices);
+router.get("/invoices/:id", adminManager, validate(v.ids, "params"), c.getInvoice);
+router.patch(
+  "/invoices/:id/status",
+  adminManager,
+  validate(v.ids, "params"),
+  validate(v.invoiceStatusSchema),
+  c.invoiceStatus,
+);
+router.get("/receivables/summary", adminManager, validate(v.businessListSchema, "query"), c.receivables);
+
+router.post("/money-receipts", adminManager, validate(v.moneyReceiptSchema), c.createMoneyReceipt);
+router.get("/money-receipts", adminManager, validate(v.businessListSchema, "query"), c.listMoneyReceipts);
+router.get("/money-receipts/:id", adminManager, validate(v.ids, "params"), c.getMoneyReceipt);
+
+router.post("/quotations", adminManager, validate(v.quotationSchema), c.createQuotation);
+router.get("/quotations", adminManager, validate(v.businessListSchema, "query"), c.listQuotations);
+router.get("/quotations/:id", adminManager, validate(v.ids, "params"), c.getQuotation);
+router.patch(
+  "/quotations/:id/status",
+  adminManager,
+  validate(v.ids, "params"),
+  validate(v.quotationStatusSchema),
+  c.quotationStatus,
+);
+
+router.post("/stationery", adminManager, validate(v.stationerySchema), c.createStationery);
+router.get("/stationery", adminManager, validate(v.businessListSchema, "query"), c.listStationery);
+router.get("/stationery/stock", adminManager, validate(v.businessListSchema, "query"), c.stationeryStock);
+
+export default router;

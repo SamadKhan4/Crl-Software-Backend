@@ -1,6 +1,9 @@
-import "dotenv/config";
+import dotenv from "dotenv";
 import path from "node:path";
 
+const requestedEnv = process.env.NODE_ENV;
+if (requestedEnv && requestedEnv !== "production") dotenv.config({ path: `.env.${requestedEnv}` });
+else dotenv.config();
 const nodeEnv = process.env.NODE_ENV || "development";
 const requiredInProduction = ["MONGODB_URI", "JWT_ACCESS_SECRET", "JWT_REFRESH_SECRET", "CORS_ORIGIN"];
 if (nodeEnv === "production") {

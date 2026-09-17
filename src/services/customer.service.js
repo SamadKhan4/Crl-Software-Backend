@@ -12,8 +12,6 @@ const find = async (id) => {
   if (!customer) throw new NotFoundError("Customer not found", "CUSTOMER_NOT_FOUND");
   return customer;
 };
-const normalized = (data) => data.customerType === "TO_PAY_PAID" ? { ...data, creditCharges: undefined } : data;
-
 export async function createCustomer(data, req) {
   const session = await mongoose.startSession();
   try {
@@ -21,7 +19,7 @@ export async function createCustomer(data, req) {
     await session.withTransaction(async () => {
       customer = (
         await Customer.create(
-          [{ ...normalized(data), customerCode: await generateCustomerCode(session), createdBy: req.user._id }],
+          [{ ...data, customerCode: await generateCustomerCode(session), createdBy: req.user._id }],
           { session },
         )
       )[0];
@@ -59,8 +57,7 @@ export async function getCustomerByCode(customerCode) {
 export async function updateCustomer(id, data, req) {
   const customer = await find(id);
   const before = dto(customer);
-  Object.assign(customer, normalized(data));
-  if (data.customerType === "TO_PAY_PAID") customer.creditCharges = undefined;
+  Object.assign(customer, data);
   await customer.save();
   await audit(null, req, "CUSTOMER_UPDATED", "Customer", id, before, dto(customer));
   return dto(customer);

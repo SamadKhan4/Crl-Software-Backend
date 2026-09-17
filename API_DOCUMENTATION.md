@@ -317,12 +317,12 @@ Create shipment payload:
     "paymentMode": "TO_PAY",
     "riskType": "CARRIER_RISK",
     "insuranceType": "INSURED",
-    "freightCharges": 1500,
-    "fuelCharges": 150,
+    "freightBasis": "PER_KG",
+    "freightRate": 12,
+    "fuelRatePercent": 10,
     "handlingCharges": 50,
-    "gstRate": 18,
-    "gstAmount": 306,
-    "totalAmount": 2006
+    "rovRatePercent": 0,
+    "gstRate": 18
   }
 }
 ```
@@ -341,7 +341,9 @@ Send rows in `lrDetails.goods` (1-100). Each row contains `description`, `quanti
 
 The server recalculates row `volume`, `volumetricWeight`, `chargedWeight` and LR totals on create, edit and admin override. It derives `packageCount` and `weightKg` from rows; supply these existing required top-level fields on create, but client totals are not trusted. `lrDetails.chargedWeight` is the invoice weight; `weightKg` remains actual transport weight. Row charged weights are individual comparisons; invoice weight compares shipment totals, not their sum.
 
-The server calculates `gstAmount` = sum of freight, fuel, handling, FOD, COD, ROV and docket charges * `gstRate` / 100; `totalAmount` = charges sum + GST. Amounts round to two decimal places. Blank charges or GST rate count as zero. Create, PATCH and admin override recalculate these fields after merging details; client-supplied totals are ignored.
+Customer Master stores the customer type but does not store commercial rates. Define pricing for each LR in `lrDetails`: `freightBasis` (`PER_KG`, `PER_BOX`, or `FIXED`), `freightRate`, `fuelRatePercent`, `rovRatePercent`, direct handling/FOD/COD/docket charges, and `gstRate`. Credit customers are forced to `CREDIT` payment mode; non-credit customers cannot use it.
+
+The server calculates freight from the selected basis, fuel as a percentage of freight, ROV as a percentage of declared value, and GST on the sum of freight, fuel, handling, FOD, COD, ROV and docket charges. `totalAmount` is charges plus GST. Amounts round to two decimal places. Blank charges or rates count as zero. Create, PATCH and admin override recalculate computed amounts after merging details; client-supplied totals are ignored.
 
 `fodCharges` and `codCharges` are separate nonnegative amounts. `fodCodCharges` remains readable for legacy records. A PATCH replaces the supplied goods array and merges other LR fields. Existing records without goods keep their original print data.
 
@@ -563,3 +565,59 @@ Tracked operations include record creation/update/status changes/deletion, passw
 ## Bounded report responses
 
 `GET /api/reports/shipments` now uses server-side pagination: `page` defaults to 1, `limit` defaults to 20 and is capped at 100. `data` remains an array but contains only the requested page. `pagination` supplies page/limit/total/pages. `summary: { total, statuses }` counts the complete authorized filtered result, not only the current page. Frontend reports consume these fields. CSV export remains a full filtered stream with backpressure and disconnect cleanup; page/limit do not restrict the export.
+
+## Transport ERP / TMS modules
+
+These modules extend the LR workflow and use the same bearer authentication, response envelope, pagination, request ID, branch scope, audit log and validation rules.
+
+### Vendor master
+
+| Method | Path | Access | Purpose |
+| --- | --- | --- | --- |
+| `POST` | `/vendors` | Admin | Create vendor code, commercial structure and vehicle mappings. |
+| `GET` | `/vendors` | Internal | Search vendors and mapped vehicle numbers. |
+| `GET` | `/vendors/:id` | Internal | Vendor commercial and vehicle detail. |
+| `PUT/PATCH` | `/vendors/:id` | Admin | Replace/partially update vendor data. |
+| `PATCH` | `/vendors/:id/status` | Admin | Activate or deactivate a vendor. |
+
+Vendor types are `TRANSPORTER`, `CO_LOADER`, `VEHICLE_OWNER`, and `LAST_MILE`. Commercial rate bases are `PER_KG`, `PER_BOX`, `PER_TRIP`, and `FIXED`.
+
+### Manifest and co-loader status
+
+`POST/GET /manifests`, `GET /manifests/:id`, and `PATCH /manifests/:id/status` create branch-scoped manifests and update co-loader movement. Create requires `vendorId`, `destination`, and unique `shipmentIds`; Admin also supplies `branchId`. Only active co-loaders/transporters and eligible origin-branch LRs are accepted. Status values are `BOOKED`, `PICKED_UP`, `IN_TRANSIT`, `AT_HUB`, `OUT_FOR_DELIVERY`, `DELIVERED`, and `EXCEPTION`. `IN_TRANSIT` dispatches booked LRs through shipment history; `DELIVERED` closes the manifest.
+
+### Trips
+
+`POST/GET /trips`, `GET /trips/:id`, and `PATCH /trips/:id/status` manage vehicle, driver, route, dates, freight/advance and assigned LRs. Transitions are `PLANNED -> DISPATCHED -> ARRIVED -> CLOSED`, with `CANCELLED` allowed from `PLANNED`. Dispatch moves booked LRs to `IN_TRANSIT` and writes tracking events.
+
+### Delivery run sheet and POD
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `POST/GET` | `/drs` | Create/list DRS records for eligible destination-branch LRs. |
+| `GET` | `/drs/:id` | DRS, assigned LRs, Part B rows and POD checklist. |
+| `PATCH` | `/drs/:id/vehicle` | Correct vehicle number and e-way bill Part B rows. |
+| `POST` | `/drs/:id/pod/:shipmentId` | Upload POD using multipart field `pod`. |
+| `POST` | `/drs/:id/close` | Close only after every assigned LR has POD. |
+
+POD accepts signature-checked JPG/JPEG/PNG/WEBP/PDF files up to 10 MB. Files are versioned shipment documents of type `POD`; raw contents are never written to audit logs.
+
+### Credit billing, receipts and receivables
+
+`POST/GET /invoices`, `GET /invoices/:id`, and `PATCH /invoices/:id/status` are Admin/Manager endpoints. Invoices accept only completed/closed, unbilled LRs for one active credit customer. The server derives subtotal from saved LR charges and recalculates GST, total and balance.
+
+`POST/GET /money-receipts`, `GET /money-receipts/:id`, and `GET /receivables/summary` record collections and report billed, received, outstanding and overdue totals. Allocations must equal the receipt amount, cannot exceed invoice balances and atomically update invoices to `PART_PAID` or `PAID`. Non-cash receipts require a transaction reference.
+
+### Quotations
+
+`POST /public/quotations` is public and rate-limited. It accepts contact/mobile, optional company/email, origin, destination, goods, package count and weight. It returns only a quotation reference and `REQUESTED`; public callers cannot set prices.
+
+Internal Admin/Manager endpoints are `POST/GET /quotations`, `GET /quotations/:id`, and `PATCH /quotations/:id/status`. Internal updates set freight, GST, validity, notes and status; the server recalculates the total.
+
+### Stationery
+
+`POST/GET /stationery` records `RECEIVE` and `ISSUE` for `LR_BOOK`, `POD_BOOK`, `MONEY_RECEIPT_BOOK`, `LABEL`, or `OTHER`. Entries can carry serial ranges and a `VENDOR`, `FE`, or `BRANCH` recipient. `GET /stationery/stock` returns received, issued and available quantities. Over-issuing returns `409 INSUFFICIENT_STOCK`.
+
+### External integration boundary
+
+GST/e-way bill submission and WhatsApp/SMS delivery require production credentials, consent templates and provider compliance. The TMS stores validated e-way bill/Part B and notification-ready operational data, but does not fabricate provider success. Adapters should be enabled only after CRL supplies approved credentials and test access.

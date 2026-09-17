@@ -9,3 +9,6 @@ export { ShipmentEvent } from "./shipment-event.model.js";
 export { ShipmentDocument } from "./shipment-document.model.js";
 export { UploadSession } from "./upload-session.model.js";
 export { AuditLog } from "./audit-log.model.js";
+export { Vendor } from "./vendor.model.js";
+export { Manifest, Trip, DeliveryRunSheet } from "./operations.model.js";
+export { Invoice, MoneyReceipt, Quotation, StationeryTransaction } from "./commercial.model.js";

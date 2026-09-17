@@ -316,17 +316,6 @@ export const swaggerSpec = swaggerJsdoc({
           properties: {
             customerCode: { type: "string", pattern: "^\\d{5}$", readOnly: true },
             customerType: { type: "string", enum: ["CREDIT", "TO_PAY_PAID"] },
-            creditCharges: {
-              type: "object",
-              properties: {
-                freightBasis: { type: "string", enum: ["PER_KG", "PER_BOX"] },
-                ...Object.fromEntries(
-                  ["freightRate", "fuelRatePercent", "handlingCharges", "fodCharges", "codCharges", "rovRatePercent", "docketCharges", "gstRate"]
-                    .map((key) => [key, { type: "number", minimum: 0 }]),
-                ),
-              },
-              required: ["freightBasis", "freightRate", "fuelRatePercent", "rovRatePercent"],
-            },
             name: { type: "string" },
             companyName: { type: "string" },
             mobile: { type: "string" },
@@ -445,15 +434,19 @@ export const swaggerSpec = swaggerJsdoc({
             paymentMode: { type: "string", enum: ["PAID", "TO_PAY", "CREDIT"] },
             riskType: { type: "string", enum: ["CARRIER_RISK", "OWNER_RISK"] },
             insuranceType: { type: "string", enum: ["INSURED", "NOT_INSURED"] },
-            freightCharges: { type: "number", minimum: 0 },
-            fuelCharges: { type: "number", minimum: 0 },
+            freightBasis: { type: "string", enum: ["PER_KG", "PER_BOX", "FIXED"] },
+            freightRate: { type: "number", minimum: 0 },
+            fuelRatePercent: { type: "number", minimum: 0, maximum: 100 },
+            rovRatePercent: { type: "number", minimum: 0, maximum: 100 },
+            freightCharges: { type: "number", minimum: 0, readOnly: true },
+            fuelCharges: { type: "number", minimum: 0, readOnly: true },
             handlingCharges: { type: "number", minimum: 0 },
             fodCodCharges: { type: "number", minimum: 0 },
-            rovCharges: { type: "number", minimum: 0 },
+            rovCharges: { type: "number", minimum: 0, readOnly: true },
             docketCharges: { type: "number", minimum: 0 },
             gstRate: { type: "number", minimum: 0, maximum: 100 },
-            gstAmount: { type: "number", minimum: 0 },
-            totalAmount: { type: "number", minimum: 0 },
+            gstAmount: { type: "number", minimum: 0, readOnly: true },
+            totalAmount: { type: "number", minimum: 0, readOnly: true },
           },
         },
         ShipmentStatus: {

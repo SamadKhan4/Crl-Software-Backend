@@ -4,26 +4,10 @@ import { base, objectId } from "./shared.js";
 
 const { Schema, model } = mongoose;
 
-const creditChargesSchema = new Schema(
-  {
-    freightBasis: { type: String, enum: ["PER_KG", "PER_BOX"], required: true, default: "PER_KG" },
-    freightRate: { type: Number, min: 0, default: 0 },
-    fuelRatePercent: { type: Number, min: 0, max: 100, default: 0 },
-    handlingCharges: { type: Number, min: 0, default: 0 },
-    fodCharges: { type: Number, min: 0, default: 0 },
-    codCharges: { type: Number, min: 0, default: 0 },
-    rovRatePercent: { type: Number, min: 0, max: 100, default: 0 },
-    docketCharges: { type: Number, min: 0, default: 0 },
-    gstRate: { type: Number, min: 0, max: 100, default: 0 },
-  },
-  { _id: false },
-);
-
 const customerSchema = new Schema(
   {
     customerCode: { type: String, required: true, unique: true, match: /^(?:\d{5}|CRLCUST\d{6})$/, index: true },
     customerType: { type: String, enum: ["CREDIT", "TO_PAY_PAID"], required: true, default: "TO_PAY_PAID" },
-    creditCharges: { type: creditChargesSchema },
     name: { type: String, required: true, trim: true, index: true },
     companyName: { type: String, trim: true, index: true },
     mobile: { type: String, required: true, trim: true, index: true },

@@ -43,14 +43,23 @@ export class LocalStorageService {
     return absolute;
   }
 
-  async saveLRDocument(shipmentId, file) {
+  async saveDocument(shipmentId, documentType, file) {
     validateFile(file);
     const extension = extensionFor(file);
-    const relative = path.posix.join("shipments", shipmentId.toString(), "lr", `${crypto.randomUUID()}${extension}`);
+    const relative = path.posix.join(
+      "shipments",
+      shipmentId.toString(),
+      documentType,
+      `${crypto.randomUUID()}${extension}`,
+    );
     const absolute = path.join(env.uploadDir, relative);
     await fs.mkdir(path.dirname(absolute), { recursive: true });
     await fs.writeFile(absolute, file.buffer, { flag: "wx" });
     return metadata(file, relative);
+  }
+
+  async saveLRDocument(shipmentId, file) {
+    return this.saveDocument(shipmentId, "lr", file);
   }
 
   async remove(storageKey) {
@@ -74,11 +83,11 @@ export class CloudStorageService {
     return Boolean(env.cloudinary.cloudName && env.cloudinary.apiKey && env.cloudinary.apiSecret);
   }
 
-  async saveLRDocument(shipmentId, file) {
+  async saveDocument(shipmentId, documentType, file) {
     validateFile(file);
     if (!this.#configured()) throw new AppError("Cloud storage is not configured", 503, "STORAGE_UNAVAILABLE");
     const timestamp = Math.floor(Date.now() / 1000);
-    const publicId = `crl/shipments/${shipmentId}/lr/${crypto.randomUUID()}`;
+    const publicId = `crl/shipments/${shipmentId}/${documentType}/${crypto.randomUUID()}`;
     const signature = crypto
       .createHash("sha1")
       .update(`public_id=${publicId}&timestamp=${timestamp}${env.cloudinary.apiSecret}`)
@@ -96,6 +105,10 @@ export class CloudStorageService {
     if (!response.ok) throw new AppError("Cloud storage upload failed", 503, "STORAGE_UNAVAILABLE");
     const result = await response.json();
     return metadata(file, result.public_id, result.secure_url);
+  }
+
+  async saveLRDocument(shipmentId, file) {
+    return this.saveDocument(shipmentId, "lr", file);
   }
 
   async remove(storageKey) {

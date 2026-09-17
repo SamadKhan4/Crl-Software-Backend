@@ -24,3 +24,8 @@ export const generateCustomerCode = async (session) => {
   return String(sequence).padStart(5, "0");
 };
 export const generateEmployeeCode = async (session) => `CRLEMP${padded(await nextSequence("employee", session))}`;
+
+export const generateBusinessNumber = async (key, prefix, session) => {
+  const year = new Date().getFullYear();
+  return `${prefix}-${year}-${padded(await nextSequence(`${key}-${year}`, session))}`;
+};

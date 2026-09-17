@@ -17,18 +17,6 @@ const gstin = z
   .toUpperCase()
   .regex(/^\d{2}[A-Z]{5}\d{4}[A-Z]\dZ[A-Z\d]$/, "Invalid GSTIN");
 const positiveNumber = z.coerce.number().positive().max(1000000000);
-const customerCharge = z.coerce.number().finite().min(0).max(100000000);
-const creditChargesSchema = z.object({
-  freightBasis: z.enum(["PER_KG", "PER_BOX"]),
-  freightRate: customerCharge,
-  fuelRatePercent: customerCharge.max(100),
-  handlingCharges: customerCharge,
-  fodCharges: customerCharge,
-  codCharges: customerCharge,
-  rovRatePercent: customerCharge.max(100),
-  docketCharges: customerCharge,
-  gstRate: customerCharge.max(100),
-}).strict();
 const strictEmpty = z.object({}).strict();
 
 export const ids = z.object({ id: objectId }).strict();
@@ -91,9 +79,9 @@ export const branchSchema = z
     email: z.string().email().optional(),
   })
   .strict();
-const customerBaseSchema = z.object({
+const customerBaseSchema = z
+  .object({
     customerType: z.enum(["CREDIT", "TO_PAY_PAID"]),
-    creditCharges: creditChargesSchema.optional(),
     name: z.string().trim().min(2).max(120),
     companyName: optionalText(150),
     mobile,
@@ -104,42 +92,54 @@ const customerBaseSchema = z.object({
     state: optionalText(80),
     pincode: pincode.optional(),
     gstNumber: gstin.optional(),
-  }).strict();
-export const customerSchema = customerBaseSchema
-  .superRefine((data, ctx) => {
-    if (data.customerType === "CREDIT" && !data.creditCharges)
-      ctx.addIssue({ code: "custom", path: ["creditCharges"], message: "Enter credit customer charges" });
-  });
+  })
+  .strict();
+export const customerSchema = customerBaseSchema;
 const lrAmount = z.coerce.number().finite().min(0).max(100000000);
 const goodsNumber = z.coerce.number().finite().positive().max(100000);
-const goodsDimension = z.preprocess((value) => value === '' ? undefined : value, goodsNumber.optional());
-export const goodsSchema = z.object({
-  packageNumber: z.string().trim().max(80).optional(),
-  description: z.string().trim().min(1, 'Enter goods description').max(500),
-  packageType: z.string().trim().max(120).optional(),
-  quantity: z.coerce.number().int().min(1).max(10000),
-  actualWeight: z.coerce.number().finite().min(0.01).max(100000),
-  length: goodsDimension, breadth: goodsDimension, height: goodsDimension,
-  dimensionUnit: z.enum(['CM', 'IN', 'FT']),
-  declaredValue: z.preprocess((value) => value === '' ? undefined : value, lrAmount.optional()),
-  volume: z.number().finite().min(0).optional(),
-  volumetricWeight: z.number().finite().min(0).optional(),
-  chargedWeight: z.number().finite().min(0).optional(),
-}).strict().superRefine((row, ctx) => {
-  const dimensions = ['length', 'breadth', 'height'];
-  if (dimensions.some(key => row[key] !== undefined)) {
-    for (const key of dimensions) if (row[key] === undefined)
-      ctx.addIssue({ code: 'custom', path: [key], message: 'Enter all three dimensions' });
-  }
-});
-const goodsList = z.array(goodsSchema).min(1).max(100).superRefine((rows, ctx) => {
-  if (rows.reduce((sum, row) => sum + row.quantity, 0) > 10000)
-    ctx.addIssue({ code: 'custom', message: 'Maximum 10,000 packages per LR' });
-  if (rows.reduce((sum, row) => sum + row.actualWeight, 0) > 100000)
-    ctx.addIssue({ code: 'custom', message: 'Maximum total actual weight is 100,000 kg' });
-});
-const manualLrNumber = z.string().trim().toUpperCase().min(1, 'Enter LR number').max(50)
-  .regex(/^[A-Z0-9][A-Z0-9/._-]*$/, 'Use letters, numbers, /, ., _ or -');
+const goodsDimension = z.preprocess((value) => (value === "" ? undefined : value), goodsNumber.optional());
+export const goodsSchema = z
+  .object({
+    packageNumber: z.string().trim().max(80).optional(),
+    description: z.string().trim().min(1, "Enter goods description").max(500),
+    packageType: z.string().trim().max(120).optional(),
+    quantity: z.coerce.number().int().min(1).max(10000),
+    actualWeight: z.coerce.number().finite().min(0.01).max(100000),
+    length: goodsDimension,
+    breadth: goodsDimension,
+    height: goodsDimension,
+    dimensionUnit: z.enum(["CM", "IN", "FT"]),
+    declaredValue: z.preprocess((value) => (value === "" ? undefined : value), lrAmount.optional()),
+    volume: z.number().finite().min(0).optional(),
+    volumetricWeight: z.number().finite().min(0).optional(),
+    chargedWeight: z.number().finite().min(0).optional(),
+  })
+  .strict()
+  .superRefine((row, ctx) => {
+    const dimensions = ["length", "breadth", "height"];
+    if (dimensions.some((key) => row[key] !== undefined)) {
+      for (const key of dimensions)
+        if (row[key] === undefined)
+          ctx.addIssue({ code: "custom", path: [key], message: "Enter all three dimensions" });
+    }
+  });
+const goodsList = z
+  .array(goodsSchema)
+  .min(1)
+  .max(100)
+  .superRefine((rows, ctx) => {
+    if (rows.reduce((sum, row) => sum + row.quantity, 0) > 10000)
+      ctx.addIssue({ code: "custom", message: "Maximum 10,000 packages per LR" });
+    if (rows.reduce((sum, row) => sum + row.actualWeight, 0) > 100000)
+      ctx.addIssue({ code: "custom", message: "Maximum total actual weight is 100,000 kg" });
+  });
+const manualLrNumber = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .min(1, "Enter LR number")
+  .max(50)
+  .regex(/^[A-Z0-9][A-Z0-9/._-]*$/, "Use letters, numbers, /, ., _ or -");
 export const lrDetailsSchema = z
   .object({
     goods: goodsList.optional(),
@@ -182,6 +182,10 @@ export const lrDetailsSchema = z
     paymentMode: z.enum(["PAID", "TO_PAY", "CREDIT"]).optional(),
     riskType: z.enum(["CARRIER_RISK", "OWNER_RISK"]).optional(),
     insuranceType: z.enum(["INSURED", "NOT_INSURED"]).optional(),
+    freightBasis: z.enum(["PER_KG", "PER_BOX", "FIXED"]).optional(),
+    freightRate: lrAmount.optional(),
+    fuelRatePercent: lrAmount.max(100).optional(),
+    rovRatePercent: lrAmount.max(100).optional(),
     freightCharges: lrAmount.optional(),
     fuelCharges: lrAmount.optional(),
     handlingCharges: lrAmount.optional(),
@@ -235,10 +239,20 @@ export const verifySchema = z
   })
   .strict();
 export const publicTrackSchema = z.object({ lrNumber: manualLrNumber }).strict();
-export const customerCodeParams = z.object({ customerCode: z.string().trim().regex(/^\d{5}$/, "Customer code must be 5 digits") }).strict();
+export const customerCodeParams = z
+  .object({
+    customerCode: z
+      .string()
+      .trim()
+      .regex(/^\d{5}$/, "Customer code must be 5 digits"),
+  })
+  .strict();
 export const publicRequestSchema = z
   .object({
-    customerCode: z.string().trim().regex(/^\d{5}$/, "Customer code must be 5 digits"),
+    customerCode: z
+      .string()
+      .trim()
+      .regex(/^\d{5}$/, "Customer code must be 5 digits"),
     lrNumber: manualLrNumber,
   })
   .strict();
@@ -262,9 +276,10 @@ const nonEmptyUpdate = (schema) =>
     .strict()
     .refine((data) => Object.keys(data).length > 0, "Provide at least one field to update");
 export const branchUpdateSchema = nonEmptyUpdate(branchSchema);
-export const customerUpdateSchema = customerBaseSchema.partial().strict()
-  .refine((data) => Object.keys(data).length > 0, "Provide at least one field to update")
-  .refine((data) => data.customerType !== "CREDIT" || data.creditCharges, { path: ["creditCharges"], message: "Enter credit customer charges" });
+export const customerUpdateSchema = customerBaseSchema
+  .partial()
+  .strict()
+  .refine((data) => Object.keys(data).length > 0, "Provide at least one field to update");
 export const employeePatchSchema = nonEmptyUpdate(userSchema.omit({ password: true }));
 export const shipmentPatchSchema = nonEmptyUpdate(
   shipmentSchema.omit({ customerId: true, originBranchId: true, destinationBranchId: true }),
@@ -279,9 +294,272 @@ export const activitySchema = z
       .string()
       .regex(/^[A-Z_]{2,80}$/)
       .optional(),
-    entityType: z.enum(["User", "Branch", "Customer", "Shipment", "ShipmentDocument", "UploadSession"]).optional(),
+    entityType: z
+      .enum([
+        "User",
+        "Branch",
+        "Customer",
+        "Shipment",
+        "ShipmentDocument",
+        "UploadSession",
+        "Vendor",
+        "Manifest",
+        "Trip",
+        "DeliveryRunSheet",
+        "Invoice",
+        "MoneyReceipt",
+        "Quotation",
+        "StationeryTransaction",
+      ])
+      .optional(),
     dateFrom: z.coerce.date().optional(),
     dateTo: z.coerce.date().optional(),
   })
   .strict()
   .refine((data) => !data.dateFrom || !data.dateTo || data.dateFrom <= data.dateTo, "Start date must precede end date");
+
+const amount = z.coerce.number().finite().min(0).max(1000000000);
+const requiredDate = z.coerce.date();
+const businessStatus = z
+  .string()
+  .trim()
+  .regex(/^[A-Z_]{2,40}$/);
+const businessListBase = z.object({
+  page: z.coerce.number().int().positive().optional(),
+  limit: z.coerce.number().int().positive().max(100).optional(),
+  search: z.string().trim().max(100).optional(),
+  sortBy: z
+    .string()
+    .regex(/^[a-zA-Z]+$/)
+    .optional(),
+  sortOrder: z.enum(["asc", "desc"]).optional(),
+  status: businessStatus.optional(),
+  branchId: objectId.optional(),
+  customerId: objectId.optional(),
+  vendorId: objectId.optional(),
+  dateFrom: z.coerce.date().optional(),
+  dateTo: z.coerce.date().optional(),
+});
+export const businessListSchema = businessListBase
+  .strict()
+  .refine((data) => !data.dateFrom || !data.dateTo || data.dateFrom <= data.dateTo, "Start date must precede end date");
+
+const commercialSchema = z
+  .object({
+    rateBasis: z.enum(["PER_KG", "PER_BOX", "PER_TRIP", "FIXED"]),
+    rate: amount,
+    fuelSurchargePercent: amount.max(100),
+    handlingCharge: amount,
+    detentionPerDay: amount,
+    creditDays: z.coerce.number().int().min(0).max(365),
+    gstRate: amount.max(100),
+  })
+  .strict();
+const vehicleSchema = z
+  .object({
+    vehicleNumber: z.string().trim().toUpperCase().min(4).max(20),
+    vehicleType: optionalText(80),
+    capacityKg: amount.optional(),
+    driverName: optionalText(120),
+    driverMobile: mobile.optional(),
+    status: z.enum(Object.values(ACTIVE)).default(ACTIVE.ACTIVE),
+  })
+  .strict();
+export const vendorSchema = z
+  .object({
+    vendorType: z.enum(["TRANSPORTER", "CO_LOADER", "VEHICLE_OWNER", "LAST_MILE"]),
+    name: z.string().trim().min(2).max(150),
+    contactPerson: optionalText(120),
+    mobile,
+    email: z.string().email().optional(),
+    address: optionalText(500),
+    city: optionalText(100),
+    state: optionalText(100),
+    pincode: pincode.optional(),
+    gstNumber: gstin.optional(),
+    commercial: commercialSchema,
+    vehicles: z.array(vehicleSchema).max(100).default([]),
+  })
+  .strict();
+export const vendorUpdateSchema = nonEmptyUpdate(vendorSchema);
+
+const shipmentIdList = z
+  .array(objectId)
+  .min(1)
+  .max(500)
+  .refine((ids) => new Set(ids).size === ids.length, "Duplicate LR selected");
+export const manifestSchema = z
+  .object({
+    branchId: objectId.optional(),
+    vendorId: objectId,
+    destination: z.string().trim().min(2).max(150),
+    shipmentIds: shipmentIdList,
+    vendorReference: optionalText(120),
+    remarks: optionalText(500),
+  })
+  .strict();
+export const manifestStatusSchema = z
+  .object({
+    coLoaderStatus: z.enum([
+      "BOOKED",
+      "PICKED_UP",
+      "IN_TRANSIT",
+      "AT_HUB",
+      "OUT_FOR_DELIVERY",
+      "DELIVERED",
+      "EXCEPTION",
+    ]),
+    remarks: optionalText(500),
+  })
+  .strict();
+
+export const tripSchema = z
+  .object({
+    branchId: objectId.optional(),
+    vendorId: objectId.optional(),
+    vehicleNumber: z.string().trim().toUpperCase().min(4).max(20),
+    driverName: z.string().trim().min(2).max(120),
+    driverMobile: mobile.optional(),
+    origin: z.string().trim().min(2).max(150),
+    destination: z.string().trim().min(2).max(150),
+    departureDate: requiredDate,
+    expectedArrival: z.coerce.date().optional(),
+    shipmentIds: shipmentIdList,
+    freightAmount: amount.default(0),
+    advanceAmount: amount.default(0),
+    remarks: optionalText(500),
+  })
+  .strict()
+  .refine((data) => !data.expectedArrival || data.expectedArrival >= data.departureDate, {
+    path: ["expectedArrival"],
+    message: "Expected arrival must be after departure",
+  });
+export const tripStatusSchema = z
+  .object({ status: z.enum(["DISPATCHED", "ARRIVED", "CLOSED", "CANCELLED"]), remarks: optionalText(500) })
+  .strict();
+
+const partBSchema = z
+  .object({
+    eWayBillNo: z.string().trim().min(3).max(50),
+    vehicleNumber: z.string().trim().toUpperCase().min(4).max(20),
+  })
+  .strict();
+export const drsSchema = z
+  .object({
+    branchId: objectId.optional(),
+    vehicleNumber: z.string().trim().toUpperCase().min(4).max(20),
+    driverName: z.string().trim().min(2).max(120),
+    driverMobile: mobile.optional(),
+    deliveryDate: requiredDate,
+    route: z.string().trim().min(2).max(250),
+    shipmentIds: shipmentIdList,
+    partB: z.array(partBSchema).max(100).default([]),
+    remarks: optionalText(500),
+  })
+  .strict();
+export const drsVehicleSchema = z
+  .object({
+    vehicleNumber: z.string().trim().toUpperCase().min(4).max(20),
+    partB: z.array(partBSchema).max(100).optional(),
+  })
+  .strict();
+export const drsPodParams = z.object({ id: objectId, shipmentId: objectId }).strict();
+
+export const invoiceSchema = z
+  .object({
+    branchId: objectId.optional(),
+    customerId: objectId,
+    shipmentIds: shipmentIdList,
+    periodFrom: z.coerce.date().optional(),
+    periodTo: z.coerce.date().optional(),
+    gstRate: amount.max(100).default(0),
+    issueDate: requiredDate,
+    dueDate: z.coerce.date().optional(),
+    notes: optionalText(1000),
+  })
+  .strict()
+  .refine(
+    (data) => !data.periodFrom || !data.periodTo || data.periodFrom <= data.periodTo,
+    "Billing period is invalid",
+  );
+export const invoiceStatusSchema = z
+  .object({ status: z.enum(["ISSUED", "CANCELLED"]), notes: optionalText(500) })
+  .strict();
+const allocationSchema = z
+  .object({ invoiceId: objectId, amount: z.coerce.number().finite().positive().max(1000000000) })
+  .strict();
+export const moneyReceiptSchema = z
+  .object({
+    branchId: objectId.optional(),
+    customerId: objectId,
+    allocations: z.array(allocationSchema).max(100).default([]),
+    shipmentIds: z.array(objectId).max(500).default([]),
+    receivedFrom: z.string().trim().min(2).max(150),
+    amount: z.coerce.number().finite().positive().max(1000000000),
+    paymentMode: z.enum(["CASH", "UPI", "BANK_TRANSFER", "CHEQUE"]),
+    transactionReference: optionalText(150),
+    receiptDate: requiredDate,
+    remarks: optionalText(500),
+  })
+  .strict()
+  .refine((data) => data.paymentMode === "CASH" || data.transactionReference, {
+    path: ["transactionReference"],
+    message: "Transaction reference is required for non-cash payments",
+  });
+
+const quotationBase = z.object({
+  branchId: objectId.optional(),
+  customerId: objectId.optional(),
+  leadName: z.string().trim().min(2).max(120),
+  companyName: optionalText(150),
+  mobile,
+  email: z.string().email().optional(),
+  origin: z.string().trim().min(2).max(150),
+  destination: z.string().trim().min(2).max(150),
+  goodsDescription: z.string().trim().min(2).max(500),
+  packageCount: z.coerce.number().int().min(1).max(10000),
+  weightKg: z.coerce.number().finite().positive().max(100000),
+});
+export const quotationSchema = quotationBase
+  .extend({
+    estimatedFreight: amount.default(0),
+    gstRate: amount.max(100).default(0),
+    validUntil: z.coerce.date().optional(),
+    notes: optionalText(1000),
+  })
+  .strict();
+export const publicQuotationSchema = quotationBase.omit({ branchId: true, customerId: true }).strict();
+export const quotationStatusSchema = z
+  .object({
+    status: z.enum(["QUOTED", "ACCEPTED", "REJECTED", "EXPIRED"]),
+    estimatedFreight: amount.optional(),
+    gstRate: amount.max(100).optional(),
+    validUntil: z.coerce.date().optional(),
+    notes: optionalText(1000),
+  })
+  .strict();
+
+export const stationerySchema = z
+  .object({
+    branchId: objectId.optional(),
+    itemType: z.enum(["LR_BOOK", "POD_BOOK", "MONEY_RECEIPT_BOOK", "LABEL", "OTHER"]),
+    transactionType: z.enum(["RECEIVE", "ISSUE"]),
+    quantity: z.coerce.number().int().min(1).max(1000000),
+    serialFrom: optionalText(80),
+    serialTo: optionalText(80),
+    issuedToType: z.enum(["VENDOR", "FE", "BRANCH"]).optional(),
+    vendorId: objectId.optional(),
+    userId: objectId.optional(),
+    issuedToName: optionalText(150),
+    transactionDate: requiredDate,
+    remarks: optionalText(500),
+  })
+  .strict()
+  .superRefine((data, ctx) => {
+    if (data.transactionType === "ISSUE" && !data.issuedToType)
+      ctx.addIssue({ code: "custom", path: ["issuedToType"], message: "Select who receives the stationery" });
+    if (data.issuedToType === "VENDOR" && !data.vendorId)
+      ctx.addIssue({ code: "custom", path: ["vendorId"], message: "Select a vendor" });
+    if (data.issuedToType === "FE" && !data.userId && !data.issuedToName)
+      ctx.addIssue({ code: "custom", path: ["issuedToName"], message: "Select or name the field executive" });
+  });

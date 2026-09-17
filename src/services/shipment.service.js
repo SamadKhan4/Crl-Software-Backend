@@ -91,29 +91,8 @@ const applyLrCalculations = (data) => {
     data.weightKg = totals.actualWeight;
     Object.assign(details, totals);
   }
-  data.lrDetails = { ...details, ...calculateCharges(details) };
+  data.lrDetails = { ...details, ...calculateCharges({ ...details, packageCount: data.packageCount }) };
   return data;
-};
-const applyCustomerCharges = (data, customer) => {
-  if (customer.customerType !== "CREDIT" || !customer.creditCharges) return data;
-  const rates = customer.creditCharges.toObject?.() ?? customer.creditCharges;
-  const details = data.lrDetails?.toObject?.() ?? data.lrDetails ?? {};
-  const money = (value) => Math.round((value + Number.EPSILON) * 100) / 100;
-  const freightUnits = rates.freightBasis === "PER_BOX" ? data.packageCount : details.chargedWeight ?? data.weightKg;
-  const freightCharges = money(Number(rates.freightRate || 0) * Number(freightUnits || 0));
-  data.lrDetails = {
-    ...details,
-    freightCharges,
-    fuelCharges: money(freightCharges * Number(rates.fuelRatePercent || 0) / 100),
-    handlingCharges: rates.handlingCharges,
-    fodCharges: rates.fodCharges,
-    codCharges: rates.codCharges,
-    rovCharges: money(Number(details.declaredValue || 0) * Number(rates.rovRatePercent || 0) / 100),
-    docketCharges: rates.docketCharges,
-    gstRate: rates.gstRate,
-    paymentMode: "CREDIT",
-  };
-  return applyLrCalculations(data);
 };
 const createEvent = async (session, shipment, status, location, branchId, remarks, updatedBy) =>
   ShipmentEvent.create([{ shipmentId: shipment._id, status, location, branchId, remarks, updatedBy }], { session });
@@ -138,10 +117,16 @@ const activeEntities = async (data, session) => {
 };
 
 export async function createShipment(data, req, idempotencyKey) {
-  data = applyLrCalculations(data);
   const pricingCustomer = await Customer.findOne({ _id: data.customerId, status: ACTIVE.ACTIVE });
   if (!pricingCustomer) throw new ConflictError("Customer is invalid or inactive", "INVALID_CUSTOMER");
-  data = applyCustomerCharges(data, pricingCustomer);
+  if (data.lrDetails) {
+    const details = data.lrDetails.toObject?.() ?? data.lrDetails;
+    if (pricingCustomer.customerType === "CREDIT") details.paymentMode = "CREDIT";
+    else if (details.paymentMode === "CREDIT")
+      throw new ConflictError("Credit payment mode requires a credit customer", "CUSTOMER_PAYMENT_MODE_MISMATCH");
+    data.lrDetails = details;
+  }
+  data = applyLrCalculations(data);
   if (idempotencyKey) {
     const prior = await Shipment.findOne({ idempotencyKey });
     if (prior) {
