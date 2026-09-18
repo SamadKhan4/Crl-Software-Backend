@@ -45,6 +45,7 @@ export const createApp = () => {
     rateLimit({
       windowMs: 15 * 60 * 1000,
       limit: 500,
+      skip: () => env.nodeEnv === "development",
       standardHeaders: true,
       legacyHeaders: false,
     }),

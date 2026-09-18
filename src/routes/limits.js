@@ -1,8 +1,11 @@
 import rateLimit from "express-rate-limit";
+import { env } from "../config/env.js";
+
 const limit = (windowMs, max, message) =>
   rateLimit({
     windowMs,
     limit: max,
+    skip: () => env.nodeEnv === "development",
     standardHeaders: true,
     legacyHeaders: false,
     message: { success: false, message, errorCode: "RATE_LIMIT_EXCEEDED", errors: [] },
