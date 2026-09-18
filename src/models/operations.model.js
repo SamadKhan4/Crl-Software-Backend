@@ -15,6 +15,8 @@ const manifestSchema = new Schema(
     ...common,
     vendorId: { ...objectId, ref: "Vendor", required: true, index: true },
     destination: { type: String, required: true, trim: true },
+    vehicleNumber: { type: String, uppercase: true, trim: true },
+    deliveryAgent: { type: String, trim: true },
     vendorReference: { type: String, trim: true },
     coLoaderStatus: {
       type: String,

@@ -462,12 +462,39 @@ export async function createInvoice(data, req) {
         throw new BusinessRuleError("Selected LRs do not contain billable charges", "NO_BILLABLE_AMOUNT");
       const gstAmount = money((subtotal * data.gstRate) / 100);
       const totalAmount = money(subtotal + gstAmount);
+      const customerData = customer.toObject();
+      const billTo = {
+        name: customerData.name,
+        companyName: customerData.companyName,
+        address: customerData.address,
+        city: customerData.city,
+        state: customerData.state,
+        pincode: customerData.pincode,
+        gstNumber: customerData.gstNumber,
+        mobile: customerData.mobile,
+        email: customerData.email,
+      };
+      const lineItems = shipments.map((shipment) => {
+        const details = shipment.lrDetails?.toObject?.() ?? shipment.lrDetails ?? {};
+        return {
+          shipmentId: shipment._id,
+          lrNumber: shipment.lrNumber,
+          bookingDate: details.bookingDate || shipment.createdAt,
+          origin: details.from,
+          destination: details.to,
+          packageCount: shipment.packageCount,
+          weightKg: shipment.weightKg,
+          taxableAmount: money(Math.max(0, Number(details.totalAmount || 0) - Number(details.gstAmount || 0))),
+        };
+      });
       invoice = (
         await Invoice.create(
           [
             {
               ...data,
               branchId,
+              billTo,
+              lineItems,
               subtotal,
               gstAmount,
               totalAmount,
