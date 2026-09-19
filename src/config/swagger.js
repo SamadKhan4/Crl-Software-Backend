@@ -326,6 +326,30 @@ export const swaggerSpec = swaggerJsdoc({
             state: { type: "string" },
             pincode: { type: "string" },
             gstNumber: { type: "string" },
+            creditRateCard: {
+              type: "array",
+              items: {
+                type: "object",
+                required: ["location", "transitDays", "ratePerKg"],
+                properties: {
+                  location: { type: "string" },
+                  transitDays: { type: "integer", minimum: 1, maximum: 30 },
+                  ratePerKg: { type: "number", minimum: 0.01 },
+                },
+              },
+            },
+            creditCharges: {
+              type: "object",
+              properties: {
+                fuelRatePercent: { type: "number", minimum: 0, maximum: 100 },
+                handlingCharges: { type: "number", minimum: 0 },
+                fodCharges: { type: "number", minimum: 0 },
+                codCharges: { type: "number", minimum: 0 },
+                rovRatePercent: { type: "number", minimum: 0, maximum: 100 },
+                docketCharges: { type: "number", minimum: 0 },
+                gstRate: { type: "number", minimum: 0, maximum: 100 },
+              },
+            },
           },
         },
         Shipment: {
@@ -381,7 +405,6 @@ export const swaggerSpec = swaggerJsdoc({
             length: { type: 'number', exclusiveMinimum: 0, maximum: 100000 },
             breadth: { type: 'number', exclusiveMinimum: 0, maximum: 100000 },
             height: { type: 'number', exclusiveMinimum: 0, maximum: 100000 },
-            declaredValue: { type: 'number', minimum: 0 },
             volume: { type: 'number', readOnly: true },
             volumetricWeight: { type: 'number', readOnly: true },
             chargedWeight: { type: 'number', readOnly: true },

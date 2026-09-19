@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import mongoose from "mongoose";
 import { ACTIVE, DOCUMENT_STATUS, ROLES, SHIPMENT_STATUS, TRANSITIONS } from "../constants/workflow.js";
+import { findCustomerLocationRate } from "../constants/service-locations.js";
 import { Branch, Customer, Shipment, ShipmentDocument, ShipmentEvent, UploadSession } from "../models/index.js";
 import { AuthenticationError, AuthorizationError, ConflictError, NotFoundError } from "../utils/errors.js";
 import { calculateGoods } from "../utils/goods.js";
@@ -11,6 +12,20 @@ import { storageService } from "./storage.service.js";
 import { env } from "../config/env.js";
 
 const isAdmin = (user) => user?.role === ROLES.ADMIN;
+const employeeLockedLrFields = [
+  "shipperSignature",
+  "receiverNamePrint",
+  "receiverMobilePrint",
+  "receiverDateTime",
+  "receiverSignature",
+  "remarks",
+];
+const assertSignatureAccess = (data, user) => {
+  if (user?.role !== ROLES.EMPLOYEE || !data.lrDetails) return;
+  const details = data.lrDetails.toObject?.() ?? data.lrDetails;
+  if (employeeLockedLrFields.some((field) => details[field] !== undefined))
+    throw new AuthorizationError("Signatures and remarks can only be updated by an admin or manager");
+};
 const getShipment = async (id, session) => {
   const shipment = await Shipment.findById(id).session(session);
   if (!shipment) throw new NotFoundError("Shipment not found", "SHIPMENT_NOT_FOUND");
@@ -94,6 +109,42 @@ const applyLrCalculations = (data) => {
   data.lrDetails = { ...details, ...calculateCharges({ ...details, packageCount: data.packageCount }) };
   return data;
 };
+const applyCustomerPricing = (data, customer) => {
+  if (!customer) throw new ConflictError("Customer is invalid or inactive", "INVALID_CUSTOMER");
+  if (customer.customerType !== "CREDIT") {
+    if (data.lrDetails?.paymentMode === "CREDIT")
+      throw new ConflictError("Credit payment mode requires a credit customer", "CUSTOMER_PAYMENT_MODE_MISMATCH");
+    return data;
+  }
+  if (!data.lrDetails)
+    throw new ConflictError("Credit LR details are required", "CREDIT_LR_DETAILS_REQUIRED");
+  const details = data.lrDetails.toObject?.() ?? data.lrDetails;
+  const rate = findCustomerLocationRate(customer.creditRateCard, details.to);
+  if (!rate)
+    throw new ConflictError(
+      "Configure a rate for the selected destination in Customer Master",
+      "CREDIT_LOCATION_RATE_NOT_CONFIGURED",
+    );
+  details.paymentMode = "CREDIT";
+  details.freightBasis = "PER_KG";
+  details.freightRate = rate.ratePerKg;
+  const customerCharges = customer.creditCharges?.toObject?.() ?? customer.creditCharges ?? {};
+  for (const name of [
+    "fuelRatePercent",
+    "handlingCharges",
+    "fodCharges",
+    "codCharges",
+    "rovRatePercent",
+    "docketCharges",
+    "gstRate",
+  ])
+    details[name] = Number(customerCharges[name] || 0);
+  data.lrDetails = details;
+  const bookingDate = details.bookingDate ? new Date(details.bookingDate) : new Date();
+  bookingDate.setDate(bookingDate.getDate() + rate.transitDays);
+  data.expectedDeliveryDate = bookingDate;
+  return data;
+};
 const createEvent = async (session, shipment, status, location, branchId, remarks, updatedBy) =>
   ShipmentEvent.create([{ shipmentId: shipment._id, status, location, branchId, remarks, updatedBy }], { session });
 const applyStatus = async (session, shipment, targetStatus, { location, branchId, remarks, updatedBy }) => {
@@ -117,15 +168,10 @@ const activeEntities = async (data, session) => {
 };
 
 export async function createShipment(data, req, idempotencyKey) {
+  assertSignatureAccess(data, req.user);
   const pricingCustomer = await Customer.findOne({ _id: data.customerId, status: ACTIVE.ACTIVE });
   if (!pricingCustomer) throw new ConflictError("Customer is invalid or inactive", "INVALID_CUSTOMER");
-  if (data.lrDetails) {
-    const details = data.lrDetails.toObject?.() ?? data.lrDetails;
-    if (pricingCustomer.customerType === "CREDIT") details.paymentMode = "CREDIT";
-    else if (details.paymentMode === "CREDIT")
-      throw new ConflictError("Credit payment mode requires a credit customer", "CUSTOMER_PAYMENT_MODE_MISMATCH");
-    data.lrDetails = details;
-  }
+  data = applyCustomerPricing(data, pricingCustomer);
   data = applyLrCalculations(data);
   if (idempotencyKey) {
     const prior = await Shipment.findOne({ idempotencyKey });
@@ -286,10 +332,13 @@ export async function updateShipment(id, data, req) {
       assertShipmentBranchAccess(req.user, shipment, "origin");
       if (shipment.currentStatus !== SHIPMENT_STATUS.BOOKED)
         throw new ConflictError("Shipment can only be edited while booked", "SHIPMENT_NOT_EDITABLE");
+      assertSignatureAccess(data, req.user);
       const before = shipmentDto(shipment);
       const existingLrDetails = shipment.lrDetails;
       Object.assign(shipment, data);
       if (data.lrDetails) shipment.lrDetails = mergeLrDetails({ lrDetails: existingLrDetails }, data.lrDetails);
+      const pricingCustomer = await Customer.findById(shipment.customerId).session(session);
+      applyCustomerPricing(shipment, pricingCustomer);
       applyLrCalculations(shipment);
       await shipment.save({ session });
       const { lrDetails, ...beforeWithoutLrDetails } = before;
@@ -325,6 +374,8 @@ export async function adminOverride(id, data, req) {
       Object.assign(shipment, data.changes);
       if (data.changes.lrDetails)
         shipment.lrDetails = mergeLrDetails({ lrDetails: existingLrDetails }, data.changes.lrDetails);
+      const pricingCustomer = await Customer.findById(shipment.customerId).session(session);
+      applyCustomerPricing(shipment, pricingCustomer);
       applyLrCalculations(shipment);
       await shipment.save({ session });
       await createEvent(
@@ -640,7 +691,11 @@ export async function requestPublicUploadSession(data, req) {
     match: { customerCode: data.customerCode, status: ACTIVE.ACTIVE },
   });
   if (!shipment?.customerId || shipment.currentStatus !== SHIPMENT_STATUS.RECEIVED) return { accepted: true };
-  return { accepted: true, uploadToken: await createUploadSession(shipment, req) };
+  return {
+    accepted: true,
+    uploadToken: await createUploadSession(shipment, req),
+    expiresInMinutes: env.uploadTokenMinutes,
+  };
 }
 
 export async function uploadPublicLR(token, file, req) {
@@ -665,6 +720,7 @@ export async function publicTrack(lrNumber) {
     origin: shipment.originBranchId?.city,
     destination: shipment.destinationBranchId?.city,
     status: shipment.currentStatus,
+    lrUploadEligible: shipment.currentStatus === SHIPMENT_STATUS.RECEIVED,
     currentLocation: shipment.currentLocation,
     bookingDate: shipment.createdAt,
     expectedDeliveryDate: shipment.expectedDeliveryDate,

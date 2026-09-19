@@ -1,8 +1,31 @@
 import mongoose from "mongoose";
 import { ACTIVE } from "../constants/workflow.js";
+import { SERVICE_LOCATION_NAMES } from "../constants/service-locations.js";
 import { base, objectId } from "./shared.js";
 
 const { Schema, model } = mongoose;
+
+const creditRateSchema = new Schema(
+  {
+    location: { type: String, required: true, enum: SERVICE_LOCATION_NAMES, trim: true },
+    transitDays: { type: Number, required: true, min: 1, max: 30 },
+    ratePerKg: { type: Number, required: true, min: 0.01, max: 1000000 },
+  },
+  { _id: false },
+);
+
+const creditChargesSchema = new Schema(
+  {
+    fuelRatePercent: { type: Number, min: 0, max: 100, default: 0 },
+    handlingCharges: { type: Number, min: 0, max: 100000000, default: 0 },
+    fodCharges: { type: Number, min: 0, max: 100000000, default: 0 },
+    codCharges: { type: Number, min: 0, max: 100000000, default: 0 },
+    rovRatePercent: { type: Number, min: 0, max: 100, default: 0 },
+    docketCharges: { type: Number, min: 0, max: 100000000, default: 0 },
+    gstRate: { type: Number, min: 0, max: 100, default: 0 },
+  },
+  { _id: false },
+);
 
 const customerSchema = new Schema(
   {
@@ -18,6 +41,8 @@ const customerSchema = new Schema(
     state: { type: String, trim: true },
     pincode: { type: String, trim: true },
     gstNumber: { type: String, uppercase: true, trim: true, sparse: true, index: true },
+    creditRateCard: { type: [creditRateSchema], default: [] },
+    creditCharges: { type: creditChargesSchema, default: () => ({}) },
     status: { type: String, enum: Object.values(ACTIVE), default: ACTIVE.ACTIVE, index: true },
     createdBy: { ...objectId, ref: "User", required: true },
   },

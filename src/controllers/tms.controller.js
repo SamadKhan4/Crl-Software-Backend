@@ -11,6 +11,9 @@ const create = (message, handler) =>
 
 export const createVendor = create("Vendor created", tms.createVendor);
 export const listVendors = list("Vendors fetched", tms.listVendors);
+export const vendorOptions = asyncHandler(async (req, res) =>
+  success(res, 200, "Vendor options fetched", await tms.vendorOptions(req.query)),
+);
 export const getVendor = get("Vendor fetched", tms.getVendor);
 export const updateVendor = asyncHandler(async (req, res) =>
   success(res, 200, "Vendor updated", await tms.updateVendor(req.params.id, req.body, req)),

@@ -14,7 +14,6 @@ const goodsRowSchema = new Schema({
   breadth: { type: Number, min: 0, max: 100000 },
   height: { type: Number, min: 0, max: 100000 },
   dimensionUnit: { type: String, required: true, enum: ['CM', 'IN', 'FT'] },
-  declaredValue: { type: Number, min: 0, max: 100000000 },
   volume: { type: Number, min: 0 },
   volumetricWeight: { type: Number, min: 0 },
   chargedWeight: { type: Number, min: 0 },

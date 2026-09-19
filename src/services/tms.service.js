@@ -150,6 +150,18 @@ export const listVendors = (query, user) =>
     search: ["vendorCode", "name", "mobile", "city", "gstNumber", "vehicles.vehicleNumber"],
     global: true,
   });
+export async function vendorOptions(query) {
+  const filter = { status: ACTIVE.ACTIVE };
+  if (query.search)
+    filter.$or = ["vendorCode", "name", "mobile", "city", "vehicles.vehicleNumber"].map((field) => ({
+      [field]: { $regex: escapeSearch(query.search), $options: "i" },
+    }));
+  return Vendor.find(filter)
+    .select("vendorCode vendorType name mobile city vehicles")
+    .sort({ name: 1, _id: 1 })
+    .limit(Math.min(Number(query.limit) || 100, 100))
+    .lean();
+}
 export const getVendor = (recordId, user) => get(Vendor, recordId, user, [], true);
 export async function updateVendor(recordId, data, req) {
   if (!isAdmin(req.user)) throw new AuthorizationError("Only administrators can update vendors");

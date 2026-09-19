@@ -10,8 +10,9 @@ const router = Router();
 const adminManager = allow(ROLES.ADMIN, ROLES.MANAGER);
 
 router.post("/vendors", allow(ROLES.ADMIN), validate(v.vendorSchema), c.createVendor);
-router.get("/vendors", validate(v.businessListSchema, "query"), c.listVendors);
-router.get("/vendors/:id", validate(v.ids, "params"), c.getVendor);
+router.get("/vendors/options", validate(v.businessListSchema, "query"), c.vendorOptions);
+router.get("/vendors", adminManager, validate(v.businessListSchema, "query"), c.listVendors);
+router.get("/vendors/:id", adminManager, validate(v.ids, "params"), c.getVendor);
 router.put("/vendors/:id", allow(ROLES.ADMIN), validate(v.ids, "params"), validate(v.vendorSchema), c.updateVendor);
 router.patch(
   "/vendors/:id",
@@ -31,19 +32,19 @@ router.patch(
 router.post("/manifests", validate(v.manifestSchema), c.createManifest);
 router.get("/manifests", validate(v.businessListSchema, "query"), c.listManifests);
 router.get("/manifests/:id", validate(v.ids, "params"), c.getManifest);
-router.patch("/manifests/:id/status", validate(v.ids, "params"), validate(v.manifestStatusSchema), c.manifestStatus);
+router.patch("/manifests/:id/status", adminManager, validate(v.ids, "params"), validate(v.manifestStatusSchema), c.manifestStatus);
 
 router.post("/trips", validate(v.tripSchema), c.createTrip);
 router.get("/trips", validate(v.businessListSchema, "query"), c.listTrips);
 router.get("/trips/:id", validate(v.ids, "params"), c.getTrip);
-router.patch("/trips/:id/status", validate(v.ids, "params"), validate(v.tripStatusSchema), c.tripStatus);
+router.patch("/trips/:id/status", adminManager, validate(v.ids, "params"), validate(v.tripStatusSchema), c.tripStatus);
 
 router.post("/drs", validate(v.drsSchema), c.createDrs);
 router.get("/drs", validate(v.businessListSchema, "query"), c.listDrs);
 router.get("/drs/:id", validate(v.ids, "params"), c.getDrs);
-router.patch("/drs/:id/vehicle", validate(v.ids, "params"), validate(v.drsVehicleSchema), c.updateDrsVehicle);
-router.post("/drs/:id/pod/:shipmentId", validate(v.drsPodParams, "params"), uploadPOD, c.uploadDrsPod);
-router.post("/drs/:id/close", validate(v.ids, "params"), c.closeDrs);
+router.patch("/drs/:id/vehicle", adminManager, validate(v.ids, "params"), validate(v.drsVehicleSchema), c.updateDrsVehicle);
+router.post("/drs/:id/pod/:shipmentId", adminManager, validate(v.drsPodParams, "params"), uploadPOD, c.uploadDrsPod);
+router.post("/drs/:id/close", adminManager, validate(v.ids, "params"), c.closeDrs);
 
 router.post("/invoices", adminManager, validate(v.invoiceSchema), c.createInvoice);
 router.get("/invoices", adminManager, validate(v.businessListSchema, "query"), c.listInvoices);

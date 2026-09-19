@@ -8,6 +8,9 @@ export const createCustomer = asyncHandler(async (req, res) =>
 export const listCustomers = asyncHandler(async (req, res) =>
   successPaginated(res, "Customers fetched", await customers.listCustomers(req.query)),
 );
+export const lookupCustomers = asyncHandler(async (req, res) =>
+  success(res, 200, "Customer options fetched", await customers.lookupCustomers(req.query)),
+);
 export const getCustomer = asyncHandler(async (req, res) =>
   success(res, 200, "Customer fetched", await customers.getCustomer(req.params.id)),
 );

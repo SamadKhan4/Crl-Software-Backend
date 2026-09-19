@@ -8,15 +8,16 @@ import { uploadLR } from "../middlewares/upload.js";
 import { addResourceMutations } from "./resource-mutations.js";
 
 const router = Router();
+const adminManager = allow(ROLES.ADMIN, ROLES.MANAGER);
 router.post("/shipments", validate(v.shipmentSchema), c.createShipment);
 router.get("/shipments", validate(v.shipmentListSchema, "query"), c.listShipments);
 router.get("/shipments/:id", validate(v.ids, "params"), c.shipmentDetails);
-router.put("/shipments/:id", validate(v.ids, "params"), validate(v.shipmentUpdateSchema), c.updateShipment);
+router.put("/shipments/:id", adminManager, validate(v.ids, "params"), validate(v.shipmentUpdateSchema), c.updateShipment);
 router.get("/shipments/:id/history", validate(v.ids, "params"), c.shipmentHistory);
 router.get("/shipments/:id/documents/:documentId/download", validate(v.documentIds, "params"), c.downloadDocument);
-router.post("/shipments/:id/status", validate(v.ids, "params"), validate(v.statusSchema), c.updateStatus);
-router.post("/shipments/:id/receive", validate(v.ids, "params"), validate(v.receiveSchema), c.receiveShipment);
-router.post("/shipments/:id/lr-image", validate(v.ids, "params"), uploadLR, c.uploadLRImage);
+router.post("/shipments/:id/status", adminManager, validate(v.ids, "params"), validate(v.statusSchema), c.updateStatus);
+router.post("/shipments/:id/receive", adminManager, validate(v.ids, "params"), validate(v.receiveSchema), c.receiveShipment);
+router.post("/shipments/:id/lr-image", adminManager, validate(v.ids, "params"), uploadLR, c.uploadLRImage);
 router.post(
   "/shipments/:id/lr-image/verify",
   allow(ROLES.ADMIN, ROLES.MANAGER),
@@ -24,8 +25,8 @@ router.post(
   validate(v.verifySchema),
   c.verifyLRImage,
 );
-router.post("/shipments/:id/lr-upload-token", validate(v.ids, "params"), c.createUploadToken);
-router.post("/shipments/:id/complete", validate(v.ids, "params"), c.completeShipment);
+router.post("/shipments/:id/lr-upload-token", adminManager, validate(v.ids, "params"), c.createUploadToken);
+router.post("/shipments/:id/complete", adminManager, validate(v.ids, "params"), c.completeShipment);
 router.post("/shipments/:id/close", allow(ROLES.ADMIN, ROLES.MANAGER), validate(v.ids, "params"), c.closeShipment);
 router.post(
   "/shipments/:id/admin-override",

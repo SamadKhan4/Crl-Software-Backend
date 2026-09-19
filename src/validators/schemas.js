@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ACTIVE, DOCUMENT_STATUS, SHIPMENT_STATUS } from "../constants/workflow.js";
+import { SERVICE_LOCATION_NAMES } from "../constants/service-locations.js";
 
 const objectId = z.string().regex(/^[a-f\d]{24}$/i, "Invalid MongoDB id");
 const mobile = z
@@ -79,7 +80,28 @@ export const branchSchema = z
     email: z.string().email().optional(),
   })
   .strict();
-const customerBaseSchema = z
+const creditRateSchema = z
+  .object({
+    location: z.enum(SERVICE_LOCATION_NAMES),
+    transitDays: z.coerce.number().int().min(1).max(30),
+    ratePerKg: z.coerce.number().finite().positive().max(1000000),
+  })
+  .strict();
+const customerCharge = z.coerce.number().finite().min(0).max(100000000).default(0);
+const customerPercent = z.coerce.number().finite().min(0).max(100).default(0);
+const creditChargesSchema = z
+  .object({
+    fuelRatePercent: customerPercent,
+    handlingCharges: customerCharge,
+    fodCharges: customerCharge,
+    codCharges: customerCharge,
+    rovRatePercent: customerPercent,
+    docketCharges: customerCharge,
+    gstRate: customerPercent,
+  })
+  .strict()
+  .default({});
+const customerFields = z
   .object({
     customerType: z.enum(["CREDIT", "TO_PAY_PAID"]),
     name: z.string().trim().min(2).max(120),
@@ -92,8 +114,17 @@ const customerBaseSchema = z
     state: optionalText(80),
     pincode: pincode.optional(),
     gstNumber: gstin.optional(),
+    creditRateCard: z.array(creditRateSchema).max(SERVICE_LOCATION_NAMES.length).default([]),
+    creditCharges: creditChargesSchema,
   })
   .strict();
+const customerBaseSchema = customerFields.superRefine((customer, ctx) => {
+  if (customer.customerType === "CREDIT" && !customer.creditRateCard.length)
+    ctx.addIssue({ code: "custom", path: ["creditRateCard"], message: "Add at least one location rate" });
+  const locations = customer.creditRateCard.map(({ location }) => location);
+  if (new Set(locations).size !== locations.length)
+    ctx.addIssue({ code: "custom", path: ["creditRateCard"], message: "A location can only be added once" });
+});
 export const customerSchema = customerBaseSchema;
 const lrAmount = z.coerce.number().finite().min(0).max(100000000);
 const goodsNumber = z.coerce.number().finite().positive().max(100000);
@@ -109,7 +140,6 @@ export const goodsSchema = z
     breadth: goodsDimension,
     height: goodsDimension,
     dimensionUnit: z.enum(["CM", "IN", "FT"]),
-    declaredValue: z.preprocess((value) => (value === "" ? undefined : value), lrAmount.optional()),
     volume: z.number().finite().min(0).optional(),
     volumetricWeight: z.number().finite().min(0).optional(),
     chargedWeight: z.number().finite().min(0).optional(),
@@ -276,7 +306,7 @@ const nonEmptyUpdate = (schema) =>
     .strict()
     .refine((data) => Object.keys(data).length > 0, "Provide at least one field to update");
 export const branchUpdateSchema = nonEmptyUpdate(branchSchema);
-export const customerUpdateSchema = customerBaseSchema
+export const customerUpdateSchema = customerFields
   .partial()
   .strict()
   .refine((data) => Object.keys(data).length > 0, "Provide at least one field to update");

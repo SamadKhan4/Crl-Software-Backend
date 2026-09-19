@@ -131,7 +131,7 @@ Example:
 curl "http://localhost:5000/api/track?lrNumber=CRL-MUM-2026-000001"
 ```
 
-The public response exposes only LR number, origin/destination cities, current status/location, booking/expected delivery dates, and tracking history. It does not disclose customer contact data or documents.
+The public response exposes only LR number, origin/destination cities, current status/location, booking/expected delivery dates, tracking history, and `lrUploadEligible`. The eligibility flag is true only while the shipment is `RECEIVED`; it does not disclose customer contact data or documents.
 
 ### Request a customer LR-upload session
 
@@ -139,7 +139,7 @@ The public response exposes only LR number, origin/destination cities, current s
 
 ```json
 {
-  "customerCode": "CRLCUST000001",
+  "customerCode": "90001",
   "lrNumber": "CRL-MUM-2026-000001"
 }
 ```
@@ -152,7 +152,8 @@ This endpoint always responds with `202 Accepted` and `accepted: true`. When the
   "message": "If the provided shipment is eligible for document upload, an upload session has been created.",
   "data": {
     "accepted": true,
-    "uploadToken": "64-character-hex-token"
+    "uploadToken": "64-character-hex-token",
+    "expiresInMinutes": 20
   }
 }
 ```

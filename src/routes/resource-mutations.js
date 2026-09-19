@@ -9,7 +9,7 @@ export function addResourceMutations(router, resource, schema, handler) {
   const roles =
     resource === "branches" || resource === "managers"
       ? [ROLES.ADMIN]
-      : resource === "users"
+      : resource === "users" || resource === "customers" || resource === "shipments"
         ? [ROLES.ADMIN, ROLES.MANAGER]
         : [ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE];
   router.patch(`/${resource}/:id`, allow(...roles), validate(ids, "params"), validate(schema), handler);

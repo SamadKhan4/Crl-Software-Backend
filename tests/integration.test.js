@@ -125,6 +125,7 @@ describeIntegration("CRL API integration workflow", () => {
         .send({ branchCode: "TMB", name: "Test Mumbai", city: "Mumbai", state: "Maharashtra", pincode: "400001" })
     ).body.data;
     const customerResponse = await request(app).post("/api/customers").set(auth()).send({
+      customerType: "TO_PAY_PAID",
       name: "Test Contact",
       companyName: "Test Logistics Customer",
       mobile: "9876543210",
@@ -135,7 +136,7 @@ describeIntegration("CRL API integration workflow", () => {
     });
     expect(customerResponse.status).toBe(201);
     customer = customerResponse.body.data;
-    expect(customer.customerCode).toMatch(/^CRLCUST\d{6}$/);
+    expect(customer.customerCode).toMatch(/^\d{5}$/);
     const created = await request(app)
       .post("/api/shipments")
       .set({ ...auth(), "Idempotency-Key": "workflow-create-001" })
@@ -189,15 +190,23 @@ describeIntegration("CRL API integration workflow", () => {
           .send({ location: "Test Mumbai", remarks: "Received" })
       ).status,
     ).toBe(200);
+    const receivedTracking = await request(app).get(`/api/public/track/${shipment.lrNumber}`);
+    expect(receivedTracking.body.data.lrUploadEligible).toBe(true);
     const tokenRequest = await request(app)
       .post("/api/public/lr-upload/request")
       .send({ customerCode: customer.customerCode, lrNumber: shipment.lrNumber });
     expect(tokenRequest.status).toBe(202);
     expect(tokenRequest.body.data.uploadToken).toMatch(/^[a-f\d]{64}$/);
+    expect(tokenRequest.body.data.expiresInMinutes).toBeGreaterThanOrEqual(5);
     const uploaded = await request(app)
       .post(`/api/public/lr-upload/${tokenRequest.body.data.uploadToken}`)
       .attach("lrImage", Buffer.from("%PDF-1.7\n"), { filename: "lr.pdf", contentType: "application/pdf" });
     expect(uploaded.status).toBe(201);
+    const reused = await request(app)
+      .post(`/api/public/lr-upload/${tokenRequest.body.data.uploadToken}`)
+      .attach("lrImage", Buffer.from("%PDF-1.7\n"), { filename: "lr.pdf", contentType: "application/pdf" });
+    expect(reused.status).toBe(401);
+    expect(reused.body.errorCode).toBe("INVALID_UPLOAD_TOKEN");
     expect(
       (
         await request(app)
@@ -220,6 +229,7 @@ describeIntegration("CRL API integration workflow", () => {
     ).toBe(200);
     const tracked = await request(app).get(`/api/public/track/${shipment.lrNumber}`);
     expect(tracked.body.data.status).toBe("CLOSED");
+    expect(tracked.body.data.lrUploadEligible).toBe(false);
     expect(tracked.body.data.trackingHistory).toHaveLength(7);
     expect(await ShipmentEvent.countDocuments({ shipmentId: shipment.id })).toBe(7);
     expect(await AuditLog.countDocuments({ entityId: shipment.id })).toBeGreaterThanOrEqual(6);
@@ -287,7 +297,7 @@ describeIntegration("CRL API integration workflow", () => {
       .send({ email: "employee@example.test", password: "SafeEmployeePassword123!" });
     const employeeAuth = { Authorization: `Bearer ${employeeLogin.body.data.accessToken}` };
     expect((await request(app).get("/api/users").set(employeeAuth)).status).toBe(403);
-    expect((await request(app).get("/api/branches").set(employeeAuth)).body.data).toHaveLength(1);
+    expect((await request(app).get("/api/branches").set(employeeAuth)).status).toBe(403);
     expect((await request(app).get(`/api/branches/${destinationBranch.id}`).set(employeeAuth)).status).toBe(403);
     const agent = request.agent(app);
     const login = await agent
@@ -302,7 +312,7 @@ describeIntegration("CRL API integration workflow", () => {
   test("supports partial updates and guarded CRUD deletion", async () => {
     for (const [resource, payload] of [
       ["branches", { branchCode: "DEL", name: "Delete Branch", city: "Nagpur" }],
-      ["customers", { name: "Delete Customer", mobile: "9876543210" }],
+      ["customers", { customerType: "TO_PAY_PAID", name: "Delete Customer", mobile: "9876543210" }],
       [
         "users",
         {
@@ -349,6 +359,10 @@ describeIntegration("CRL API integration workflow", () => {
       .send({ email: "employee@example.test", password: "SafeEmployeePassword123!" });
     const employeeAuth = { Authorization: `Bearer ${login.body.data.accessToken}` };
     expect((await request(app).get(`/api/shipments/${id}`).set(employeeAuth)).status).toBe(200);
+    expect((await request(app).patch(`/api/shipments/${id}`).set(employeeAuth).send({ packageCount: 2 })).status).toBe(403);
+    expect((await request(app).get("/api/customers").set(employeeAuth)).status).toBe(403);
+    expect((await request(app).get("/api/customers/lookup?search=Test").set(employeeAuth)).status).toBe(200);
+    expect((await request(app).get("/api/activity").set(employeeAuth)).status).toBe(403);
     expect((await request(app).get(`/api/shipments/${id}`).set(auth())).body.data.lrDetails).toBeUndefined();
     expect((await request(app).get("/api/branches/options").set(employeeAuth)).body.data.length).toBeGreaterThanOrEqual(
       2,
@@ -559,11 +573,11 @@ describeIntegration("CRL API integration workflow", () => {
       managerAuth = tokenFor(manager);
     const created = await request(app)
       .post("/api/customers")
-      .set(employeeAuth)
-      .send({ name: "Activity Test Customer", mobile: "9876543210" });
+      .set(managerAuth)
+      .send({ customerType: "TO_PAY_PAID", name: "Activity Test Customer", mobile: "9876543210" });
     expect(created.status).toBe(201);
     const event = await AuditLog.findOne({ entityId: created.body.data.id, action: "CUSTOMER_CREATED" });
-    expect(event.actorName).toBe(employee.name);
+    expect(event.actorName).toBe(manager.name);
     expect(String(event.actorBranchId)).toBe(destinationBranch.id);
     const adminOnly = await AuditLog.create({
       userId: manager._id,
@@ -592,8 +606,7 @@ describeIntegration("CRL API integration workflow", () => {
     });
     const getEvents = async (authHeaders) => request(app).get("/api/activity?limit=100").set(authHeaders);
     const own = await getEvents(employeeAuth);
-    expect(own.status).toBe(200);
-    expect(own.body.data.every((item) => item.actor.id === String(employee._id))).toBe(true);
+    expect(own.status).toBe(403);
     const branch = await getEvents(managerAuth);
     const ids = branch.body.data.map((item) => item.id);
     expect(ids).toContain(String(event._id));
@@ -607,7 +620,7 @@ describeIntegration("CRL API integration workflow", () => {
       .get("/api/activity")
       .query({ search: "Activity Test Customer" })
       .set(managerAuth);
-    expect(historical.body.data[0].actor.name).toBe(employee.name);
+    expect(historical.body.data[0].actor.name).toBe(manager.name);
     expect(historical.body.pagination.total).toBe(1);
     const all = await getEvents(auth());
     expect(all.body.data.map((item) => item.id)).toContain(String(hidden._id));
@@ -623,14 +636,16 @@ describeIntegration("CRL API integration workflow", () => {
     const administrator = await User.findOne({ role: "ADMIN" });
     const fixtures = await Customer.create([
       {
-        customerCode: "SORT001",
+        customerCode: "91001",
+        customerType: "TO_PAY_PAID",
         name: "Literal [abc]",
         mobile: "9876543210",
         createdBy: administrator._id,
         createdAt: sameTime,
       },
       {
-        customerCode: "SORT002",
+        customerCode: "91002",
+        customerType: "TO_PAY_PAID",
         name: "Literal abc",
         mobile: "9876543210",
         createdBy: administrator._id,

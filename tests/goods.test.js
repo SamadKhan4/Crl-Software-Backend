@@ -19,7 +19,7 @@ test('validates manual LR numbers and complete dimensions', () => {
   expect(shipmentSchema.parse(base).lrNumber).toBe('AB/123');
   expect(publicTrackSchema.parse({ lrNumber: '1' }).lrNumber).toBe('1');
   for (const lrNumber of [undefined, '', 'bad number', 'x'.repeat(51)]) expect(shipmentSchema.safeParse({ ...base, lrNumber }).success).toBe(false);
-  for (const patch of [{ height: undefined }, { length: -1 }, { quantity: 0 }, { dimensionUnit: 'M' }]) expect(goodsSchema.safeParse({ ...row, ...patch }).success).toBe(false);
+  for (const patch of [{ height: undefined }, { length: -1 }, { quantity: 0 }, { dimensionUnit: 'M' }, { declaredValue: 100 }]) expect(goodsSchema.safeParse({ ...row, ...patch }).success).toBe(false);
   expect(shipmentSchema.safeParse({ ...base, lrDetails: { goods: [], fodCharges: 0, codCharges: 75 } }).success).toBe(false);
   expect(shipmentSchema.safeParse({ ...base, lrDetails: { goods: [row], fodCharges: 0, codCharges: 75 } }).success).toBe(true);
 });
@@ -30,8 +30,15 @@ test('calculates charges from rates saved on each LR', () => {
     freightCharges: 1000, fuelCharges: 100, rovCharges: 50, gstAmount: 216, totalAmount: 1416,
   });
 });
-test('keeps customer type without accepting customer-level commercial rates', () => {
-  const customer = { customerType: 'CREDIT', name: 'Credit Customer', mobile: '+919876543210' };
+test('requires location-wise per-kg rates for credit customers', () => {
+  const customer = {
+    customerType: 'CREDIT',
+    name: 'Credit Customer',
+    mobile: '+919876543210',
+    creditRateCard: [{ location: 'Gondia', transitDays: 1, ratePerKg: 28 }],
+    creditCharges: { fuelRatePercent: 10, handlingCharges: 50, gstRate: 18 },
+  };
   expect(customerSchema.safeParse(customer).success).toBe(true);
+  expect(customerSchema.safeParse({ ...customer, creditRateCard: [] }).success).toBe(false);
   expect(customerSchema.safeParse({ ...customer, creditCharges: { freightRate: 10 } }).success).toBe(false);
 });
