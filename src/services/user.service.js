@@ -15,6 +15,8 @@ export const userDto = (user) => ({
   mobile: user.mobile,
   role: user.role,
   branchId: user.branchId,
+  vendorId: user.vendorId,
+  permissions: user.permissions || [],
   status: user.status,
   lastLoginAt: user.lastLoginAt,
   createdAt: user.createdAt,
@@ -31,6 +33,11 @@ const managedRole = (req) => req.managementRole || ROLES.EMPLOYEE;
 const assertManagement = (req, target, branchId = target?.branchId) => {
   if (req.user.role === ROLES.ADMIN) {
     if (target && target.role !== managedRole(req)) throw new AuthorizationError("Account is outside this directory");
+    return;
+  }
+  if (req.user.role === ROLES.HR) {
+    if (managedRole(req) !== ROLES.EMPLOYEE || (target && target.role !== ROLES.EMPLOYEE))
+      throw new AuthorizationError("HR can manage employee accounts only");
     return;
   }
   if (
@@ -56,6 +63,8 @@ export async function createEmployee(data, req) {
     let user;
     await session.withTransaction(async () => {
       await activeBranch(data.branchId, session);
+      if (managedRole(req) === ROLES.VENDOR && !data.vendorId)
+        throw new ConflictError("Select vendor for vendor login", "VENDOR_REQUIRED");
       user = (
         await User.create(
           [

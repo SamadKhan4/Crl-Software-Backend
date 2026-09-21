@@ -13,6 +13,11 @@ const userSchema = new Schema(
     passwordHash: { type: String, required: true, select: false },
     role: { type: String, enum: Object.values(ROLES), default: ROLES.EMPLOYEE },
     branchId: { ...objectId, ref: "Branch", index: true },
+    vendorId: { ...objectId, ref: "Vendor", index: true },
+    permissions: [{
+      module: { type: String, required: true, trim: true, uppercase: true, maxlength: 60 },
+      actions: [{ type: String, enum: ["VIEW", "ADD", "EDIT", "DELETE", "APPROVE", "PRINT", "EXPORT"] }],
+    }],
     status: { type: String, enum: Object.values(ACTIVE), default: ACTIVE.ACTIVE, index: true },
     lastLoginAt: Date,
   },

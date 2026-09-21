@@ -29,3 +29,4 @@ const handleUpload = (field) => (req, res, next) =>
   });
 export const uploadLR = handleUpload("lrImage");
 export const uploadPOD = handleUpload("pod");
+export const uploadEmployeeDocument = handleUpload("document");

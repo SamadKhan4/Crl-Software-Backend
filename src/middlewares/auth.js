@@ -20,4 +20,11 @@ export const allow =
   (...roles) =>
   (req, _res, next) =>
     roles.includes(req.user.role) ? next() : next(new AuthorizationError());
-export const internalRoles = allow(ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE);
+export const internalRoles = allow(ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE, ROLES.HR, ROLES.VENDOR);
+export const permit = (module, action, ...defaultRoles) => (req, _res, next) => {
+  if (req.user.role === ROLES.ADMIN) return next();
+  const configured = Array.isArray(req.user.permissions) && req.user.permissions.length > 0;
+  if (!configured) return defaultRoles.includes(req.user.role) ? next() : next(new AuthorizationError());
+  const permission = req.user.permissions.find((entry) => entry.module === module);
+  return permission?.actions?.includes(action) ? next() : next(new AuthorizationError());
+};

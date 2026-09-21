@@ -11,9 +11,17 @@ router.use("/managers", allow(ROLES.ADMIN), (req, _res, next) => {
   req.managementRole = ROLES.MANAGER;
   next();
 });
-router.post("/users", allow(ROLES.ADMIN, ROLES.MANAGER), validate(v.userSchema), c.createUser);
-router.get("/users", allow(ROLES.ADMIN, ROLES.MANAGER), validate(v.listSchema, "query"), c.listUsers);
-router.get("/users/:id", allow(ROLES.ADMIN, ROLES.MANAGER), validate(v.ids, "params"), c.getUser);
+router.use("/hr-users", allow(ROLES.ADMIN), (req, _res, next) => {
+  req.managementRole = ROLES.HR;
+  next();
+});
+router.use("/vendor-users", allow(ROLES.ADMIN), (req, _res, next) => {
+  req.managementRole = ROLES.VENDOR;
+  next();
+});
+router.post("/users", allow(ROLES.ADMIN), validate(v.userSchema), c.createUser);
+router.get("/users", allow(ROLES.ADMIN, ROLES.MANAGER, ROLES.HR), validate(v.listSchema, "query"), c.listUsers);
+router.get("/users/:id", allow(ROLES.ADMIN, ROLES.MANAGER, ROLES.HR), validate(v.ids, "params"), c.getUser);
 router.put(
   "/users/:id",
   allow(ROLES.ADMIN, ROLES.MANAGER),
@@ -55,7 +63,23 @@ router.post(
   c.resetUserPassword,
 );
 
+router.post("/hr-users", allow(ROLES.ADMIN), validate(v.userSchema), c.createUser);
+router.get("/hr-users", allow(ROLES.ADMIN), validate(v.listSchema, "query"), c.listUsers);
+router.get("/hr-users/:id", allow(ROLES.ADMIN), validate(v.ids, "params"), c.getUser);
+router.put("/hr-users/:id", allow(ROLES.ADMIN), validate(v.ids, "params"), validate(v.userUpdateSchema), c.updateUser);
+router.patch("/hr-users/:id/status", allow(ROLES.ADMIN), validate(v.ids, "params"), validate(v.activeStatusSchema), c.updateUserStatus);
+router.post("/hr-users/:id/reset-password", allow(ROLES.ADMIN), validate(v.ids, "params"), validate(v.resetPasswordSchema), c.resetUserPassword);
+
+router.post("/vendor-users", allow(ROLES.ADMIN), validate(v.userSchema), c.createUser);
+router.get("/vendor-users", allow(ROLES.ADMIN), validate(v.listSchema, "query"), c.listUsers);
+router.get("/vendor-users/:id", allow(ROLES.ADMIN), validate(v.ids, "params"), c.getUser);
+router.put("/vendor-users/:id", allow(ROLES.ADMIN), validate(v.ids, "params"), validate(v.userUpdateSchema), c.updateUser);
+router.patch("/vendor-users/:id/status", allow(ROLES.ADMIN), validate(v.ids, "params"), validate(v.activeStatusSchema), c.updateUserStatus);
+router.post("/vendor-users/:id/reset-password", allow(ROLES.ADMIN), validate(v.ids, "params"), validate(v.resetPasswordSchema), c.resetUserPassword);
+
 addResourceMutations(router, "users", v.employeePatchSchema, c.updateUser);
 addResourceMutations(router, "managers", v.employeePatchSchema, c.updateUser);
+addResourceMutations(router, "hr-users", v.employeePatchSchema, c.updateUser);
+addResourceMutations(router, "vendor-users", v.employeePatchSchema, c.updateUser);
 
 export default router;

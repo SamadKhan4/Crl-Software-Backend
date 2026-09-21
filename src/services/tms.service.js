@@ -11,6 +11,7 @@ import {
   ShipmentDocument,
   ShipmentEvent,
   StationeryTransaction,
+  TmsRegister,
   Trip,
   Vendor,
 } from "../models/index.js";
@@ -33,7 +34,8 @@ const summary = (record) => ({
     record.invoiceNumber ||
     record.receiptNumber ||
     record.quotationNumber ||
-    record.transactionNumber,
+    record.transactionNumber ||
+    record.recordNumber,
   status: record.status,
   shipmentCount: record.shipmentIds?.length,
   amount: record.totalAmount ?? record.amount,
@@ -67,9 +69,9 @@ const createdRange = (query) => {
   };
 };
 
-async function list(Model, query, user, { search = [], populate: paths = [], global = false } = {}) {
+async function list(Model, query, user, { search = [], populate: paths = [], global = false, where = {} } = {}) {
   const options = listQuery(query);
-  const filter = { ...(global ? {} : scope(query, user)), ...createdRange(query) };
+  const filter = { ...(global ? {} : scope(query, user)), ...createdRange(query), ...where };
   for (const key of ["status", "customerId", "vendorId"]) if (query[key]) filter[key] = query[key];
   if (query.search && search.length)
     filter.$or = search.map((field) => ({ [field]: { $regex: escapeSearch(query.search), $options: "i" } }));
@@ -393,6 +395,10 @@ export async function uploadDrsPod(recordId, shipmentId, file, req) {
     throw new BusinessRuleError("LR does not belong to this DRS", "INVALID_DRS_SHIPMENT");
   if (drs.podShipmentIds.some((value) => id(value) === shipmentId))
     throw new ConflictError("POD is already uploaded for this LR", "POD_ALREADY_UPLOADED");
+  const shipment = await Shipment.findById(shipmentId).select("receiverName receiverMobile").lean();
+  const receiverName = String(req.body?.receiverName || shipment?.receiverName || "").trim();
+  if (receiverName.length < 2)
+    throw new BusinessRuleError("Enter receiver name for e-POD", "RECEIVER_NAME_REQUIRED");
   const stored = await storageService.saveDocument(shipmentId, "pod", file);
   try {
     const version = (await ShipmentDocument.countDocuments({ shipmentId, documentType: "POD" })) + 1;
@@ -408,6 +414,17 @@ export async function uploadDrsPod(recordId, shipmentId, file, req) {
       verifiedAt: new Date(),
     });
     drs.podShipmentIds.addToSet(shipmentId);
+    drs.deliveryProofs.push({
+      shipmentId,
+      receiverName,
+      receiverMobile: String(req.body?.receiverMobile || shipment?.receiverMobile || "").trim() || undefined,
+      otpReference: String(req.body?.otpReference || "").trim() || undefined,
+      signatureName: String(req.body?.signatureName || receiverName).trim(),
+      remarks: String(req.body?.remarks || "").trim() || undefined,
+      deliveredAt: req.body?.deliveredAt ? new Date(req.body.deliveredAt) : new Date(),
+      recordedBy: req.user._id,
+      documentId: document._id,
+    });
     await drs.save();
     await audit(null, req, "DRS_POD_UPLOADED", "DeliveryRunSheet", drs._id, null, {
       drsNumber: drs.drsNumber,
@@ -740,4 +757,88 @@ export async function receivablesSummary(query, user) {
     },
   ]);
   return totals || { invoiceCount: 0, billed: 0, received: 0, outstanding: 0, overdue: 0 };
+}
+
+export const REGISTER_MODULES = Object.freeze({
+  pickups: { module: "PICKUP", prefix: "FM" },
+  "ptl-operations": { module: "PTL", prefix: "PTL" },
+  "ftl-operations": { module: "FTL", prefix: "FTL" },
+  hubs: { module: "HUB", prefix: "HUB" },
+  handling: { module: "HANDLING", prefix: "HND" },
+  fleet: { module: "FLEET", prefix: "VEH" },
+  drivers: { module: "DRIVER", prefix: "DRV" },
+  "vendor-settlements": { module: "VENDOR_SETTLEMENT", prefix: "VST" },
+  "eway-gst": { module: "EWAY_GST", prefix: "EWB" },
+  accounting: { module: "ACCOUNTING", prefix: "ACC" },
+  hr: { module: "HR", prefix: "HR" },
+  claims: { module: "CLAIM", prefix: "CLM" },
+  notifications: { module: "NOTIFICATION", prefix: "NTF" },
+  "system-settings": { module: "SYSTEM_SETTING", prefix: "CFG" },
+});
+
+const registerConfig = (resource) => {
+  const config = REGISTER_MODULES[resource];
+  if (!config) throw new NotFoundError("TMS module not found", "TMS_MODULE_NOT_FOUND");
+  return config;
+};
+
+export async function createRegister(resource, data, req) {
+  const config = registerConfig(resource);
+  const branchId = branchFor(data, req);
+  if (config.module === "VENDOR_SETTLEMENT") {
+    const meta = data.metadata || {};
+    const gross = ["baseAmount", "detention", "loading", "otherCharge"].reduce(
+      (sum, key) => sum + Number(meta[key] || 0),
+      0,
+    );
+    const deductions = Number(meta.tds || 0) + Number(meta.advance || 0);
+    data.amount = money(Math.max(0, gross - deductions));
+    data.taxAmount = money(Number(meta.tds || 0));
+    data.metadata = { ...meta, gross: money(gross), deductions: money(deductions), payable: data.amount };
+  }
+  const record = await TmsRegister.create({
+    ...data,
+    module: config.module,
+    branchId,
+    recordNumber: await generateBusinessNumber(`register-${config.module.toLowerCase()}`, config.prefix),
+    createdBy: req.user._id,
+  });
+  await audit(null, req, `${config.module}_CREATED`, "TmsRegister", record._id, null, summary(record));
+  return dto(record);
+}
+
+export function listRegisters(resource, query, user) {
+  const config = registerConfig(resource);
+  return list(TmsRegister, query, user, {
+    where: { module: config.module },
+    search: ["recordNumber", "title", "reference", "origin", "destination", "vehicleNumber", "driverName", "documentNumber"],
+    populate: ["branchId", "vendorId", "customerId", "userId", "shipmentIds"],
+  });
+}
+
+export async function getRegister(resource, recordId, user) {
+  const config = registerConfig(resource);
+  const record = await TmsRegister.findOne({ _id: recordId, module: config.module })
+    .populate("branchId vendorId customerId userId shipmentIds");
+  if (!record) throw new NotFoundError("Record not found", "RECORD_NOT_FOUND");
+  assertBranchAccess(record, user);
+  return dto(record);
+}
+
+export async function updateRegister(resource, recordId, data, req) {
+  const config = registerConfig(resource);
+  const record = await TmsRegister.findOne({ _id: recordId, module: config.module });
+  if (!record) throw new NotFoundError("Record not found", "RECORD_NOT_FOUND");
+  assertBranchAccess(record, req.user);
+  if (["COMPLETED", "PAID", "CANCELLED"].includes(record.status))
+    throw new ConflictError("Closed records cannot be edited", "REGISTER_CLOSED");
+  const before = summary(record);
+  Object.assign(record, data, { updatedBy: req.user._id });
+  await record.save();
+  await audit(null, req, `${config.module}_UPDATED`, "TmsRegister", record._id, before, summary(record));
+  return dto(record);
+}
+
+export async function updateRegisterStatus(resource, recordId, data, req) {
+  return updateRegister(resource, recordId, data, req);
 }

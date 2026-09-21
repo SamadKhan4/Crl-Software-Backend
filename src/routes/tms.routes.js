@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { allow } from "../middlewares/auth.js";
+import { allow, permit } from "../middlewares/auth.js";
 import { uploadPOD } from "../middlewares/upload.js";
 import { validate } from "../middlewares/validate.js";
 import { ROLES } from "../constants/workflow.js";
@@ -29,19 +29,19 @@ router.patch(
   c.vendorStatus,
 );
 
-router.post("/manifests", validate(v.manifestSchema), c.createManifest);
-router.get("/manifests", validate(v.businessListSchema, "query"), c.listManifests);
-router.get("/manifests/:id", validate(v.ids, "params"), c.getManifest);
+router.post("/manifests", permit("MANIFEST", "ADD", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.manifestSchema), c.createManifest);
+router.get("/manifests", permit("MANIFEST", "VIEW", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.businessListSchema, "query"), c.listManifests);
+router.get("/manifests/:id", permit("MANIFEST", "VIEW", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.ids, "params"), c.getManifest);
 router.patch("/manifests/:id/status", adminManager, validate(v.ids, "params"), validate(v.manifestStatusSchema), c.manifestStatus);
 
-router.post("/trips", validate(v.tripSchema), c.createTrip);
-router.get("/trips", validate(v.businessListSchema, "query"), c.listTrips);
-router.get("/trips/:id", validate(v.ids, "params"), c.getTrip);
+router.post("/trips", permit("TRIP", "ADD", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.tripSchema), c.createTrip);
+router.get("/trips", permit("TRIP", "VIEW", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.businessListSchema, "query"), c.listTrips);
+router.get("/trips/:id", permit("TRIP", "VIEW", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.ids, "params"), c.getTrip);
 router.patch("/trips/:id/status", adminManager, validate(v.ids, "params"), validate(v.tripStatusSchema), c.tripStatus);
 
-router.post("/drs", validate(v.drsSchema), c.createDrs);
-router.get("/drs", validate(v.businessListSchema, "query"), c.listDrs);
-router.get("/drs/:id", validate(v.ids, "params"), c.getDrs);
+router.post("/drs", permit("DELIVERY", "ADD", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.drsSchema), c.createDrs);
+router.get("/drs", permit("DELIVERY", "VIEW", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.businessListSchema, "query"), c.listDrs);
+router.get("/drs/:id", permit("DELIVERY", "VIEW", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.ids, "params"), c.getDrs);
 router.patch("/drs/:id/vehicle", adminManager, validate(v.ids, "params"), validate(v.drsVehicleSchema), c.updateDrsVehicle);
 router.post("/drs/:id/pod/:shipmentId", adminManager, validate(v.drsPodParams, "params"), uploadPOD, c.uploadDrsPod);
 router.post("/drs/:id/close", adminManager, validate(v.ids, "params"), c.closeDrs);
@@ -76,5 +76,51 @@ router.patch(
 router.post("/stationery", adminManager, validate(v.stationerySchema), c.createStationery);
 router.get("/stationery", adminManager, validate(v.businessListSchema, "query"), c.listStationery);
 router.get("/stationery/stock", adminManager, validate(v.businessListSchema, "query"), c.stationeryStock);
+
+const operationalRegisters = new Set(["pickups", "ptl-operations", "ftl-operations", "hubs", "handling"]);
+const registerAccess = (req, res, next) =>
+  operationalRegisters.has(req.params.resource) ? next() : adminManager(req, res, next);
+const registerModule = (resource) => ({ pickups: "PICKUP", "ptl-operations": "PTL", "ftl-operations": "FTL", hubs: "HUB", handling: "LOADING" }[resource]);
+const registerPermission = (action) => (req, res, next) =>
+  operationalRegisters.has(req.params.resource)
+    ? permit(registerModule(req.params.resource), action, ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE)(req, res, next)
+    : next();
+router.post(
+  "/tms-registers/:resource",
+  validate(v.tmsRegisterResource, "params"),
+  registerAccess,
+  registerPermission("ADD"),
+  validate(v.tmsRegisterSchema),
+  c.createRegister,
+);
+router.get(
+  "/tms-registers/:resource",
+  validate(v.tmsRegisterResource, "params"),
+  registerAccess,
+  registerPermission("VIEW"),
+  validate(v.businessListSchema, "query"),
+  c.listRegisters,
+);
+router.get(
+  "/tms-registers/:resource/:id",
+  validate(v.tmsRegisterResourceId, "params"),
+  registerAccess,
+  registerPermission("VIEW"),
+  c.getRegister,
+);
+router.put(
+  "/tms-registers/:resource/:id",
+  validate(v.tmsRegisterResourceId, "params"),
+  adminManager,
+  validate(v.tmsRegisterUpdateSchema),
+  c.updateRegister,
+);
+router.patch(
+  "/tms-registers/:resource/:id/status",
+  validate(v.tmsRegisterResourceId, "params"),
+  adminManager,
+  validate(v.tmsRegisterStatusSchema),
+  c.updateRegisterStatus,
+);
 
 export default router;

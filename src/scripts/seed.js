@@ -1,18 +1,25 @@
 import bcrypt from "bcryptjs";
 import { connectDatabase, disconnectDatabase } from "../config/db.js";
 import {
+  AuditLog,
+  Booking,
   Branch,
+  BusinessMaster,
   Counter,
   Customer,
   DeliveryRunSheet,
   Invoice,
   Manifest,
   MoneyReceipt,
+  Notification,
+  PackageUnit,
   Quotation,
+  RateCard,
   Shipment,
   ShipmentDocument,
   ShipmentEvent,
   StationeryTransaction,
+  TmsRegister,
   Trip,
   User,
   Vendor,
@@ -32,10 +39,21 @@ const statuses = [
   SHIPMENT_STATUS.CANCELLED,
   SHIPMENT_STATUS.BOOKED,
 ];
-const upsertUser = async ({ employeeCode, email, name, role, branchId }) =>
+const upsertUser = async ({ employeeCode, email, name, role, branchId, vendorId, permissions = [] }) =>
   User.findOneAndUpdate(
     { email },
-    { $set: { employeeCode, name, role, branchId, status: "ACTIVE", passwordHash: await bcrypt.hash(password, 12) } },
+    {
+      $set: {
+        employeeCode,
+        name,
+        role,
+        branchId,
+        vendorId,
+        permissions,
+        status: "ACTIVE",
+        passwordHash: await bcrypt.hash(password, 12),
+      },
+    },
     { upsert: true, new: true, setDefaultsOnInsert: true },
   );
 
@@ -123,7 +141,35 @@ const run = async () => {
       role: ROLES.EMPLOYEE,
       branchId: mumbai._id,
     });
-    await Counter.findOneAndUpdate({ key: "employee" }, { $max: { value: 3 } }, { upsert: true });
+    await upsertUser({
+      employeeCode: "CRLDEMOHR001",
+      email: "hr@crl-transport.com",
+      name: "CRL Human Resources",
+      role: ROLES.HR,
+      branchId: nagpur._id,
+    });
+    await upsertUser({
+      employeeCode: "CRLDEMOMGR001",
+      email: "manager1@crl-transport.com",
+      name: "Nagpur Branch Manager",
+      role: ROLES.MANAGER,
+      branchId: nagpur._id,
+    });
+    await upsertUser({
+      employeeCode: "CRLDEMOMGR002",
+      email: "manager2@crl-transport.com",
+      name: "Mumbai Branch Manager",
+      role: ROLES.MANAGER,
+      branchId: mumbai._id,
+    });
+    await upsertUser({
+      employeeCode: "CRLDEMOHR002",
+      email: "hr2@crl-transport.com",
+      name: "Mumbai Human Resources",
+      role: ROLES.HR,
+      branchId: mumbai._id,
+    });
+    await Counter.findOneAndUpdate({ key: "employee" }, { $max: { value: 7 } }, { upsert: true });
     const customers = await Promise.all(
       Array.from({ length: 5 }, (_, index) => {
         const number = index + 1;
@@ -397,6 +443,26 @@ const run = async () => {
     ),
   ]);
 
+  if (!demoDataOnly) {
+    await Promise.all([
+      upsertUser({
+        employeeCode: "CRLDEMOVND001",
+        email: "vendor1@crl-transport.com",
+        name: "Western India Vendor User",
+        role: ROLES.VENDOR,
+        vendorId: demoVendors[0]._id,
+      }),
+      upsertUser({
+        employeeCode: "CRLDEMOVND002",
+        email: "vendor2@crl-transport.com",
+        name: "Mumbai Last Mile Vendor User",
+        role: ROLES.VENDOR,
+        vendorId: demoVendors[1]._id,
+      }),
+    ]);
+    await Counter.findOneAndUpdate({ key: "employee" }, { $max: { value: 9 } }, { upsert: true });
+  }
+
   const demoRows = [
     {
       sequence: 1,
@@ -454,6 +520,7 @@ const run = async () => {
     },
   ];
 
+  const demoFlows = [];
   for (const row of demoRows) {
     const suffix = String(row.sequence).padStart(3, "0");
     const bookingDate = dateFromNow(-8 - row.sequence);
@@ -547,6 +614,59 @@ const run = async () => {
       { upsert: true, new: true, setDefaultsOnInsert: true },
     );
 
+    await Booking.findOneAndUpdate(
+      { bookingNumber: `DEMO-BKG-${year}-${suffix}` },
+      {
+        $set: {
+          branchId: nagpur._id,
+          destinationBranchId: mumbai._id,
+          customerId: row.customer._id,
+          bookingDate,
+          consignor: row.senderName,
+          consignee: row.receiverName,
+          consigneeMobile: row.receiverMobile,
+          origin: "Nagpur",
+          destination: "Mumbai",
+          service: row.sequence === 1 ? "PTL" : "FTL",
+          packageCount: row.packageCount,
+          weightKg: row.weightKg,
+          description: row.description,
+          invoiceNumber: row.invoiceReference,
+          eWayBillNumber: row.eWayBillNo,
+          expectedDeliveryDate: deliveryDate,
+          status: "LR_GENERATED",
+          shipmentId: shipment._id,
+          createdBy: employee1._id,
+        },
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true },
+    );
+
+    await PackageUnit.findOneAndUpdate(
+      { shipmentId: shipment._id, sequence: 1 },
+      {
+        $set: {
+          barcode: `${row.lrNumber}-01OF${row.packageCount}`,
+          shipmentId: shipment._id,
+          lrNumber: row.lrNumber,
+          sequence: 1,
+          totalPackages: row.packageCount,
+          status: "DELIVERED",
+          currentLocation: row.receiverAddress,
+          currentCustodianType: "CUSTOMER",
+          currentCustodianId: row.receiverMobile,
+          scans: [
+            { action: "GENERATED", location: nagpur.name, branchId: nagpur._id, scannedBy: employee1._id, scannedAt: bookingDate },
+            { action: "PICKUP", location: row.customer.address, branchId: nagpur._id, vehicleNumber: row.vehicleNumber, scannedBy: employee1._id, scannedAt: dateFromNow(-7 - row.sequence, 9) },
+            { action: "HUB_INWARD", location: mumbai.name, branchId: mumbai._id, routeCode: `DEMO-ROUTE-${suffix}`, scannedBy: employee1._id, scannedAt: dateFromNow(-4 - row.sequence, 11) },
+            { action: "DELIVERED", location: row.receiverAddress, branchId: mumbai._id, vehicleNumber: row.vehicleNumber, scannedBy: employee1._id, scannedAt: deliveryDate },
+          ],
+          createdBy: employee1._id,
+        },
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true },
+    );
+
     const eventRows = [
       [SHIPMENT_STATUS.BOOKED, nagpur.name, "LR booked and pickup scheduled"],
       [SHIPMENT_STATUS.IN_TRANSIT, `${nagpur.city || nagpur.name} Hub`, "First-mile pickup completed and vehicle dispatched"],
@@ -575,8 +695,9 @@ const run = async () => {
       );
     }
 
+    let podDocument;
     for (const documentType of ["LR_IMAGE", "POD"]) {
-      await ShipmentDocument.findOneAndUpdate(
+      const document = await ShipmentDocument.findOneAndUpdate(
         { shipmentId: shipment._id, documentType, version: 1 },
         {
           $set: {
@@ -597,6 +718,7 @@ const run = async () => {
         },
         { upsert: true, new: true, setDefaultsOnInsert: true },
       );
+      if (documentType === "POD") podDocument = document;
     }
 
     await Manifest.findOneAndUpdate(
@@ -656,6 +778,18 @@ const run = async () => {
           route: row.sequence === 1 ? "Mumbai Hub - Andheri East" : "Mumbai Hub - Turbhe MIDC",
           partB: [{ eWayBillNo: row.eWayBillNo, vehicleNumber: row.vehicleNumber, updatedAt: deliveryDate }],
           podShipmentIds: [shipment._id],
+          deliveryProofs: [
+            {
+              shipmentId: shipment._id,
+              receiverName: row.receiverName,
+              receiverMobile: row.receiverMobile,
+              signatureName: row.receiverName,
+              remarks: "Demo e-POD verified and DRS closed",
+              deliveredAt: deliveryDate,
+              recordedBy: employee1._id,
+              documentId: podDocument._id,
+            },
+          ],
           status: "CLOSED",
           closedAt: deliveryDate,
           closedBy: employee1._id,
@@ -788,6 +922,284 @@ const run = async () => {
           source: "INTERNAL",
           notes: "End-to-end demo quotation",
           createdBy: admin._id,
+        },
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true },
+    );
+    demoFlows.push({ ...row, shipment, invoice, bookingDate, deliveryDate });
+  }
+
+  const masterRows = demoFlows.flatMap((flow) => {
+    const suffix = String(flow.sequence).padStart(3, "0");
+    const branch = flow.sequence === 1 ? nagpur : mumbai;
+    return [
+      {
+        type: "COMPANY",
+        code: `DEMO-COMP-${suffix}`,
+        name: flow.sequence === 1 ? "CRL Nagpur Operations" : "CRL Mumbai Operations",
+        branchId: branch._id,
+        address: branch.name,
+        city: branch.city,
+        state: branch.state,
+        pincode: branch.pincode,
+        contact: { person: flow.customer.name, mobile: flow.customer.mobile, email: flow.customer.email },
+        registration: { gstin: flow.customer.gstNumber },
+        documentSeries: {
+          lr: `CRL-${branch.branchCode || suffix}-LR`,
+          invoice: `CRL-${branch.branchCode || suffix}-INV`,
+          receipt: `CRL-${branch.branchCode || suffix}-RCPT`,
+          manifest: `CRL-${branch.branchCode || suffix}-MNF`,
+          trip: `CRL-${branch.branchCode || suffix}-TRIP`,
+        },
+        notes: `Demo company master connected to ${flow.lrNumber}`,
+      },
+      {
+        type: "LOCATION",
+        code: `DEMO-LOC-${suffix}`,
+        name: flow.sequence === 1 ? "Andheri East Delivery Area" : "Turbhe MIDC Delivery Area",
+        branchId: mumbai._id,
+        address: flow.receiverAddress,
+        city: flow.sequence === 1 ? "Mumbai" : "Navi Mumbai",
+        state: "Maharashtra",
+        pincode: flow.receiverPincode,
+        zone: flow.sequence === 1 ? "MUMBAI-WEST" : "NAVI-MUMBAI",
+        flags: { serviceable: true, oda: false },
+        notes: `Destination location for ${flow.lrNumber}`,
+      },
+      {
+        type: "ROUTE",
+        code: `DEMO-ROUTE-${suffix}`,
+        name: flow.sequence === 1 ? "Nagpur to Andheri PTL" : "Nagpur to Turbhe FTL",
+        branchId: nagpur._id,
+        origin: "Nagpur",
+        destination: flow.sequence === 1 ? "Andheri East" : "Turbhe MIDC",
+        distanceKm: flow.sequence === 1 ? 825 : 805,
+        transitDays: flow.sequence === 1 ? 3 : 2,
+        intermediateHubs: ["Nagpur Hub", "Mumbai Hub"],
+        vehicleType: flow.sequence === 1 ? "17 FT Closed Body" : "Tata Ace",
+        financial: { toll: 1800, fmRate: 1200, mmRate: 7200, lmRate: 1600 },
+        notes: `Operational lane for ${flow.lrNumber}`,
+      },
+      {
+        type: "ITEM",
+        code: `DEMO-ITEM-${suffix}`,
+        name: flow.description,
+        category: flow.sequence === 1 ? "Industrial machinery" : "Retail fixtures",
+        hsn: flow.sequence === 1 ? "8413" : "9403",
+        standardWeight: flow.weightKg / flow.packageCount,
+        flags: { serviceable: true, fragile: true, hazardous: false },
+        notes: `Goods master used by ${flow.lrNumber}`,
+      },
+      {
+        type: "PACKAGE",
+        code: `DEMO-PKG-${suffix}`,
+        name: flow.sequence === 1 ? "Heavy wooden crate" : "Retail fixture pallet",
+        packageType: flow.sequence === 1 ? "WOODEN_CRATE" : "PALLET",
+        length: 120,
+        width: 80,
+        height: 75,
+        standardWeight: flow.weightKg / flow.packageCount,
+        cft: 25.43,
+        notes: `Package master used by ${flow.lrNumber}`,
+      },
+      {
+        type: "VEHICLE",
+        code: `DEMO-VEH-${suffix}`,
+        name: flow.vehicleNumber,
+        branchId: nagpur._id,
+        vehicleNumber: flow.vehicleNumber,
+        vehicleType: flow.sequence === 1 ? "17 FT Closed Body" : "Tata Ace",
+        vendorId: flow.vendor._id,
+        capacityKg: flow.sequence === 1 ? 7000 : 1200,
+        documents: [
+          { type: "RC", number: `RC-${flow.vehicleNumber}`, verified: true },
+          { type: "INSURANCE", number: `INS-${suffix}`, expiresAt: dateFromNow(120), verified: true },
+        ],
+        notes: `Vehicle mapped to trip for ${flow.lrNumber}`,
+      },
+      {
+        type: "DRIVER",
+        code: `DEMO-DRV-${suffix}`,
+        name: flow.driverName,
+        branchId: nagpur._id,
+        vendorId: flow.vendor._id,
+        driverId: employee1._id,
+        contact: { person: flow.driverName, mobile: flow.driverMobile },
+        documents: [{ type: "DRIVING_LICENCE", number: `DL-DEMO-${suffix}`, expiresAt: dateFromNow(365), verified: true }],
+        notes: `Driver assigned to ${flow.lrNumber}`,
+      },
+    ];
+  });
+  for (const master of masterRows) {
+    await BusinessMaster.findOneAndUpdate(
+      { type: master.type, code: master.code },
+      { $set: { ...master, status: "ACTIVE", createdBy: admin._id, updatedBy: admin._id } },
+      { upsert: true, new: true, setDefaultsOnInsert: true },
+    );
+  }
+
+  for (const flow of demoFlows) {
+    const suffix = String(flow.sequence).padStart(3, "0");
+    const service = flow.sequence === 1 ? "PTL" : "FTL";
+    await RateCard.findOneAndUpdate(
+      { code: `DEMO-CLIENT-RATE-${suffix}` },
+      {
+        $set: {
+          partyType: "CLIENT",
+          customerId: flow.customer._id,
+          service,
+          origin: "Nagpur",
+          destination: "Mumbai",
+          basis: flow.sequence === 1 ? "PER_KG" : "PER_TRIP",
+          rate: flow.sequence === 1 ? 14 : flow.taxableAmount,
+          minimumCharge: flow.sequence === 1 ? 3500 : flow.taxableAmount,
+          minimumWeightKg: flow.sequence === 1 ? 250 : 0,
+          charges: [
+            { name: "Docket", basis: "FIXED", value: 50 },
+            { name: "Fuel surcharge", basis: "PERCENTAGE", value: flow.sequence === 1 ? 10 : 8 },
+          ],
+          gstRate: 18,
+          effectiveFrom: dateFromNow(-30),
+          status: "ACTIVE",
+          createdBy: admin._id,
+          updatedBy: admin._id,
+        },
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true },
+    );
+    await RateCard.findOneAndUpdate(
+      { code: `DEMO-VENDOR-RATE-${suffix}` },
+      {
+        $set: {
+          partyType: "VENDOR",
+          vendorId: flow.vendor._id,
+          service,
+          origin: "Nagpur",
+          destination: "Mumbai",
+          vehicleType: flow.sequence === 1 ? "17 FT Closed Body" : "Tata Ace",
+          basis: flow.sequence === 1 ? "PER_KG" : "PER_TRIP",
+          rate: flow.sequence === 1 ? 8.5 : 8400,
+          minimumCharge: flow.sequence === 1 ? 2500 : 8400,
+          tdsRate: 1,
+          effectiveFrom: dateFromNow(-30),
+          status: "ACTIVE",
+          createdBy: admin._id,
+          updatedBy: admin._id,
+        },
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true },
+    );
+  }
+
+  const registerDefinitions = [
+    ["PICKUP", "First-mile pickup completed", "COMPLETED", 1200],
+    ["PTL", "PTL consolidation completed", "COMPLETED", 3400],
+    ["FTL", "FTL movement completed", "COMPLETED", 8400],
+    ["HUB", "Hub inward, sorting and outward completed", "COMPLETED", 650],
+    ["HANDLING", "Loading and unloading completed", "COMPLETED", 850],
+    ["FLEET", "Vehicle compliance and utilization checked", "APPROVED", 0],
+    ["DRIVER", "Driver duty and document check completed", "APPROVED", 0],
+    ["VENDOR_SETTLEMENT", "Vendor freight settlement completed", "PAID", 7000],
+    ["EWAY_GST", "E-way bill and GST compliance verified", "APPROVED", 0],
+    ["ACCOUNTING", "Trip expense posted to accounts", "APPROVED", 2600],
+    ["HR", "Operations employee duty record approved", "APPROVED", 0],
+    ["CLAIM", "Transit claim investigation completed", "APPROVED", 2500],
+    ["NOTIFICATION", "Delivery notification delivered", "COMPLETED", 0],
+    ["SYSTEM_SETTING", "Branch operational rule activated", "APPROVED", 0],
+  ];
+  for (const [module, title, status, baseAmount] of registerDefinitions) {
+    for (const flow of demoFlows) {
+      const suffix = String(flow.sequence).padStart(3, "0");
+      const amount = Number(baseAmount) + (flow.sequence - 1) * 500;
+      await TmsRegister.findOneAndUpdate(
+        { recordNumber: `DEMO-${module}-${year}-${suffix}` },
+        {
+          $set: {
+            module,
+            branchId: ["HUB", "HANDLING", "NOTIFICATION"].includes(module) ? mumbai._id : nagpur._id,
+            shipmentIds: [flow.shipment._id],
+            vendorId: flow.vendor._id,
+            customerId: flow.customer._id,
+            userId: employee1._id,
+            title: `${title} - Demo ${flow.sequence}`,
+            reference: flow.lrNumber,
+            operationDate: flow.bookingDate,
+            dueDate: flow.deliveryDate,
+            origin: "Nagpur",
+            destination: "Mumbai",
+            vehicleNumber: flow.vehicleNumber,
+            driverName: flow.driverName,
+            driverMobile: flow.driverMobile,
+            documentNumber: module === "EWAY_GST" ? flow.eWayBillNo : `DEMO-${module}-${suffix}`,
+            quantity: flow.packageCount,
+            amount,
+            taxAmount: module === "EWAY_GST" ? flow.gstAmount : module === "VENDOR_SETTLEMENT" ? Math.round(amount * 0.01 * 100) / 100 : 0,
+            status,
+            description: `${title}. Connected customer, vendor, vehicle, LR, invoice and delivery records are available.`,
+            remarks: `End-to-end demo flow ${flow.sequence}`,
+            metadata: {
+              flowNumber: flow.sequence,
+              lrNumber: flow.lrNumber,
+              invoiceNumber: flow.invoice.invoiceNumber,
+              packageCount: flow.packageCount,
+              weightKg: flow.weightKg,
+              eWayBillNo: flow.eWayBillNo,
+              gstAmount: flow.gstAmount,
+              baseAmount: amount,
+              tds: module === "VENDOR_SETTLEMENT" ? Math.round(amount * 0.01 * 100) / 100 : 0,
+              payable: module === "VENDOR_SETTLEMENT" ? Math.round(amount * 0.99 * 100) / 100 : amount,
+            },
+            createdBy: admin._id,
+            updatedBy: admin._id,
+          },
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true },
+      );
+    }
+  }
+
+  for (const flow of demoFlows) {
+    const suffix = String(flow.sequence).padStart(3, "0");
+    await Notification.findOneAndUpdate(
+      { event: "DEMO_DELIVERY_COMPLETED", shipmentId: flow.shipment._id },
+      {
+        $set: {
+          invoiceId: flow.invoice._id,
+          customerId: flow.customer._id,
+          branchId: mumbai._id,
+          recipientName: flow.receiverName,
+          mobile: flow.receiverMobile,
+          email: flow.customer.email,
+          channels: ["WHATSAPP", "SMS", "EMAIL"],
+          subject: `Delivery completed for ${flow.lrNumber}`,
+          message: `Demo shipment ${flow.lrNumber} was delivered and its POD was verified.`,
+          status: "SENT",
+          attempts: 1,
+          sentAt: flow.deliveryDate,
+        },
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true },
+    );
+    await AuditLog.findOneAndUpdate(
+      { requestId: `DEMO-FLOW-${year}-${suffix}` },
+      {
+        $set: {
+          userId: admin._id,
+          actorName: admin.name,
+          actorRole: admin.role,
+          actorBranchId: nagpur._id,
+          entityLabel: flow.lrNumber,
+          action: "DEMO_FLOW_COMPLETED",
+          entityType: "Shipment",
+          entityId: String(flow.shipment._id),
+          newValue: {
+            shipmentStatus: flow.currentStatus,
+            invoiceStatus: flow.invoiceStatus,
+            drsStatus: "CLOSED",
+            podStatus: "VERIFIED",
+          },
+          ipAddress: "127.0.0.1",
+          userAgent: "CRL demo seed",
         },
       },
       { upsert: true, new: true, setDefaultsOnInsert: true },

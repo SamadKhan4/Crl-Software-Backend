@@ -27,6 +27,40 @@ const creditChargesSchema = new Schema(
   { _id: false },
 );
 
+const customerLocationSchema = new Schema(
+  {
+    code: { type: String, required: true, trim: true, uppercase: true, maxlength: 40 },
+    name: { type: String, required: true, trim: true, maxlength: 150 },
+    address: { type: String, trim: true, maxlength: 500 },
+    city: { type: String, trim: true, maxlength: 100 },
+    state: { type: String, trim: true, maxlength: 100 },
+    pincode: { type: String, trim: true, match: /^\d{6}$/ },
+    contactPerson: { type: String, trim: true, maxlength: 120 },
+    mobile: { type: String, trim: true, maxlength: 20 },
+  },
+  { _id: true, strict: true },
+);
+
+const contactSchema = new Schema(
+  {
+    department: { type: String, enum: ["ACCOUNTS", "OPERATIONS", "LOGISTICS", "MANAGEMENT", "OTHER"], required: true },
+    name: { type: String, required: true, trim: true, maxlength: 120 },
+    mobile: { type: String, trim: true, maxlength: 20 },
+    email: { type: String, trim: true, lowercase: true, maxlength: 180 },
+  },
+  { _id: true, strict: true },
+);
+
+const customerDocumentSchema = new Schema(
+  {
+    type: { type: String, required: true, trim: true, maxlength: 60 },
+    number: { type: String, trim: true, maxlength: 120 },
+    fileUrl: { type: String, trim: true, maxlength: 1000 },
+    expiresAt: Date,
+  },
+  { _id: true, strict: true },
+);
+
 const customerSchema = new Schema(
   {
     customerCode: { type: String, required: true, unique: true, match: /^(?:\d{5}|CRLCUST\d{6})$/, index: true },
@@ -41,6 +75,28 @@ const customerSchema = new Schema(
     state: { type: String, trim: true },
     pincode: { type: String, trim: true },
     gstNumber: { type: String, uppercase: true, trim: true, sparse: true, index: true },
+    legalName: { type: String, trim: true, maxlength: 150 },
+    tradeName: { type: String, trim: true, maxlength: 150 },
+    industry: { type: String, trim: true, maxlength: 100 },
+    panNumber: { type: String, uppercase: true, trim: true, maxlength: 10 },
+    gstType: { type: String, trim: true, maxlength: 40 },
+    billingState: { type: String, trim: true, maxlength: 100 },
+    billingAddress: { type: String, trim: true, maxlength: 500 },
+    pickupLocations: { type: [customerLocationSchema], default: [] },
+    deliveryLocations: { type: [customerLocationSchema], default: [] },
+    services: [{ type: String, enum: ["HUB_TO_HUB", "DOOR_TO_DOOR", "DOOR_TO_HUB", "HUB_TO_DOOR", "PTL", "FTL", "FM", "MM", "LM", "PICKUP", "DELIVERY", "REVERSE"] }],
+    billing: {
+      cycle: { type: String, trim: true, maxlength: 60 },
+      paymentTerms: { type: String, trim: true, maxlength: 120 },
+      creditLimit: { type: Number, min: 0, default: 0 },
+      creditDays: { type: Number, min: 0, max: 365, default: 0 },
+      invoiceMode: { type: String, enum: ["SINGLE_LR", "CONSOLIDATED", "BOTH"] },
+      gstRate: { type: Number, min: 0, max: 100, default: 0 },
+      tdsRate: { type: Number, min: 0, max: 100, default: 0 },
+      billingEmail: { type: String, lowercase: true, trim: true, maxlength: 180 },
+    },
+    contacts: { type: [contactSchema], default: [] },
+    documents: { type: [customerDocumentSchema], default: [] },
     creditRateCard: { type: [creditRateSchema], default: [] },
     creditCharges: { type: creditChargesSchema, default: () => ({}) },
     status: { type: String, enum: Object.values(ACTIVE), default: ACTIVE.ACTIVE, index: true },

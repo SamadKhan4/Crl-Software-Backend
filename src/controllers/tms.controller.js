@@ -83,3 +83,19 @@ export const listStationery = list("Stationery transactions fetched", tms.listSt
 export const stationeryStock = asyncHandler(async (req, res) =>
   success(res, 200, "Stationery stock fetched", await tms.stationeryStock(req.query, req.user)),
 );
+
+export const createRegister = asyncHandler(async (req, res) =>
+  success(res, 201, "TMS record created", await tms.createRegister(req.params.resource, req.body, req)),
+);
+export const listRegisters = asyncHandler(async (req, res) =>
+  successPaginated(res, "TMS records fetched", await tms.listRegisters(req.params.resource, req.query, req.user)),
+);
+export const getRegister = asyncHandler(async (req, res) =>
+  success(res, 200, "TMS record fetched", await tms.getRegister(req.params.resource, req.params.id, req.user)),
+);
+export const updateRegister = asyncHandler(async (req, res) =>
+  success(res, 200, "TMS record updated", await tms.updateRegister(req.params.resource, req.params.id, req.body, req)),
+);
+export const updateRegisterStatus = asyncHandler(async (req, res) =>
+  success(res, 200, "TMS status updated", await tms.updateRegisterStatus(req.params.resource, req.params.id, req.body, req)),
+);

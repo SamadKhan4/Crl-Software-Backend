@@ -1,0 +1,12 @@
+import { Router } from "express";
+import { allow } from "../middlewares/auth.js";
+import { validate } from "../middlewares/validate.js";
+import { ROLES } from "../constants/workflow.js";
+import { ids, businessListSchema } from "../validators/schemas.js";
+import { asyncHandler } from "../utils/asyncHandler.js";
+import { success, successPaginated } from "../utils/response.js";
+import { listNotifications, retryNotification } from "../services/notification.service.js";
+const router = Router(); const access = allow(ROLES.ADMIN, ROLES.MANAGER);
+router.get("/notification-outbox", access, validate(businessListSchema, "query"), asyncHandler(async (req, res) => successPaginated(res, "Notifications fetched", await listNotifications(req.query, req.user))));
+router.post("/notification-outbox/:id/retry", access, validate(ids, "params"), asyncHandler(async (req, res) => success(res, 200, "Notification queued", await retryNotification(req.params.id))));
+export default router;

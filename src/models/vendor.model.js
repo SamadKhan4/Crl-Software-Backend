@@ -16,16 +16,29 @@ const vehicleSchema = new Schema(
   { _id: false },
 );
 
+const vendorDocumentSchema = new Schema(
+  {
+    type: { type: String, required: true, trim: true },
+    number: { type: String, trim: true },
+    fileUrl: { type: String, trim: true },
+    expiresAt: Date,
+    verified: { type: Boolean, default: false },
+  },
+  { _id: true, strict: true },
+);
+
 const vendorSchema = new Schema(
   {
     vendorCode: { type: String, required: true, unique: true, index: true },
     vendorType: {
       type: String,
-      enum: ["TRANSPORTER", "CO_LOADER", "VEHICLE_OWNER", "LAST_MILE"],
+      enum: ["TRANSPORTER", "CO_LOADER", "VEHICLE_OWNER", "LAST_MILE", "BROKER", "ATTACHED", "MARKET", "FIXED_VEHICLE", "PTL", "FTL", "LOCAL", "DELIVERY"],
       required: true,
       index: true,
     },
     name: { type: String, required: true, trim: true, index: true },
+    legalName: { type: String, trim: true },
+    ownerName: { type: String, trim: true },
     contactPerson: { type: String, trim: true },
     mobile: { type: String, required: true, trim: true, index: true },
     email: { type: String, lowercase: true, trim: true },
@@ -34,6 +47,26 @@ const vendorSchema = new Schema(
     state: { type: String, trim: true },
     pincode: { type: String, trim: true },
     gstNumber: { type: String, uppercase: true, trim: true, sparse: true, index: true },
+    panNumber: { type: String, uppercase: true, trim: true },
+    gstType: { type: String, trim: true },
+    registrationType: { type: String, trim: true },
+    bank: {
+      bankName: { type: String, trim: true },
+      accountName: { type: String, trim: true },
+      accountNumber: { type: String, trim: true },
+      ifsc: { type: String, uppercase: true, trim: true },
+      branch: { type: String, trim: true },
+      upi: { type: String, trim: true },
+    },
+    verification: {
+      bankVerified: { type: Boolean, default: false },
+      gstVerified: { type: Boolean, default: false },
+      panVerified: { type: Boolean, default: false },
+      approvedBy: { ...objectId, ref: "User" },
+      approvalDate: Date,
+    },
+    services: [{ type: String, enum: ["FM", "MM", "LM", "PTL", "FTL", "PICKUP", "DELIVERY", "HUB_TRANSFER", "LINE_HAUL"] }],
+    documents: { type: [vendorDocumentSchema], default: [] },
     commercial: {
       rateBasis: { type: String, enum: ["PER_KG", "PER_BOX", "PER_TRIP", "FIXED"], default: "PER_TRIP" },
       rate: { type: Number, min: 0, default: 0 },

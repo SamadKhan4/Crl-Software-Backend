@@ -1,4 +1,5 @@
 import { Counter } from "../models/index.js";
+import { User } from "../models/user.model.js";
 
 const nextSequence = async (key, session) => {
   for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -23,7 +24,14 @@ export const generateCustomerCode = async (session) => {
   if (sequence > 99999) throw new Error("Customer code limit reached");
   return String(sequence).padStart(5, "0");
 };
-export const generateEmployeeCode = async (session) => `CRLEMP${padded(await nextSequence("employee", session))}`;
+export const generateEmployeeCode = async (session) => {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const code = `CRLEMP${padded(await nextSequence("employee", session))}`;
+    const exists = await User.exists({ employeeCode: code }).session(session || null);
+    if (!exists) return code;
+  }
+  throw new Error("Unable to allocate a unique employee code");
+};
 
 export const generateBusinessNumber = async (key, prefix, session) => {
   const year = new Date().getFullYear();

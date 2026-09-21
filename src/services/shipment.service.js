@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import mongoose from "mongoose";
 import { ACTIVE, DOCUMENT_STATUS, ROLES, SHIPMENT_STATUS, TRANSITIONS } from "../constants/workflow.js";
 import { findCustomerLocationRate } from "../constants/service-locations.js";
-import { Branch, Customer, Shipment, ShipmentDocument, ShipmentEvent, UploadSession } from "../models/index.js";
+import { Branch, Customer, PackageUnit, Shipment, ShipmentDocument, ShipmentEvent, UploadSession } from "../models/index.js";
 import { AuthenticationError, AuthorizationError, ConflictError, NotFoundError } from "../utils/errors.js";
 import { calculateGoods } from "../utils/goods.js";
 import { calculateCharges } from "../utils/charges.js";
@@ -10,6 +10,8 @@ import { escapeSearch, listQuery, paginated } from "../utils/query.js";
 import { audit } from "./audit.service.js";
 import { storageService } from "./storage.service.js";
 import { env } from "../config/env.js";
+import { generatePackageUnits } from "./expansion.service.js";
+import { queueShipmentNotification } from "./notification.service.js";
 
 const isAdmin = (user) => user?.role === ROLES.ADMIN;
 const employeeLockedLrFields = [
@@ -145,8 +147,10 @@ const applyCustomerPricing = (data, customer) => {
   data.expectedDeliveryDate = bookingDate;
   return data;
 };
-const createEvent = async (session, shipment, status, location, branchId, remarks, updatedBy) =>
-  ShipmentEvent.create([{ shipmentId: shipment._id, status, location, branchId, remarks, updatedBy }], { session });
+const createEvent = async (session, shipment, status, location, branchId, remarks, updatedBy) => {
+  await ShipmentEvent.create([{ shipmentId: shipment._id, status, location, branchId, remarks, updatedBy }], { session });
+  await queueShipmentNotification(session, shipment, status);
+};
 const applyStatus = async (session, shipment, targetStatus, { location, branchId, remarks, updatedBy }) => {
   assertTransition(shipment.currentStatus, targetStatus);
   const previousStatus = shipment.currentStatus;
@@ -212,6 +216,7 @@ export async function createShipment(data, req, idempotencyKey) {
         "Shipment booked",
         req.user._id,
       );
+      await generatePackageUnits(shipment, req.user._id, session);
       await audit(session, req, "SHIPMENT_CREATED", "Shipment", shipment._id, null, {
         lrNumber: shipment.lrNumber,
         status: shipment.currentStatus,
@@ -334,6 +339,14 @@ export async function updateShipment(id, data, req) {
         throw new ConflictError("Shipment can only be edited while booked", "SHIPMENT_NOT_EDITABLE");
       assertSignatureAccess(data, req.user);
       const before = shipmentDto(shipment);
+      const packageIdentityChanged =
+        (data.packageCount !== undefined && Number(data.packageCount) !== Number(shipment.packageCount)) ||
+        (data.lrNumber !== undefined && data.lrNumber !== shipment.lrNumber);
+      if (packageIdentityChanged) {
+        const scannedPackage = await PackageUnit.exists({ shipmentId: shipment._id, status: { $ne: "GENERATED" } }).session(session);
+        if (scannedPackage)
+          throw new ConflictError("Package count or LR number cannot change after barcode scanning starts", "PACKAGE_BARCODES_IN_USE");
+      }
       const existingLrDetails = shipment.lrDetails;
       Object.assign(shipment, data);
       if (data.lrDetails) shipment.lrDetails = mergeLrDetails({ lrDetails: existingLrDetails }, data.lrDetails);
@@ -341,6 +354,10 @@ export async function updateShipment(id, data, req) {
       applyCustomerPricing(shipment, pricingCustomer);
       applyLrCalculations(shipment);
       await shipment.save({ session });
+      if (packageIdentityChanged) {
+        await PackageUnit.deleteMany({ shipmentId: shipment._id }).session(session);
+        await generatePackageUnits(shipment, req.user._id, session);
+      }
       const { lrDetails, ...beforeWithoutLrDetails } = before;
       const { lrDetails: updatedLrDetails, ...afterWithoutLrDetails } = shipmentDto(shipment);
       if (Object.keys(data).some((key) => key !== "lrDetails"))
