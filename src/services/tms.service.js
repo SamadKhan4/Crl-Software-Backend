@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import { ACTIVE, DOCUMENT_STATUS, ROLES, SHIPMENT_STATUS } from "../constants/workflow.js";
+import { ACTIVE, DOCUMENT_STATUS, ROLES, SHIPMENT_STATUS, TRACKING_EVENT_STATUS } from "../constants/workflow.js";
 import {
   Customer,
   DeliveryRunSheet,
@@ -7,6 +7,7 @@ import {
   Manifest,
   MoneyReceipt,
   Quotation,
+  Segregation,
   Shipment,
   ShipmentDocument,
   ShipmentEvent,
@@ -28,6 +29,7 @@ const isAdmin = (user) => user?.role === ROLES.ADMIN;
 const summary = (record) => ({
   number:
     record.vendorCode ||
+    record.segregationNumber ||
     record.manifestNumber ||
     record.tripNumber ||
     record.drsNumber ||
@@ -109,6 +111,21 @@ const event = (shipment, branchId, user, remarks) => ({
   updatedBy: user._id,
 });
 
+async function addTrackingEvents(session, shipments, status, location, branchId, req, remarks) {
+  if (!shipments.length) return;
+  await ShipmentEvent.insertMany(
+    shipments.map((shipment) => ({
+      shipmentId: shipment._id,
+      status,
+      location,
+      branchId,
+      remarks,
+      updatedBy: req.user._id,
+    })),
+    { session },
+  );
+}
+
 async function dispatchShipments(session, shipments, branchId, req, sourceNumber) {
   const booked = shipments.filter((shipment) => shipment.currentStatus === SHIPMENT_STATUS.BOOKED);
   if (!booked.length) return;
@@ -121,6 +138,97 @@ async function dispatchShipments(session, shipments, branchId, req, sourceNumber
     booked.map((shipment) => event(shipment, branchId, req.user, `Dispatched under ${sourceNumber}`)),
     { session },
   );
+}
+
+export async function createSegregation(data, req) {
+  const branchId = branchFor(data, req);
+  const session = await mongoose.startSession();
+  try {
+    let segregation;
+    await session.withTransaction(async () => {
+      const vendor = await Vendor.findOne({ _id: data.vendorId, status: ACTIVE.ACTIVE }).session(session);
+      if (!vendor) throw new BusinessRuleError("Select an active vendor", "INVALID_VENDOR");
+      const shipments = await assertShipments(
+        data.shipmentIds,
+        branchId,
+        "originBranchId",
+        [SHIPMENT_STATUS.BOOKED],
+        session,
+      );
+      if (await Segregation.exists({ shipmentIds: { $in: data.shipmentIds }, status: "READY" }).session(session))
+        throw new ConflictError("A selected LR is already in a ready segregation batch", "SHIPMENT_ALREADY_SEGREGATED");
+      segregation = (
+        await Segregation.create(
+          [{
+            ...data,
+            branchId,
+            segregationNumber: await generateBusinessNumber("segregation", "SEG", session),
+            createdBy: req.user._id,
+          }],
+          { session },
+        )
+      )[0];
+      await addTrackingEvents(
+        session,
+        shipments,
+        TRACKING_EVENT_STATUS.SEGREGATED,
+        data.destination,
+        branchId,
+        req,
+        `Segregated under ${segregation.segregationNumber} for ${vendor.name} / ${data.driverName}`,
+      );
+      await audit(session, req, "SEGREGATION_CREATED", "Segregation", segregation._id, null, summary(segregation));
+    });
+    return dto(segregation);
+  } finally {
+    await session.endSession();
+  }
+}
+
+export const listSegregations = (query, user) =>
+  list(Segregation, query, user, {
+    search: ["segregationNumber", "destination", "driverName", "vehicleNumber"],
+    populate: ["vendorId", "branchId", "manifestId"],
+  });
+export const getSegregation = (recordId, user) =>
+  get(Segregation, recordId, user, ["vendorId", "branchId", "manifestId", "shipmentIds"]);
+export async function segregationOptions(query, user) {
+  const filter = { ...scope(query, user), status: "READY" };
+  if (query.search)
+    filter.$or = ["segregationNumber", "destination", "driverName", "vehicleNumber"].map((field) => ({
+      [field]: { $regex: escapeSearch(query.search), $options: "i" },
+    }));
+  return Segregation.find(filter)
+    .populate("vendorId", "vendorCode name")
+    .select("segregationNumber destination vendorId driverName driverMobile vehicleNumber shipmentIds")
+    .sort({ createdAt: -1, _id: -1 })
+    .limit(Math.min(Number(query.limit) || 100, 100))
+    .lean();
+}
+export async function segregationInventory(query, user) {
+  const options = listQuery(query);
+  const branchId = isAdmin(user) ? query.branchId : user.branchId;
+  if (!branchId) return paginated([], 0, options);
+  const assigned = await Segregation.distinct("shipmentIds", { branchId, status: "READY" });
+  const filter = {
+    originBranchId: branchId,
+    currentStatus: SHIPMENT_STATUS.BOOKED,
+    _id: { $nin: assigned },
+  };
+  if (query.search)
+    filter.$or = ["lrNumber", "senderName", "receiverName"].map((field) => ({
+      [field]: { $regex: escapeSearch(query.search), $options: "i" },
+    }));
+  const [items, total] = await Promise.all([
+    Shipment.find(filter)
+      .select("lrNumber senderName receiverName currentStatus packageCount weightKg")
+      .sort(options.sort)
+      .skip(options.skip)
+      .limit(options.limit)
+      .lean(),
+    Shipment.countDocuments(filter),
+  ]);
+  return paginated(items, total, options);
 }
 
 export async function createVendor(data, req) {
@@ -192,23 +300,37 @@ export async function createManifest(data, req) {
   try {
     let manifest;
     await session.withTransaction(async () => {
-      const vendor = await Vendor.findOne({ _id: data.vendorId, status: ACTIVE.ACTIVE }).session(session);
-      if (!vendor || !["CO_LOADER", "TRANSPORTER"].includes(vendor.vendorType))
-        throw new BusinessRuleError("Select an active co-loader or transporter", "INVALID_VENDOR");
-      await assertShipments(
-        data.shipmentIds,
+      const segregation = data.segregationId
+        ? await Segregation.findOne({ _id: data.segregationId, status: "READY", branchId }).session(session)
+        : null;
+      if (data.segregationId && !segregation)
+        throw new BusinessRuleError("Select a ready segregation batch", "INVALID_SEGREGATION");
+      const manifestData = segregation
+        ? {
+            ...data,
+            vendorId: segregation.vendorId,
+            shipmentIds: segregation.shipmentIds,
+            destination: data.destination || segregation.destination,
+            vehicleNumber: data.vehicleNumber || segregation.vehicleNumber,
+            deliveryAgent: data.deliveryAgent || segregation.driverName,
+          }
+        : data;
+      const vendor = await Vendor.findOne({ _id: manifestData.vendorId, status: ACTIVE.ACTIVE }).session(session);
+      if (!vendor) throw new BusinessRuleError("Select an active transport vendor", "INVALID_VENDOR");
+      const shipments = await assertShipments(
+        manifestData.shipmentIds,
         branchId,
         "originBranchId",
         [SHIPMENT_STATUS.BOOKED, SHIPMENT_STATUS.IN_TRANSIT],
         session,
       );
-      if (await Manifest.exists({ shipmentIds: { $in: data.shipmentIds }, status: "OPEN" }).session(session))
+      if (await Manifest.exists({ shipmentIds: { $in: manifestData.shipmentIds }, status: "OPEN" }).session(session))
         throw new ConflictError("A selected LR is already on an open manifest", "SHIPMENT_ALREADY_MANIFESTED");
       manifest = (
         await Manifest.create(
           [
             {
-              ...data,
+              ...manifestData,
               branchId,
               manifestNumber: await generateBusinessNumber("manifest", "MNF", session),
               createdBy: req.user._id,
@@ -217,6 +339,20 @@ export async function createManifest(data, req) {
           { session },
         )
       )[0];
+      if (segregation) {
+        segregation.status = "MANIFESTED";
+        segregation.manifestId = manifest._id;
+        await segregation.save({ session });
+      }
+      await addTrackingEvents(
+        session,
+        shipments,
+        TRACKING_EVENT_STATUS.MANIFESTED,
+        manifest.destination,
+        branchId,
+        req,
+        `Added to manifest ${manifest.manifestNumber}`,
+      );
       await audit(session, req, "MANIFEST_CREATED", "Manifest", manifest._id, null, summary(manifest));
     });
     return dto(manifest);
@@ -227,9 +363,9 @@ export async function createManifest(data, req) {
 export const listManifests = (query, user) =>
   list(Manifest, query, user, {
     search: ["manifestNumber", "destination", "vendorReference", "coLoaderStatus"],
-    populate: ["vendorId", "branchId"],
+    populate: ["segregationId", "vendorId", "branchId"],
   });
-export const getManifest = (recordId, user) => get(Manifest, recordId, user, ["vendorId", "branchId", "shipmentIds"]);
+export const getManifest = (recordId, user) => get(Manifest, recordId, user, ["segregationId", "vendorId", "branchId", "shipmentIds"]);
 export async function updateManifestStatus(recordId, data, req) {
   const session = await mongoose.startSession();
   try {
@@ -244,9 +380,28 @@ export async function updateManifestStatus(recordId, data, req) {
       manifest.coLoaderStatus = data.coLoaderStatus;
       if (data.remarks) manifest.remarks = data.remarks;
       if (data.coLoaderStatus === "DELIVERED") manifest.status = "CLOSED";
+      const shipments = await Shipment.find({ _id: { $in: manifest.shipmentIds } }).session(session);
       if (data.coLoaderStatus === "IN_TRANSIT") {
-        const shipments = await Shipment.find({ _id: { $in: manifest.shipmentIds } }).session(session);
         await dispatchShipments(session, shipments, manifest.branchId, req, manifest.manifestNumber);
+      } else {
+        const trackingStatus = {
+          BOOKED: TRACKING_EVENT_STATUS.MANIFESTED,
+          PICKED_UP: TRACKING_EVENT_STATUS.PICKED_UP,
+          AT_HUB: TRACKING_EVENT_STATUS.AT_HUB,
+          OUT_FOR_DELIVERY: TRACKING_EVENT_STATUS.OUT_FOR_DELIVERY,
+          DELIVERED: TRACKING_EVENT_STATUS.DELIVERED,
+          EXCEPTION: TRACKING_EVENT_STATUS.EXCEPTION,
+        }[data.coLoaderStatus];
+        if (trackingStatus)
+          await addTrackingEvents(
+            session,
+            shipments,
+            trackingStatus,
+            manifest.destination,
+            manifest.branchId,
+            req,
+            data.remarks || `Manifest ${manifest.manifestNumber}: ${data.coLoaderStatus}`,
+          );
       }
       await manifest.save({ session });
       await audit(session, req, "MANIFEST_STATUS_UPDATED", "Manifest", manifest._id, before, summary(manifest));
@@ -265,7 +420,13 @@ export async function createTrip(data, req) {
     await session.withTransaction(async () => {
       if (data.vendorId && !(await Vendor.exists({ _id: data.vendorId, status: ACTIVE.ACTIVE }).session(session)))
         throw new BusinessRuleError("Select an active vendor", "INVALID_VENDOR");
-      await assertShipments(data.shipmentIds, branchId, "originBranchId", [SHIPMENT_STATUS.BOOKED], session);
+      const shipments = await assertShipments(
+        data.shipmentIds,
+        branchId,
+        "originBranchId",
+        [SHIPMENT_STATUS.BOOKED, SHIPMENT_STATUS.IN_TRANSIT],
+        session,
+      );
       if (
         await Trip.exists({
           shipmentIds: { $in: data.shipmentIds },
@@ -286,6 +447,15 @@ export async function createTrip(data, req) {
           { session },
         )
       )[0];
+      await addTrackingEvents(
+        session,
+        shipments,
+        TRACKING_EVENT_STATUS.TRIP_PLANNED,
+        data.origin,
+        branchId,
+        req,
+        `Trip ${trip.tripNumber} planned for ${data.driverName}`,
+      );
       await audit(session, req, "TRIP_CREATED", "Trip", trip._id, null, summary(trip));
     });
     return dto(trip);
@@ -317,6 +487,28 @@ export async function updateTripStatus(recordId, data, req) {
         const shipments = await Shipment.find({ _id: { $in: trip.shipmentIds } }).session(session);
         await dispatchShipments(session, shipments, trip.branchId, req, trip.tripNumber);
       }
+      if (data.status === "ARRIVED") {
+        const shipments = await Shipment.find({
+          _id: { $in: trip.shipmentIds },
+          currentStatus: SHIPMENT_STATUS.IN_TRANSIT,
+        }).session(session);
+        if (shipments.length) {
+          await Shipment.updateMany(
+            { _id: { $in: shipments.map((shipment) => shipment._id) } },
+            { $set: { currentStatus: SHIPMENT_STATUS.RECEIVED, currentLocation: trip.destination, receivedAt: new Date(), receivedBy: req.user._id } },
+            { session },
+          );
+          await addTrackingEvents(
+            session,
+            shipments,
+            SHIPMENT_STATUS.RECEIVED,
+            trip.destination,
+            trip.branchId,
+            req,
+            `Arrived under trip ${trip.tripNumber}`,
+          );
+        }
+      }
       await trip.save({ session });
       await audit(session, req, "TRIP_STATUS_UPDATED", "Trip", trip._id, before, summary(trip));
     });
@@ -332,7 +524,7 @@ export async function createDrs(data, req) {
   try {
     let drs;
     await session.withTransaction(async () => {
-      await assertShipments(
+      const shipments = await assertShipments(
         data.shipmentIds,
         branchId,
         "destinationBranchId",
@@ -359,6 +551,20 @@ export async function createDrs(data, req) {
           { session },
         )
       )[0];
+      await Shipment.updateMany(
+        { _id: { $in: shipments.map((shipment) => shipment._id) } },
+        { $set: { currentLocation: `Out for delivery · ${data.route}` } },
+        { session },
+      );
+      await addTrackingEvents(
+        session,
+        shipments,
+        TRACKING_EVENT_STATUS.OUT_FOR_DELIVERY,
+        data.route,
+        branchId,
+        req,
+        `Assigned to DRS ${drs.drsNumber} / ${data.driverName}`,
+      );
       await audit(session, req, "DRS_CREATED", "DeliveryRunSheet", drs._id, null, summary(drs));
     });
     return dto(drs);
@@ -400,57 +606,108 @@ export async function uploadDrsPod(recordId, shipmentId, file, req) {
   if (receiverName.length < 2)
     throw new BusinessRuleError("Enter receiver name for e-POD", "RECEIVER_NAME_REQUIRED");
   const stored = await storageService.saveDocument(shipmentId, "pod", file);
+  const session = await mongoose.startSession();
   try {
-    const version = (await ShipmentDocument.countDocuments({ shipmentId, documentType: "POD" })) + 1;
-    const document = await ShipmentDocument.create({
-      shipmentId,
-      documentType: "POD",
-      version,
-      ...stored,
-      uploadedBy: req.user._id,
-      uploadSource: "INTERNAL",
-      verificationStatus: DOCUMENT_STATUS.VERIFIED,
-      verifiedBy: req.user._id,
-      verifiedAt: new Date(),
+    let savedDrs;
+    let document;
+    await session.withTransaction(async () => {
+      savedDrs = await DeliveryRunSheet.findById(recordId).session(session);
+      if (!savedDrs || savedDrs.status !== "OPEN")
+        throw new ConflictError("DRS is not open", "DRS_NOT_OPEN");
+      if (savedDrs.podShipmentIds.some((value) => id(value) === shipmentId))
+        throw new ConflictError("POD is already uploaded for this LR", "POD_ALREADY_UPLOADED");
+      const currentShipment = await Shipment.findById(shipmentId).session(session);
+      if (!currentShipment) throw new NotFoundError("Shipment not found", "SHIPMENT_NOT_FOUND");
+      const version = (await ShipmentDocument.countDocuments({ shipmentId, documentType: "POD" }).session(session)) + 1;
+      document = (
+        await ShipmentDocument.create([{
+          shipmentId,
+          documentType: "POD",
+          version,
+          ...stored,
+          uploadedBy: req.user._id,
+          uploadSource: "INTERNAL",
+          verificationStatus: DOCUMENT_STATUS.VERIFIED,
+          verifiedBy: req.user._id,
+          verifiedAt: new Date(),
+        }], { session })
+      )[0];
+      savedDrs.podShipmentIds.addToSet(shipmentId);
+      savedDrs.deliveryProofs.push({
+        shipmentId,
+        receiverName,
+        receiverMobile: String(req.body?.receiverMobile || shipment?.receiverMobile || "").trim() || undefined,
+        otpReference: String(req.body?.otpReference || "").trim() || undefined,
+        signatureName: String(req.body?.signatureName || receiverName).trim(),
+        remarks: String(req.body?.remarks || "").trim() || undefined,
+        deliveredAt: req.body?.deliveredAt ? new Date(req.body.deliveredAt) : new Date(),
+        recordedBy: req.user._id,
+        documentId: document._id,
+      });
+      await savedDrs.save({ session });
+      currentShipment.currentStatus = SHIPMENT_STATUS.COMPLETED;
+      currentShipment.currentLocation = "Delivered";
+      await currentShipment.save({ session });
+      await addTrackingEvents(
+        session,
+        [currentShipment],
+        TRACKING_EVENT_STATUS.POD_UPLOADED,
+        savedDrs.route,
+        savedDrs.branchId,
+        req,
+        `POD uploaded under DRS ${savedDrs.drsNumber}`,
+      );
+      await audit(session, req, "DRS_POD_UPLOADED", "DeliveryRunSheet", savedDrs._id, null, {
+        drsNumber: savedDrs.drsNumber,
+        shipmentId,
+        documentId: document._id,
+      });
     });
-    drs.podShipmentIds.addToSet(shipmentId);
-    drs.deliveryProofs.push({
-      shipmentId,
-      receiverName,
-      receiverMobile: String(req.body?.receiverMobile || shipment?.receiverMobile || "").trim() || undefined,
-      otpReference: String(req.body?.otpReference || "").trim() || undefined,
-      signatureName: String(req.body?.signatureName || receiverName).trim(),
-      remarks: String(req.body?.remarks || "").trim() || undefined,
-      deliveredAt: req.body?.deliveredAt ? new Date(req.body.deliveredAt) : new Date(),
-      recordedBy: req.user._id,
-      documentId: document._id,
-    });
-    await drs.save();
-    await audit(null, req, "DRS_POD_UPLOADED", "DeliveryRunSheet", drs._id, null, {
-      drsNumber: drs.drsNumber,
-      shipmentId,
-      documentId: document._id,
-    });
-    return { drs: dto(drs), documentId: document._id };
+    return { drs: dto(savedDrs), documentId: document._id };
   } catch (error) {
     await storageService.remove(stored.storageKey);
     throw error;
+  } finally {
+    await session.endSession();
   }
 }
 export async function closeDrs(recordId, req) {
-  const drs = await DeliveryRunSheet.findById(recordId);
-  if (!drs) throw new NotFoundError("DRS not found", "DRS_NOT_FOUND");
-  assertBranchAccess(drs, req.user);
-  if (drs.status !== "OPEN") throw new ConflictError("DRS is not open", "DRS_NOT_OPEN");
-  if (drs.podShipmentIds.length !== drs.shipmentIds.length)
-    throw new ConflictError("Upload POD for every LR before closing the DRS", "POD_INCOMPLETE");
-  const before = summary(drs);
-  drs.status = "CLOSED";
-  drs.closedAt = new Date();
-  drs.closedBy = req.user._id;
-  await drs.save();
-  await audit(null, req, "DRS_CLOSED", "DeliveryRunSheet", drs._id, before, summary(drs));
-  return dto(drs);
+  const session = await mongoose.startSession();
+  try {
+    let drs;
+    await session.withTransaction(async () => {
+      drs = await DeliveryRunSheet.findById(recordId).session(session);
+      if (!drs) throw new NotFoundError("DRS not found", "DRS_NOT_FOUND");
+      assertBranchAccess(drs, req.user);
+      if (drs.status !== "OPEN") throw new ConflictError("DRS is not open", "DRS_NOT_OPEN");
+      if (drs.podShipmentIds.length !== drs.shipmentIds.length)
+        throw new ConflictError("Upload POD for every LR before closing the DRS", "POD_INCOMPLETE");
+      const before = summary(drs);
+      const shipments = await Shipment.find({ _id: { $in: drs.shipmentIds } }).session(session);
+      drs.status = "CLOSED";
+      drs.closedAt = new Date();
+      drs.closedBy = req.user._id;
+      await drs.save({ session });
+      await Shipment.updateMany(
+        { _id: { $in: drs.shipmentIds }, currentStatus: { $ne: SHIPMENT_STATUS.CANCELLED } },
+        { $set: { currentStatus: SHIPMENT_STATUS.CLOSED, currentLocation: "Delivered" } },
+        { session },
+      );
+      await addTrackingEvents(
+        session,
+        shipments,
+        TRACKING_EVENT_STATUS.DRS_CLOSED,
+        drs.route,
+        drs.branchId,
+        req,
+        `Delivery completed and DRS ${drs.drsNumber} closed`,
+      );
+      await audit(session, req, "DRS_CLOSED", "DeliveryRunSheet", drs._id, before, summary(drs));
+    });
+    return dto(drs);
+  } finally {
+    await session.endSession();
+  }
 }
 
 export async function createInvoice(data, req) {
@@ -575,6 +832,17 @@ export async function createMoneyReceipt(data, req) {
     await session.withTransaction(async () => {
       if (!(await Customer.exists({ _id: data.customerId, status: ACTIVE.ACTIVE }).session(session)))
         throw new BusinessRuleError("Select an active customer", "INVALID_CUSTOMER");
+      const shipments = data.shipmentIds.length
+        ? await Shipment.find({ _id: { $in: data.shipmentIds } }).session(session)
+        : [];
+      if (shipments.length !== data.shipmentIds.length)
+        throw new BusinessRuleError("One or more selected LRs do not exist", "INVALID_SHIPMENT_SELECTION");
+      for (const shipment of shipments) {
+        if (id(shipment.customerId) !== id(data.customerId))
+          throw new BusinessRuleError("All selected LRs must belong to the receipt customer", "RECEIPT_CUSTOMER_MISMATCH");
+        if (id(shipment.originBranchId) !== id(branchId) && id(shipment.destinationBranchId) !== id(branchId))
+          throw new AuthorizationError("All selected LRs must belong to the operating branch");
+      }
       for (const allocation of data.allocations) {
         const invoice = await Invoice.findById(allocation.invoiceId).session(session);
         if (!invoice || id(invoice.customerId) !== id(data.customerId) || id(invoice.branchId) !== id(branchId))
@@ -599,6 +867,15 @@ export async function createMoneyReceipt(data, req) {
           { session },
         )
       )[0];
+      await addTrackingEvents(
+        session,
+        shipments,
+        TRACKING_EVENT_STATUS.MONEY_RECEIPT_CREATED,
+        "Accounts",
+        branchId,
+        req,
+        `Money receipt ${receipt.receiptNumber} recorded`,
+      );
       await audit(session, req, "MONEY_RECEIPT_CREATED", "MoneyReceipt", receipt._id, null, summary(receipt));
     });
     return dto(receipt);
@@ -609,10 +886,10 @@ export async function createMoneyReceipt(data, req) {
 export const listMoneyReceipts = (query, user) =>
   list(MoneyReceipt, query, user, {
     search: ["receiptNumber", "receivedFrom", "transactionReference"],
-    populate: ["customerId", "branchId"],
+    populate: ["customerId", "branchId", "shipmentIds"],
   });
 export const getMoneyReceipt = (recordId, user) =>
-  get(MoneyReceipt, recordId, user, ["customerId", "branchId", "allocations.invoiceId"]);
+  get(MoneyReceipt, recordId, user, ["customerId", "branchId", "shipmentIds", "allocations.invoiceId"]);
 
 const quotationTotal = (freight, gstRate) => money(Number(freight || 0) * (1 + Number(gstRate || 0) / 100));
 export async function createQuotation(data, req) {

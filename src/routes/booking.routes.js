@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { validate } from "../middlewares/validate.js";
 import { ids, businessListSchema } from "../validators/schemas.js";
-import { bookingSchema, bookingLrSchema } from "../validators/expansion.schemas.js";
+import { bookingSchema, bookingLinkSchema, bookingLrSchema } from "../validators/expansion.schemas.js";
 import * as c from "../controllers/booking.controller.js";
 import { permit } from "../middlewares/auth.js";
 import { ROLES } from "../constants/workflow.js";
@@ -9,5 +9,6 @@ const router = Router();
 router.post("/bookings", permit("BOOKING", "ADD", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(bookingSchema), c.create);
 router.get("/bookings", permit("BOOKING", "VIEW", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(businessListSchema, "query"), c.list);
 router.get("/bookings/:id", permit("BOOKING", "VIEW", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(ids, "params"), c.get);
+router.post("/bookings/:id/link-lr", permit("LR", "ADD", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(ids, "params"), validate(bookingLinkSchema), c.link);
 router.post("/bookings/:id/generate-lr", permit("LR", "ADD", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(ids, "params"), validate(bookingLrSchema), c.generate);
 export default router;

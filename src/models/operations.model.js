@@ -9,10 +9,27 @@ const common = {
   createdBy: { ...objectId, ref: "User", required: true },
 };
 
+const segregationSchema = new Schema(
+  {
+    segregationNumber: { type: String, required: true, unique: true, index: true },
+    ...common,
+    vendorId: { ...objectId, ref: "Vendor", required: true, index: true },
+    destination: { type: String, required: true, trim: true },
+    vehicleNumber: { type: String, uppercase: true, trim: true },
+    driverName: { type: String, required: true, trim: true },
+    driverMobile: { type: String, trim: true },
+    status: { type: String, enum: ["READY", "MANIFESTED", "CANCELLED"], default: "READY", index: true },
+    manifestId: { ...objectId, ref: "Manifest" },
+    remarks: { type: String, trim: true },
+  },
+  base,
+);
+
 const manifestSchema = new Schema(
   {
     manifestNumber: { type: String, required: true, unique: true, index: true },
     ...common,
+    segregationId: { ...objectId, ref: "Segregation", index: true },
     vendorId: { ...objectId, ref: "Vendor", required: true, index: true },
     destination: { type: String, required: true, trim: true },
     vehicleNumber: { type: String, uppercase: true, trim: true },
@@ -100,11 +117,12 @@ const drsSchema = new Schema(
   base,
 );
 
-for (const schema of [manifestSchema, tripSchema, drsSchema]) {
+for (const schema of [segregationSchema, manifestSchema, tripSchema, drsSchema]) {
   schema.index({ branchId: 1, createdAt: -1, _id: -1 });
   schema.index({ shipmentIds: 1, status: 1 });
 }
 
 export const Manifest = model("Manifest", manifestSchema);
+export const Segregation = model("Segregation", segregationSchema);
 export const Trip = model("Trip", tripSchema);
 export const DeliveryRunSheet = model("DeliveryRunSheet", drsSchema);

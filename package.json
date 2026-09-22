@@ -18,6 +18,7 @@
     "test:coverage:integration": "set NODE_ENV=test&& set RUN_MONGO_INTEGRATION=true&& set NODE_OPTIONS=--experimental-vm-modules&& jest --coverage --runInBand",
     "seed": "set NODE_ENV=development&& node src/scripts/seed.js",
     "seed:demo:main": "set DEMO_DATA_ONLY=true&& node src/scripts/seed.js",
+    "seed:operations": "set NODE_ENV=development&& node src/scripts/seed-complete-operations.js",
     "db:indexes": "node src/scripts/ensure-indexes.js",
     "db:indexes:check": "node src/scripts/ensure-indexes.js --check",
     "db:explain": "node src/scripts/explain-queries.js"

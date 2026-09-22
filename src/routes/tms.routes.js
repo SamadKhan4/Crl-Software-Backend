@@ -29,6 +29,12 @@ router.patch(
   c.vendorStatus,
 );
 
+router.post("/segregations", permit("MANIFEST", "ADD", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.segregationSchema), c.createSegregation);
+router.get("/segregations/options", permit("MANIFEST", "VIEW", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.businessListSchema, "query"), c.segregationOptions);
+router.get("/segregations/inventory", permit("MANIFEST", "VIEW", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.businessListSchema, "query"), c.segregationInventory);
+router.get("/segregations", permit("MANIFEST", "VIEW", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.businessListSchema, "query"), c.listSegregations);
+router.get("/segregations/:id", permit("MANIFEST", "VIEW", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.ids, "params"), c.getSegregation);
+
 router.post("/manifests", permit("MANIFEST", "ADD", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.manifestSchema), c.createManifest);
 router.get("/manifests", permit("MANIFEST", "VIEW", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.businessListSchema, "query"), c.listManifests);
 router.get("/manifests/:id", permit("MANIFEST", "VIEW", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.ids, "params"), c.getManifest);

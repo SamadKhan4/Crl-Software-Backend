@@ -445,18 +445,35 @@ const shipmentIdList = z
   .min(1)
   .max(500)
   .refine((ids) => new Set(ids).size === ids.length, "Duplicate LR selected");
-export const manifestSchema = z
+export const segregationSchema = z
   .object({
     branchId: objectId.optional(),
     vendorId: objectId,
     destination: z.string().trim().min(2).max(150),
     vehicleNumber: optionalText(20),
-    deliveryAgent: optionalText(120),
+    driverName: z.string().trim().min(2).max(120),
+    driverMobile: mobile.optional(),
     shipmentIds: shipmentIdList,
-    vendorReference: optionalText(120),
     remarks: optionalText(500),
   })
   .strict();
+export const manifestSchema = z
+  .object({
+    branchId: objectId.optional(),
+    segregationId: objectId.optional(),
+    vendorId: objectId.optional(),
+    destination: optionalText(150),
+    vehicleNumber: optionalText(20),
+    deliveryAgent: optionalText(120),
+    shipmentIds: shipmentIdList.optional(),
+    vendorReference: optionalText(120),
+    remarks: optionalText(500),
+  })
+  .strict()
+  .refine((data) => data.segregationId || (data.vendorId && data.destination && data.shipmentIds?.length), {
+    path: ["segregationId"],
+    message: "Select a segregation batch",
+  });
 export const manifestStatusSchema = z
   .object({
     coLoaderStatus: z.enum([

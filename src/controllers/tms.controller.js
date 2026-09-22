@@ -22,6 +22,14 @@ export const vendorStatus = asyncHandler(async (req, res) =>
   success(res, 200, "Vendor status updated", await tms.setVendorStatus(req.params.id, req.body.status, req)),
 );
 
+export const createSegregation = create("Segregation created", tms.createSegregation);
+export const listSegregations = list("Segregations fetched", tms.listSegregations);
+export const segregationOptions = asyncHandler(async (req, res) =>
+  success(res, 200, "Ready segregations fetched", await tms.segregationOptions(req.query, req.user)),
+);
+export const segregationInventory = list("Segregation inventory fetched", tms.segregationInventory);
+export const getSegregation = get("Segregation fetched", tms.getSegregation);
+
 export const createManifest = create("Manifest created", tms.createManifest);
 export const listManifests = list("Manifests fetched", tms.listManifests);
 export const getManifest = get("Manifest fetched", tms.getManifest);

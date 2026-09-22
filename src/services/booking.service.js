@@ -1,4 +1,4 @@
-import { Booking, Branch, Customer } from "../models/index.js";
+import { Booking, Branch, Customer, Shipment } from "../models/index.js";
 import { ACTIVE, ROLES } from "../constants/workflow.js";
 import { audit } from "./audit.service.js";
 import { createShipment } from "./shipment.service.js";
@@ -7,8 +7,12 @@ import { ConflictError, NotFoundError } from "../utils/errors.js";
 import { escapeSearch, listQuery, paginated } from "../utils/query.js";
 
 export async function createBooking(data, req) {
-  const branchId = req.user.role === ROLES.ADMIN ? data.branchId : req.user.branchId;
-  const [customer, origin, destination] = await Promise.all([Customer.exists({ _id: data.customerId, status: ACTIVE.ACTIVE }), Branch.findById(branchId).lean(), Branch.findById(data.destinationBranchId).lean()]);
+  const branchId = req.user.role === ROLES.ADMIN ? (data.branchId || req.user.branchId) : req.user.branchId;
+  const [customer, origin, destination] = await Promise.all([
+    data.customerId ? Customer.exists({ _id: data.customerId, status: ACTIVE.ACTIVE }) : true,
+    branchId ? Branch.findById(branchId).lean() : true,
+    data.destinationBranchId ? Branch.findById(data.destinationBranchId).lean() : true,
+  ]);
   if (!customer || !origin || !destination) throw new ConflictError("Select active customer and branches", "INVALID_BOOKING_REFERENCE");
   const record = await Booking.create({ ...data, branchId, bookingNumber: await generateBusinessNumber("booking", "BKG"), createdBy: req.user._id });
   await audit(null, req, "BOOKING_CREATED", "Booking", record._id, null, { bookingNumber: record.bookingNumber, status: record.status });
@@ -25,6 +29,22 @@ export async function getBooking(id, user) {
   const record = await Booking.findById(id).populate("customerId branchId destinationBranchId shipmentId");
   if (!record || (user.role !== ROLES.ADMIN && String(record.branchId?._id || record.branchId) !== String(user.branchId))) throw new NotFoundError("Booking not found", "BOOKING_NOT_FOUND");
   return { ...record.toObject(), id: record._id };
+}
+export async function linkLr(id, data, req) {
+  const booking = await Booking.findById(id);
+  if (!booking || (req.user.role !== ROLES.ADMIN && String(booking.branchId) !== String(req.user.branchId)))
+    throw new NotFoundError("Booking not found", "BOOKING_NOT_FOUND");
+  const shipment = await Shipment.findById(data.shipmentId).select("lrNumber customerId originBranchId");
+  if (!shipment) throw new NotFoundError("Shipment not found", "SHIPMENT_NOT_FOUND");
+  if (booking.customerId && String(booking.customerId) !== String(shipment.customerId))
+    throw new ConflictError("LR customer does not match the booking customer", "BOOKING_CUSTOMER_MISMATCH");
+  if (booking.shipmentId && String(booking.shipmentId) !== String(shipment._id))
+    throw new ConflictError("Booking is already linked to another LR", "BOOKING_ALREADY_CONVERTED");
+  booking.status = "LR_GENERATED";
+  booking.shipmentId = shipment._id;
+  await booking.save();
+  await audit(null, req, "BOOKING_LR_LINKED", "Booking", booking._id, null, { bookingNumber: booking.bookingNumber, lrNumber: shipment.lrNumber });
+  return { ...booking.toObject(), id: booking._id };
 }
 export async function generateLr(id, data, req) {
   const booking = await Booking.findById(id).populate("branchId destinationBranchId");
