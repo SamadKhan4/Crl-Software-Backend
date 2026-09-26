@@ -84,6 +84,7 @@ const shipmentSchema = new Schema(
   {
     lrNumber: { type: String, required: true, unique: true, trim: true, maxlength: 50, uppercase: true, index: true },
     idempotencyKey: { type: String, sparse: true, unique: true, index: true },
+    pickupRequestId: { ...objectId, ref: "PickupRequest", sparse: true, unique: true, index: true },
     customerId: { ...objectId, ref: "Customer", required: true, index: true },
     originBranchId: { ...objectId, ref: "Branch", required: true, index: true },
     destinationBranchId: { ...objectId, ref: "Branch", required: true, index: true },

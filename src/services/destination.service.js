@@ -1,4 +1,3 @@
-const districts = new Set(["akola", "amravati", "bhandara", "buldhana", "chandrapur", "gadchiroli", "gondia", "nagpur", "wardha", "washim", "yavatmal"]);
 const cache = new Map();
 const fallback = [
   ["Nagpur GPO", "Nagpur", "440001"], ["Amravati HO", "Amravati", "444601"], ["Akola HO", "Akola", "444001"],
@@ -22,7 +21,6 @@ export async function searchDestinations(search) {
     if (response.ok) {
       const body = await response.json();
       places = (body[0]?.PostOffice || [])
-        .filter((place) => districts.has(place.District?.toLowerCase()))
         .map((place) => ({ id: `${place.Pincode}:${place.Name}`, name: place.Name, district: place.District, pincode: place.Pincode }))
         .slice(0, 3);
     }

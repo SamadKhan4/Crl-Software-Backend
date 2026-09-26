@@ -4,6 +4,7 @@ const { Schema, model } = mongoose;
 const notificationSchema = new Schema({
   event: { type: String, required: true, trim: true, maxlength: 80, index: true },
   shipmentId: { ...objectId, ref: "Shipment", index: true },
+  pickupRequestId: { ...objectId, ref: "PickupRequest", index: true },
   invoiceId: { ...objectId, ref: "Invoice", index: true },
   customerId: { ...objectId, ref: "Customer", index: true },
   branchId: { ...objectId, ref: "Branch", index: true },

@@ -5,7 +5,7 @@ import * as branches from "../services/branch.service.js";
 import { searchDestinations } from "../services/destination.service.js";
 
 export const destinationOptions = asyncHandler(async (req, res) =>
-  success(res, 200, "Vidarbha destinations fetched", await searchDestinations(String(req.query.search || "").slice(0, 100))),
+  success(res, 200, "Destinations fetched", await searchDestinations(String(req.query.search || "").slice(0, 100))),
 );
 
 export const createBranch = asyncHandler(async (req, res) =>

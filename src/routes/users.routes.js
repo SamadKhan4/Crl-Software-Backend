@@ -19,7 +19,7 @@ router.use("/vendor-users", allow(ROLES.ADMIN), (req, _res, next) => {
   req.managementRole = ROLES.VENDOR;
   next();
 });
-router.post("/users", allow(ROLES.ADMIN), validate(v.userSchema), c.createUser);
+router.post("/users", allow(ROLES.ADMIN, ROLES.MANAGER), validate(v.userSchema), c.createUser);
 router.get("/users", allow(ROLES.ADMIN, ROLES.MANAGER, ROLES.HR), validate(v.listSchema, "query"), c.listUsers);
 router.get("/users/:id", allow(ROLES.ADMIN, ROLES.MANAGER, ROLES.HR), validate(v.ids, "params"), c.getUser);
 router.put(

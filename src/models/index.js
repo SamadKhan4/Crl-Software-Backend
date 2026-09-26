@@ -19,4 +19,6 @@ export { BusinessMaster, MASTER_TYPES } from "./business-master.model.js";
 export { RateCard } from "./rate-card.model.js";
 export { PackageUnit } from "./package-unit.model.js";
 export { Booking } from "./booking.model.js";
+export { PickupRequest } from "./pickup-request.model.js";
+export { PickupRunSheet } from "./pickup-run-sheet.model.js";
 export { Notification } from "./notification.model.js";

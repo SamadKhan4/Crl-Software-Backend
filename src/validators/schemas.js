@@ -247,6 +247,7 @@ export const lrDetailsSchema = z
 export const shipmentSchema = z
   .object({
     lrNumber: manualLrNumber,
+    pickupRequestId: objectId.optional(),
     customerId: objectId,
     originBranchId: objectId,
     destinationBranchId: objectId,
@@ -261,7 +262,7 @@ export const shipmentSchema = z
   })
   .strict();
 export const shipmentUpdateSchema = shipmentSchema
-  .omit({ lrNumber: true, customerId: true, originBranchId: true, destinationBranchId: true })
+  .omit({ lrNumber: true, pickupRequestId: true, customerId: true, originBranchId: true, destinationBranchId: true })
   .partial()
   .strict();
 export const overrideSchema = z
@@ -327,7 +328,7 @@ export const customerUpdateSchema = customerFields
   .refine((data) => Object.keys(data).length > 0, "Provide at least one field to update");
 export const employeePatchSchema = nonEmptyUpdate(userSchema.omit({ password: true }));
 export const shipmentPatchSchema = nonEmptyUpdate(
-  shipmentSchema.omit({ customerId: true, originBranchId: true, destinationBranchId: true }),
+  shipmentSchema.omit({ pickupRequestId: true, customerId: true, originBranchId: true, destinationBranchId: true }),
 );
 
 export const activitySchema = z
@@ -358,6 +359,8 @@ export const activitySchema = z
         "TmsRegister",
         "Payslip",
         "EmployeeOnboarding",
+        "PickupRequest",
+        "PickupRunSheet",
       ])
       .optional(),
     dateFrom: z.coerce.date().optional(),

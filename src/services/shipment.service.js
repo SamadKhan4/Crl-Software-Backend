@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import mongoose from "mongoose";
 import { ACTIVE, DOCUMENT_STATUS, ROLES, SHIPMENT_STATUS, TRANSITIONS } from "../constants/workflow.js";
 import { findCustomerLocationRate } from "../constants/service-locations.js";
-import { Branch, Customer, PackageUnit, Shipment, ShipmentDocument, ShipmentEvent, UploadSession } from "../models/index.js";
+import { Branch, Customer, PackageUnit, PickupRequest, Shipment, ShipmentDocument, ShipmentEvent, UploadSession } from "../models/index.js";
 import { AuthenticationError, AuthorizationError, ConflictError, NotFoundError } from "../utils/errors.js";
 import { calculateGoods } from "../utils/goods.js";
 import { calculateCharges } from "../utils/charges.js";
@@ -171,6 +171,30 @@ const activeEntities = async (data, session) => {
   return { customer, origin, destination };
 };
 
+const validatePickupRequestForLr = async (data, user, session) => {
+  if (!data.pickupRequestId) return null;
+  const pickupRequest = await PickupRequest.findById(data.pickupRequestId).session(session);
+  if (!pickupRequest) throw new NotFoundError("Pickup request not found", "PICKUP_REQUEST_NOT_FOUND");
+  if (!isAdmin(user) && String(pickupRequest.branchId) !== String(user.branchId))
+    throw new AuthorizationError("You cannot create an LR for another branch pickup request");
+  if (pickupRequest.status !== "PENDING")
+    throw new ConflictError("LR can be created only for a pending pickup request", "PICKUP_REQUEST_NOT_PENDING");
+  if (!pickupRequest.agentAssignment)
+    throw new ConflictError("Complete agent alignment before creating the LR", "PICKUP_AGENT_NOT_ASSIGNED");
+  if (pickupRequest.shipmentId)
+    throw new ConflictError("LR has already been created for this pickup request", "PICKUP_REQUEST_ALREADY_LINKED");
+  if (pickupRequest.branchId && String(pickupRequest.branchId) !== String(data.originBranchId))
+    throw new ConflictError("LR origin branch must match the pickup request branch", "PICKUP_BRANCH_MISMATCH");
+  if (pickupRequest.customerId && String(pickupRequest.customerId) !== String(data.customerId))
+    throw new ConflictError("Select the same customer used in the pickup request", "PICKUP_CUSTOMER_MISMATCH");
+  if (pickupRequest.totalBoxes !== data.packageCount || Math.abs(pickupRequest.totalWeightKg - data.weightKg) > 0.001)
+    throw new ConflictError(
+      "LR box count and weight must match the pickup request",
+      "PICKUP_QUANTITY_MISMATCH",
+    );
+  return pickupRequest;
+};
+
 export async function createShipment(data, req, idempotencyKey) {
   assertSignatureAccess(data, req.user);
   const pricingCustomer = await Customer.findOne({ _id: data.customerId, status: ACTIVE.ACTIVE });
@@ -194,6 +218,7 @@ export async function createShipment(data, req, idempotencyKey) {
     await session.withTransaction(async () => {
       const { origin } = await activeEntities(data, session);
       assertBranch(req.user, origin._id, "Employees can create shipments only from their assigned origin branch");
+      const pickupRequest = await validatePickupRequestForLr(data, req.user, session);
       shipment = (
         await Shipment.create(
           [
@@ -217,9 +242,15 @@ export async function createShipment(data, req, idempotencyKey) {
         req.user._id,
       );
       await generatePackageUnits(shipment, req.user._id, session);
+      if (pickupRequest) {
+        pickupRequest.shipmentId = shipment._id;
+        pickupRequest.lrCreatedAt = new Date();
+        await pickupRequest.save({ session });
+      }
       await audit(session, req, "SHIPMENT_CREATED", "Shipment", shipment._id, null, {
         lrNumber: shipment.lrNumber,
         status: shipment.currentStatus,
+        pickupRequestId: shipment.pickupRequestId,
         hasLrDetails: Boolean(shipment.lrDetails),
         ...(shipment.lrDetails && { lrDetails: lrDetailsAuditSummary(shipment.lrDetails) }),
       });
@@ -237,6 +268,8 @@ export async function createShipment(data, req, idempotencyKey) {
         return { shipment: shipmentDto(prior), replayed: true };
       }
     }
+    if (error.code === 11000 && error.keyPattern?.pickupRequestId)
+      throw new ConflictError("LR has already been created for this pickup request", "PICKUP_REQUEST_ALREADY_LINKED");
     if (error.code === 11000) throw new ConflictError("LR number already exists", "LR_NUMBER_EXISTS");
     throw error;
   } finally {
