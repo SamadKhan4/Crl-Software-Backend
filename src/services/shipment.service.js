@@ -116,11 +116,16 @@ const applyCustomerPricing = (data, customer) => {
   if (customer.customerType !== "CREDIT") {
     if (data.lrDetails?.paymentMode === "CREDIT")
       throw new ConflictError("Credit payment mode requires a credit customer", "CUSTOMER_PAYMENT_MODE_MISMATCH");
+    if (data.lrDetails) {
+      const details = data.lrDetails.toObject?.() ?? data.lrDetails;
+      data.lrDetails = { ...details, consignorCode: "9966" };
+    }
     return data;
   }
   if (!data.lrDetails)
     throw new ConflictError("Credit LR details are required", "CREDIT_LR_DETAILS_REQUIRED");
   const details = data.lrDetails.toObject?.() ?? data.lrDetails;
+  details.consignorCode = customer.customerCode;
   const rate = findCustomerLocationRate(customer.creditRateCard, details.to);
   if (!rate)
     throw new ConflictError(
