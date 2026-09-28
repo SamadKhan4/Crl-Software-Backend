@@ -14,6 +14,25 @@ import { generatePackageUnits } from "./expansion.service.js";
 import { queueShipmentNotification } from "./notification.service.js";
 
 const isAdmin = (user) => user?.role === ROLES.ADMIN;
+const RETAIL_CUSTOMER_KEY = "RETAIL";
+const resolvePricingCustomer = async (customerId, user) => {
+  if (customerId !== RETAIL_CUSTOMER_KEY)
+    return Customer.findOne({ _id: customerId, status: ACTIVE.ACTIVE });
+  return Customer.findOneAndUpdate(
+    { customerCode: "9966" },
+    {
+      $set: { status: ACTIVE.ACTIVE },
+      $setOnInsert: {
+        customerType: "TO_PAY_PAID",
+        name: "Others / Retail Customer",
+        companyName: "Others / Retail Customer",
+        mobile: "0000000000",
+        createdBy: user._id,
+      },
+    },
+    { new: true, upsert: true, setDefaultsOnInsert: true, runValidators: true },
+  );
+};
 const employeeLockedLrFields = [
   "shipperSignature",
   "receiverNamePrint",
@@ -192,7 +211,10 @@ const validatePickupRequestForLr = async (data, user, session) => {
     throw new ConflictError("LR origin branch must match the pickup request branch", "PICKUP_BRANCH_MISMATCH");
   if (pickupRequest.customerId && String(pickupRequest.customerId) !== String(data.customerId))
     throw new ConflictError("Select the same customer used in the pickup request", "PICKUP_CUSTOMER_MISMATCH");
-  if (pickupRequest.totalBoxes !== data.packageCount || Math.abs(pickupRequest.totalWeightKg - data.weightKg) > 0.001)
+  if (
+    (pickupRequest.totalBoxes != null && pickupRequest.totalBoxes !== data.packageCount) ||
+    (pickupRequest.totalWeightKg != null && Math.abs(pickupRequest.totalWeightKg - data.weightKg) > 0.001)
+  )
     throw new ConflictError(
       "LR box count and weight must match the pickup request",
       "PICKUP_QUANTITY_MISMATCH",
@@ -202,8 +224,9 @@ const validatePickupRequestForLr = async (data, user, session) => {
 
 export async function createShipment(data, req, idempotencyKey) {
   assertSignatureAccess(data, req.user);
-  const pricingCustomer = await Customer.findOne({ _id: data.customerId, status: ACTIVE.ACTIVE });
+  const pricingCustomer = await resolvePricingCustomer(data.customerId, req.user);
   if (!pricingCustomer) throw new ConflictError("Customer is invalid or inactive", "INVALID_CUSTOMER");
+  data.customerId = pricingCustomer._id.toString();
   data = applyCustomerPricing(data, pricingCustomer);
   data = applyLrCalculations(data);
   if (idempotencyKey) {

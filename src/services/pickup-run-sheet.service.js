@@ -114,8 +114,8 @@ export async function addPickupToRunSheet(recordId, data, req) {
       sheet.pickupRequestIds.push(pickup._id);
       sheet.shipmentIds.push(pickup.shipmentId);
       sheet.purEntries.push({ pickupRequestId: pickup._id, shipmentId: pickup.shipmentId, paymentTerm: data.paymentTerm, amount: data.amount, addedBy: req.user._id });
-      sheet.totalBoxes += pickup.totalBoxes;
-      sheet.totalWeightKg += pickup.totalWeightKg;
+      sheet.totalBoxes += Number(pickup.totalBoxes || 0);
+      sheet.totalWeightKg += Number(pickup.totalWeightKg || 0);
       sheet.vendorPayableAmount = calculateVendorAmount(sheet);
       sheet.status = sheet.approvalStatus === "PENDING" ? "PENDING_APPROVAL" : "READY";
       await sheet.save({ session });

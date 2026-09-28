@@ -248,7 +248,7 @@ export const shipmentSchema = z
   .object({
     lrNumber: manualLrNumber,
     pickupRequestId: objectId.optional(),
-    customerId: objectId,
+    customerId: z.union([objectId, z.literal("RETAIL")]),
     originBranchId: objectId,
     destinationBranchId: objectId,
     senderName: z.string().trim().min(2).max(120),
@@ -290,7 +290,7 @@ export const customerCodeParams = z
     customerCode: z
       .string()
       .trim()
-      .regex(/^\d{5}$/, "Customer code must be 5 digits"),
+      .regex(/^(?:9966|\d{5})$/, "Customer code must be 9966 or 5 digits"),
   })
   .strict();
 export const publicRequestSchema = z
@@ -298,7 +298,7 @@ export const publicRequestSchema = z
     customerCode: z
       .string()
       .trim()
-      .regex(/^\d{5}$/, "Customer code must be 5 digits"),
+      .regex(/^(?:9966|\d{5})$/, "Customer code must be 9966 or 5 digits"),
     lrNumber: manualLrNumber,
   })
   .strict();

@@ -41,6 +41,7 @@ describe("HTTP validation", () => {
         },
       }).success,
     ).toBe(true);
+    expect(shipmentSchema.safeParse({ ...base, customerId: "RETAIL" }).success).toBe(true);
     for (const lrDetails of [
       { consignorPincode: "44001" },
       { consigneeGstin: "not-a-gstin" },

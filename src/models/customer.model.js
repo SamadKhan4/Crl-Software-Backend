@@ -63,7 +63,7 @@ const customerDocumentSchema = new Schema(
 
 const customerSchema = new Schema(
   {
-    customerCode: { type: String, required: true, unique: true, match: /^(?:\d{5}|CRLCUST\d{6})$/, index: true },
+    customerCode: { type: String, required: true, unique: true, match: /^(?:9966|\d{5}|CRLCUST\d{6})$/, index: true },
     customerType: { type: String, enum: ["CREDIT", "TO_PAY_PAID"], required: true, default: "TO_PAY_PAID" },
     name: { type: String, required: true, trim: true, index: true },
     companyName: { type: String, trim: true, index: true },

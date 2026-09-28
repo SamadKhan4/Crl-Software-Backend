@@ -44,9 +44,17 @@ describe("Pickup request validation", () => {
     ).toBe(true);
   });
 
-  test("requires PTL movement and validates contact, GSTIN and package totals", () => {
+  test("allows incomplete requests and validates optional values when supplied", () => {
+    expect(pickupRequestSchema.safeParse({ shipper: {}, recipient: {} }).success).toBe(true);
+    expect(
+      pickupRequestSchema.safeParse({
+        shipper: { companyName: "", gstin: "", contactMobile: "" },
+        recipient: { city: "", pincode: "" },
+        totalBoxes: "",
+        totalWeightKg: "",
+      }).success,
+    ).toBe(true);
     for (const payload of [
-      { ...valid, serviceType: "PTL" },
       { ...valid, shipper: { ...valid.shipper, contactMobile: "123" } },
       { ...valid, recipient: { ...valid.recipient, gstin: "invalid" } },
       { ...valid, totalBoxes: 0 },

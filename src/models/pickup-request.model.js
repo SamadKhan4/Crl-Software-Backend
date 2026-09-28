@@ -5,13 +5,12 @@ const { Schema, model } = mongoose;
 
 const partySchema = new Schema(
   {
-    companyName: { type: String, required: true, trim: true, maxlength: 150 },
-    city: { type: String, required: true, trim: true, maxlength: 100 },
-    address: { type: String, required: true, trim: true, maxlength: 500 },
-    pincode: { type: String, required: true, trim: true, match: /^\d{6}$/ },
+    companyName: { type: String, trim: true, maxlength: 150 },
+    city: { type: String, trim: true, maxlength: 100 },
+    address: { type: String, trim: true, maxlength: 500 },
+    pincode: { type: String, trim: true, match: /^\d{6}$/ },
     gstin: {
       type: String,
-      required: true,
       trim: true,
       uppercase: true,
       match: /^\d{2}[A-Z]{5}\d{4}[A-Z]\dZ[A-Z\d]$/,
@@ -43,15 +42,15 @@ const pickupRequestSchema = new Schema(
     pickupRequestNumber: { type: String, required: true, unique: true, index: true },
     branchId: { ...objectId, ref: "Branch", index: true },
     customerId: { ...objectId, ref: "Customer", index: true },
-    shipper: { type: partySchema, required: true },
-    recipient: { type: partySchema, required: true },
-    serviceType: { type: String, enum: ["FTL", "PTL"], required: true, index: true },
+    shipper: { type: partySchema, default: () => ({}) },
+    recipient: { type: partySchema, default: () => ({}) },
+    serviceType: { type: String, enum: ["FTL", "PTL"], index: true },
     movementType: {
       type: String,
       enum: ["HUB_TO_HUB", "DOOR_TO_DOOR", "HUB_TO_DOOR", "DOOR_TO_HUB"],
     },
-    totalBoxes: { type: Number, required: true, min: 1, max: 10000 },
-    totalWeightKg: { type: Number, required: true, min: 0.01, max: 100000 },
+    totalBoxes: { type: Number, min: 1, max: 10000 },
+    totalWeightKg: { type: Number, min: 0.01, max: 100000 },
     status: {
       type: String,
       enum: ["PENDING", "DISPATCHED", "CANCELLED"],

@@ -40,22 +40,24 @@ export async function createPickupRequest(data, req) {
           { session },
         )
       )[0];
-      await Notification.create(
-        [
-          {
-            event: "PICKUP_REQUEST_CREATED",
-            pickupRequestId: record._id,
-            customerId: record.customerId,
-            branchId: record.branchId,
-            recipientName: record.shipper.contactName,
-            mobile: record.shipper.contactMobile,
-            channels: ["WHATSAPP", "SMS"],
-            subject: "Pickup request generated",
-            message: `Pickup request ${record.pickupRequestNumber} has been generated for ${record.shipper.companyName}. Service: ${record.serviceType}. Boxes: ${record.totalBoxes}, weight: ${record.totalWeightKg} kg.`,
-          },
-        ],
-        { session },
-      );
+      if (record.shipper?.contactMobile) {
+        await Notification.create(
+          [
+            {
+              event: "PICKUP_REQUEST_CREATED",
+              pickupRequestId: record._id,
+              customerId: record.customerId,
+              branchId: record.branchId,
+              recipientName: record.shipper.contactName || record.shipper.companyName || "Customer",
+              mobile: record.shipper.contactMobile,
+              channels: ["WHATSAPP", "SMS"],
+              subject: "Pickup request generated",
+              message: `Pickup request ${record.pickupRequestNumber} has been generated${record.shipper.companyName ? ` for ${record.shipper.companyName}` : ""}.`,
+            },
+          ],
+          { session },
+        );
+      }
       await audit(session, req, "PICKUP_REQUEST_CREATED", "PickupRequest", record._id, null, {
         pickupRequestNumber: record.pickupRequestNumber,
         status: record.status,

@@ -83,31 +83,30 @@ export const bookingSchema = z.object({
 export const bookingLrSchema = z.object({ lrNumber: z.string().trim().toUpperCase().min(1).max(50).regex(/^[A-Z0-9][A-Z0-9/._-]*$/) }).strict();
 export const bookingLinkSchema = z.object({ shipmentId: objectId }).strict();
 
+const optionalPickupValue = (schema) => z.preprocess(
+  (value) => (typeof value === "string" && !value.trim() ? undefined : value),
+  schema.optional(),
+);
 const pickupPartySchema = z.object({
-  companyName: z.string().trim().min(2).max(150),
-  city: z.string().trim().min(2).max(100),
-  address: z.string().trim().min(5).max(500),
-  pincode: z.string().trim().regex(/^\d{6}$/, "Enter a valid 6-digit PIN code"),
-  gstin: z.string().trim().toUpperCase().regex(/^\d{2}[A-Z]{5}\d{4}[A-Z]\dZ[A-Z\d]$/, "Enter a valid GSTIN"),
+  companyName: optionalPickupValue(z.string().trim().min(2).max(150)),
+  city: optionalPickupValue(z.string().trim().min(2).max(100)),
+  address: optionalPickupValue(z.string().trim().min(5).max(500)),
+  pincode: optionalPickupValue(z.string().trim().regex(/^\d{6}$/, "Enter a valid 6-digit PIN code")),
+  gstin: optionalPickupValue(z.string().trim().toUpperCase().regex(/^\d{2}[A-Z]{5}\d{4}[A-Z]\dZ[A-Z\d]$/, "Enter a valid GSTIN")),
   contactName: text(120),
-  contactMobile: z.string().trim().regex(/^\+?[1-9]\d{7,14}$/, "Enter a valid contact number").optional(),
+  contactMobile: optionalPickupValue(z.string().trim().regex(/^\+?[1-9]\d{7,14}$/, "Enter a valid contact number")),
 }).strict();
 
 export const pickupRequestSchema = z.object({
   customerId: objectId.optional(),
   branchId: objectId.optional(),
-  shipper: pickupPartySchema.extend({
-    contactName: z.string().trim().min(2).max(120),
-    contactMobile: z.string().trim().regex(/^\+?[1-9]\d{7,14}$/, "Enter a valid contact number"),
-  }).strict(),
+  shipper: pickupPartySchema,
   recipient: pickupPartySchema,
-  serviceType: z.enum(["FTL", "PTL"]),
+  serviceType: z.enum(["FTL", "PTL"]).optional(),
   movementType: z.enum(["HUB_TO_HUB", "DOOR_TO_DOOR", "HUB_TO_DOOR", "DOOR_TO_HUB"]).optional(),
-  totalBoxes: z.coerce.number().int().min(1).max(10000),
-  totalWeightKg: z.coerce.number().finite().positive().max(100000),
+  totalBoxes: optionalPickupValue(z.coerce.number().int().min(1).max(10000)),
+  totalWeightKg: optionalPickupValue(z.coerce.number().finite().positive().max(100000)),
 }).strict().superRefine((value, ctx) => {
-  if (value.serviceType === "PTL" && !value.movementType)
-    ctx.addIssue({ code: "custom", path: ["movementType"], message: "Select the PTL movement type" });
   if (value.serviceType === "FTL" && value.movementType)
     ctx.addIssue({ code: "custom", path: ["movementType"], message: "Movement type applies only to PTL" });
 });
