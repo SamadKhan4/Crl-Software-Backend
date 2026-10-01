@@ -1,3 +1,4 @@
+import { hasFullOperationsAccess } from "../utils/access.js";
 import mongoose from "mongoose";
 import {
   BusinessMaster,
@@ -11,14 +12,13 @@ import {
   Trip,
   Vendor,
 } from "../models/index.js";
-import { ROLES } from "../constants/workflow.js";
 import { audit } from "./audit.service.js";
 import { BusinessRuleError, ConflictError, NotFoundError } from "../utils/errors.js";
 import { escapeSearch, listQuery, paginated } from "../utils/query.js";
 
 const dto = (record) => ({ ...record.toObject(), id: record._id });
 const scope = (user) =>
-  user.role === ROLES.ADMIN || !user.branchId
+  hasFullOperationsAccess(user) || !user.branchId
     ? {}
     : { $or: [{ branchId: user.branchId }, { branchId: { $exists: false } }, { branchId: null }] };
 
@@ -190,7 +190,7 @@ export async function generatePackageUnits(shipment, userId, session) {
 
 export async function listPackages(query, user) {
   const options = listQuery(query);
-  const shipmentScope = user.role === ROLES.ADMIN || !user.branchId ? {} : { $or: [{ originBranchId: user.branchId }, { destinationBranchId: user.branchId }] };
+  const shipmentScope = hasFullOperationsAccess(user) || !user.branchId ? {} : { $or: [{ originBranchId: user.branchId }, { destinationBranchId: user.branchId }] };
   const accessible = await Shipment.find(shipmentScope).distinct("_id");
   const filter = { shipmentId: { $in: accessible } };
   if (query.shipmentId) filter.shipmentId = query.shipmentId;
@@ -205,7 +205,7 @@ export async function packageByBarcode(barcode, user) {
   const unit = await PackageUnit.findOne({ barcode: barcode.toUpperCase() }).populate("shipmentId", "originBranchId destinationBranchId customerId senderName receiverName currentStatus");
   if (!unit) throw new NotFoundError("Package barcode not found", "PACKAGE_NOT_FOUND");
   const shipment = unit.shipmentId;
-  if (user.role !== ROLES.ADMIN && user.branchId && ![shipment.originBranchId, shipment.destinationBranchId].some((id) => String(id) === String(user.branchId)))
+  if (!hasFullOperationsAccess(user) && user.branchId && ![shipment.originBranchId, shipment.destinationBranchId].some((id) => String(id) === String(user.branchId)))
     throw new NotFoundError("Package barcode not found", "PACKAGE_NOT_FOUND");
   return dto(unit);
 }
@@ -239,7 +239,7 @@ export async function profitability(query, user) {
   const match = {};
   if (query.customerId) match.customerId = new mongoose.Types.ObjectId(query.customerId);
   if (query.branchId) match.originBranchId = new mongoose.Types.ObjectId(query.branchId);
-  if (user.role !== ROLES.ADMIN && user.branchId) match.originBranchId = new mongoose.Types.ObjectId(user.branchId);
+  if (!hasFullOperationsAccess(user) && user.branchId) match.originBranchId = new mongoose.Types.ObjectId(user.branchId);
   if (query.dateFrom || query.dateTo) match.createdAt = { ...(query.dateFrom && { $gte: query.dateFrom }), ...(query.dateTo && { $lte: query.dateTo }) };
   const shipments = await Shipment.find(match).select("lrNumber customerId originBranchId destinationBranchId lrDetails.totalAmount").populate("customerId", "name companyName").lean();
   const ids = shipments.map((item) => item._id);
@@ -257,7 +257,7 @@ export async function profitability(query, user) {
 }
 
 export async function accountingSummary(query, user) {
-  const branchFilter = user.role === ROLES.ADMIN ? {} : { branchId: user.branchId };
+  const branchFilter = hasFullOperationsAccess(user) ? {} : { branchId: user.branchId };
   const [invoices, vendor, expenses] = await Promise.all([
     Invoice.aggregate([{ $match: { ...branchFilter, status: { $ne: "CANCELLED" } } }, { $group: { _id: null, billed: { $sum: "$totalAmount" }, received: { $sum: "$paidAmount" }, receivable: { $sum: "$balanceAmount" } } }]),
     TmsRegister.aggregate([{ $match: { ...branchFilter, module: "VENDOR_SETTLEMENT", status: { $ne: "CANCELLED" } } }, { $group: { _id: null, payable: { $sum: "$amount" }, tax: { $sum: "$taxAmount" } } }]),

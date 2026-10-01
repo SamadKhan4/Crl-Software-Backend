@@ -1,5 +1,6 @@
+import { hasFullOperationsAccess } from "../utils/access.js";
 import mongoose from "mongoose";
-import { LAST_MILE_STATE, MIDDLE_MILE_STATE, ROLES, SHIPMENT_STATUS, TRACKING_EVENT_STATUS } from "../constants/workflow.js";
+import { LAST_MILE_STATE, MIDDLE_MILE_STATE, SHIPMENT_STATUS, TRACKING_EVENT_STATUS } from "../constants/workflow.js";
 import { Branch, DeliveryRunSheet, MovementLeg, PackageUnit, Shipment, ShipmentEvent, Trip, UnloadingTally, User } from "../models/index.js";
 import { AuthorizationError, BusinessRuleError, ConflictError, NotFoundError } from "../utils/errors.js";
 import { generateBusinessNumber } from "../utils/ids.js";
@@ -8,7 +9,7 @@ import { audit } from "./audit.service.js";
 
 const id = (value) => (value?._id ?? value)?.toString();
 const dto = (record) => ({ ...(record.toObject?.() ?? record), id: record._id });
-const isAdmin = (user) => user?.role === ROLES.ADMIN;
+const isAdmin = hasFullOperationsAccess;
 const branchFor = (requested, user) => {
   const branchId = isAdmin(user) ? requested : user.branchId;
   if (!branchId) throw new BusinessRuleError("Select an operating branch", "BRANCH_REQUIRED");
@@ -176,23 +177,26 @@ export async function destinationInward(recordId, data, req) {
 }
 
 export async function drsInventory(query, user) {
-  const options = listQuery(query); const branchId = branchFor(query.branchId, user);
-  const filter = { destinationBranchId: branchId, lastMileState: LAST_MILE_STATE.DESTINATION_INWARDED, activeDrsId: { $exists: false }, currentStatus: SHIPMENT_STATUS.RECEIVED };
+  const options = listQuery(query); const branchId = isAdmin(user) && !query.branchId ? null : branchFor(query.branchId, user);
+  const filter = { ...(branchId && { destinationBranchId: branchId }), lastMileState: LAST_MILE_STATE.DESTINATION_INWARDED, activeDrsId: { $exists: false }, currentStatus: SHIPMENT_STATUS.RECEIVED };
   if (query.search) filter.$or = ["lrNumber", "receiverName", "receiverMobile"].map((key) => ({ [key]: { $regex: escapeSearch(query.search), $options: "i" } }));
   const [items, total] = await Promise.all([Shipment.find(filter).sort(options.sort).skip(options.skip).limit(options.limit).lean(), Shipment.countDocuments(filter)]);
   return paginated(items.map(dto), total, options);
 }
 
 export async function createDrs(data, req) {
-  const branchId = branchFor(data.branchId, req.user); const session = await mongoose.startSession();
+  let branchId = isAdmin(req.user) && !data.branchId ? null : branchFor(data.branchId, req.user); const session = await mongoose.startSession();
   try {
     let drs;
     await session.withTransaction(async () => {
-      const shipments = await Shipment.find({ _id: { $in: data.shipmentIds }, destinationBranchId: branchId, lastMileState: LAST_MILE_STATE.DESTINATION_INWARDED, activeDrsId: { $exists: false } }).session(session);
+      const shipments = await Shipment.find({ _id: { $in: data.shipmentIds }, ...(branchId && { destinationBranchId: branchId }), lastMileState: LAST_MILE_STATE.DESTINATION_INWARDED, currentStatus: SHIPMENT_STATUS.RECEIVED, activeDrsId: { $exists: false } }).session(session);
       if (shipments.length !== data.shipmentIds.length) throw new ConflictError("One or more LRs are not available or already assigned to a DRS", "SHIPMENT_ALREADY_ON_DRS");
+      branchId ||= shipments[0]?.destinationBranchId;
+      if (!branchId || shipments.some((row) => id(row.destinationBranchId) !== id(branchId)))
+        throw new BusinessRuleError("Select LRs from the same destination branch for one DRS", "DRS_BRANCH_MISMATCH");
       if (data.deliveryAgentId) {
-        const agent = await User.findOne({ _id: data.deliveryAgentId, status: "ACTIVE", branchId }).session(session);
-        if (!agent) throw new BusinessRuleError("Select an active delivery agent from this branch", "INVALID_DELIVERY_AGENT");
+        const agent = await User.findOne({ _id: data.deliveryAgentId, role: "EMPLOYEE", status: "ACTIVE", ...(!isAdmin(req.user) && { branchId }) }).session(session);
+        if (!agent) throw new BusinessRuleError(isAdmin(req.user) ? "Select an active employee as delivery agent" : "Select an active delivery agent from this branch", "INVALID_DELIVERY_AGENT");
       }
       drs = (await DeliveryRunSheet.create([{ ...data, branchId, drsNumber: await generateBusinessNumber("drs", "DRS", session), items: shipments.map((row) => ({ shipmentId: row._id })), workflowStatus: "DRAFT", createdBy: req.user._id }], { session }))[0];
       const claim = await Shipment.updateMany({ _id: { $in: data.shipmentIds }, activeDrsId: { $exists: false }, lastMileState: LAST_MILE_STATE.DESTINATION_INWARDED }, { $set: { activeDrsId: drs._id, lastMileState: LAST_MILE_STATE.DRS_ASSIGNED } }, { session });

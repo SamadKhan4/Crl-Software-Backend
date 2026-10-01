@@ -151,7 +151,8 @@ export const pickupAgentAssignmentSchema = z.object({
 export const pickupRunSheetSchema = z.object({
   vendorCategory: z.enum(["TRANSPORTER", "BP_KG"]),
   rateSource: z.enum(["MASTER", "MARKET"]),
-  vendorId: objectId,
+  vendorId: objectId.optional(),
+  marketPickupRequestId: objectId.optional(),
   fieldExecutiveId: objectId,
   vehicleNumber: z.string().trim().toUpperCase().min(4).max(20),
   vehicleType: z.string().trim().min(2).max(80),
@@ -160,6 +161,10 @@ export const pickupRunSheetSchema = z.object({
   marketAmount: z.coerce.number().finite().positive().max(100000000).optional(),
   remarks: text(500),
 }).strict().superRefine((value, ctx) => {
+  if (Boolean(value.vendorId) === Boolean(value.marketPickupRequestId))
+    ctx.addIssue({ code: "custom", path: ["vendorId"], message: "Select a vendor or market vehicle" });
+  if (value.marketPickupRequestId && value.rateSource !== "MARKET")
+    ctx.addIssue({ code: "custom", path: ["rateSource"], message: "Market vehicles require market rate" });
   if (value.rateSource === "MARKET" && value.marketAmount === undefined)
     ctx.addIssue({ code: "custom", path: ["marketAmount"], message: "Enter the market amount" });
   if (value.rateSource === "MASTER" && value.marketAmount !== undefined)

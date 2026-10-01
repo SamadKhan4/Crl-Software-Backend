@@ -1,4 +1,5 @@
-import { ACTIVE, ROLES } from "../constants/workflow.js";
+import { hasFullOperationsAccess } from "../utils/access.js";
+import { ACTIVE } from "../constants/workflow.js";
 import { Branch } from "../models/index.js";
 import { AuthorizationError, ConflictError, NotFoundError } from "../utils/errors.js";
 import { escapeSearch, listQuery, paginated } from "../utils/query.js";
@@ -11,7 +12,7 @@ const find = async (id) => {
 };
 const dto = (branch) => ({ ...(branch.toObject?.() ?? branch), id: branch._id });
 const assertAdmin = (req) => {
-  if (req.user.role !== ROLES.ADMIN) throw new AuthorizationError("Only administrators can modify branches");
+  if (!hasFullOperationsAccess(req.user)) throw new AuthorizationError("Only administrators can modify branches");
 };
 export async function createBranch(data, req) {
   assertAdmin(req);
@@ -26,7 +27,7 @@ export async function createBranch(data, req) {
 }
 export async function listBranches(query, user) {
   const options = listQuery(query);
-  const filter = user.role === ROLES.ADMIN ? {} : { _id: user.branchId };
+  const filter = hasFullOperationsAccess(user) ? {} : { _id: user.branchId };
   if (query.status) filter.status = query.status;
   if (query.search)
     filter.$or = ["branchCode", "name", "city", "pincode", "address"].map((field) => ({
@@ -39,7 +40,7 @@ export async function listBranches(query, user) {
   return paginated(items.map(dto), total, options);
 }
 export async function getBranch(id, user) {
-  if (user.role !== ROLES.ADMIN && user.branchId?.toString() !== id)
+  if (!hasFullOperationsAccess(user) && user.branchId?.toString() !== id)
     throw new AuthorizationError("You can only access your assigned branch");
   return dto(await find(id));
 }

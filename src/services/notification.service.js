@@ -1,5 +1,5 @@
+import { hasFullOperationsAccess } from "../utils/access.js";
 import { Customer, Notification } from "../models/index.js";
-import { ROLES } from "../constants/workflow.js";
 import { NotFoundError } from "../utils/errors.js";
 import { listQuery, paginated } from "../utils/query.js";
 
@@ -13,7 +13,7 @@ export async function queueShipmentNotification(session, shipment, status) {
   await Notification.create([{ event: status, shipmentId: shipment._id, customerId: shipment.customerId, branchId: shipment.originBranchId, recipientName: customer.companyName || customer.name, mobile: customer.mobile, email: customer.email, channels, subject, message: `${subject}: LR ${shipment.lrNumber}. Current location: ${shipment.currentLocation || "Operations"}.` }], { session });
 }
 export async function listNotifications(query, user) {
-  const options = listQuery(query); const filter = user.role === ROLES.ADMIN ? {} : { branchId: user.branchId };
+  const options = listQuery(query); const filter = hasFullOperationsAccess(user) ? {} : { branchId: user.branchId };
   if (query.status) filter.status = query.status;
   const [items, total] = await Promise.all([Notification.find(filter).populate("shipmentId", "lrNumber currentStatus").sort(options.sort).skip(options.skip).limit(options.limit).lean(), Notification.countDocuments(filter)]);
   return paginated(items, total, options);

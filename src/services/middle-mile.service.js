@@ -1,5 +1,6 @@
+import { hasFullOperationsAccess } from "../utils/access.js";
 import mongoose from "mongoose";
-import { ACTIVE, LAST_MILE_STATE, MIDDLE_MILE_STATE, ROLES, SHIPMENT_STATUS, TRACKING_EVENT_STATUS } from "../constants/workflow.js";
+import { ACTIVE, LAST_MILE_STATE, MIDDLE_MILE_STATE, SHIPMENT_STATUS, TRACKING_EVENT_STATUS } from "../constants/workflow.js";
 import {
   Branch,
   BusinessMaster,
@@ -21,7 +22,7 @@ import { audit } from "./audit.service.js";
 
 const id = (value) => (value?._id ?? value)?.toString();
 const dto = (record) => ({ ...(record.toObject?.() ?? record), id: record._id });
-const isAdmin = (user) => user?.role === ROLES.ADMIN;
+const isAdmin = hasFullOperationsAccess;
 const operatingBranch = (requested, user) => {
   const branchId = isAdmin(user) ? requested : user.branchId;
   if (!branchId) throw new BusinessRuleError("Select an operating hub", "HUB_REQUIRED");
@@ -71,8 +72,8 @@ export async function hubInward(data, req) {
       if (!shipment) throw new NotFoundError("LR not found", "SHIPMENT_NOT_FOUND");
       if (![SHIPMENT_STATUS.BOOKED, SHIPMENT_STATUS.IN_TRANSIT].includes(shipment.currentStatus)) throw new ConflictError("LR is not eligible for origin hub inward", "SHIPMENT_NOT_ELIGIBLE");
       if (shipment.movementState && ![MIDDLE_MILE_STATE.DESTINATION_HUB_INWARDED].includes(shipment.movementState)) throw new ConflictError("LR already has an active Middle Mile movement", "ACTIVE_MOVEMENT_EXISTS");
-      if (!shipment.movementState && id(shipment.originBranchId) !== id(branchId)) throw new AuthorizationError("LR must be inwarded at its origin hub");
-      if (shipment.movementState === MIDDLE_MILE_STATE.DESTINATION_HUB_INWARDED && id(shipment.currentHubId) !== id(branchId)) throw new AuthorizationError("LR is not available at this hub");
+      if (!isAdmin(req.user) && !shipment.movementState && id(shipment.originBranchId) !== id(branchId)) throw new AuthorizationError("LR must be inwarded at its origin hub");
+      if (!isAdmin(req.user) && shipment.movementState === MIDDLE_MILE_STATE.DESTINATION_HUB_INWARDED && id(shipment.currentHubId) !== id(branchId)) throw new AuthorizationError("LR is not available at this hub");
       if (id(branchId) === id(data.nextHubId)) throw new BusinessRuleError("Next hub must differ from current hub", "INVALID_NEXT_HUB");
       const [hub, nextHub] = await Promise.all([ensureHub(branchId, session), ensureHub(data.nextHubId, session), ensureRoute(data.routeId, session)]);
       if (shipment.pickupRequestId) {
@@ -112,8 +113,8 @@ export async function hubInward(data, req) {
 
 export async function sortingInventory(query, user) {
   const options = listQuery(query);
-  const branchId = operatingBranch(query.branchId, user);
-  const filter = { currentHubId: branchId, movementState: { $in: [MIDDLE_MILE_STATE.HUB_INWARDED, MIDDLE_MILE_STATE.SORTING_PENDING, MIDDLE_MILE_STATE.HOLD] }, currentStatus: { $nin: [SHIPMENT_STATUS.CANCELLED, SHIPMENT_STATUS.CLOSED] } };
+  const branchId = isAdmin(user) && !query.branchId ? null : operatingBranch(query.branchId, user);
+  const filter = { ...(branchId && { currentHubId: branchId }), movementState: { $in: [MIDDLE_MILE_STATE.HUB_INWARDED, MIDDLE_MILE_STATE.SORTING_PENDING, MIDDLE_MILE_STATE.HOLD] }, currentStatus: { $nin: [SHIPMENT_STATUS.CANCELLED, SHIPMENT_STATUS.CLOSED] } };
   if (query.search) filter.$or = ["lrNumber", "senderName", "receiverName"].map((field) => ({ [field]: { $regex: escapeSearch(query.search), $options: "i" } }));
   const [items, total] = await Promise.all([
     Shipment.find(filter).populate("customerId originBranchId destinationBranchId currentHubId nextHubId routeId").sort(options.sort).skip(options.skip).limit(options.limit).lean(),
@@ -222,8 +223,8 @@ export async function scanLoadingTally(recordId, data, req) {
       if (!tally) throw new NotFoundError("Loading tally not found", "TALLY_NOT_FOUND");
       assertBranch(tally, req.user);
       if (!['DRAFT', 'LOADING'].includes(tally.status)) throw new ConflictError("Completed tally cannot be edited", "TALLY_LOCKED");
-      const unit = await PackageUnit.findOne({ barcode: data.barcode.toUpperCase() }).session(session);
-      if (!unit) throw new NotFoundError("Package barcode not found", "PACKAGE_NOT_FOUND");
+      const unit = await PackageUnit.findOne({ barcode: data.barcode.trim().toUpperCase() }).session(session);
+      if (!unit) throw new NotFoundError("Package barcode not found. Scan the individual package label, including its package suffix (for example LRNUMBER-01OF3).", "PACKAGE_NOT_FOUND");
       if (["HOLD", "DAMAGE", "SHORT", "MISROUTE", "CANCELLED"].includes(unit.status)) throw new ConflictError(`Package is blocked with status ${unit.status}`, "PACKAGE_BLOCKED");
       const item = tally.items.find((row) => id(row.shipmentId) === id(unit.shipmentId));
       if (!item) throw new ConflictError("Package belongs to another route or tally", "PACKAGE_WRONG_TALLY");
@@ -453,6 +454,12 @@ async function listCollection(Model, query, user, populate = []) {
   return paginated(items.map(dto), total, options);
 }
 export const listLoadingTallies = (query, user) => listCollection(LoadingTally, query, user, ["fromHubId", "toHubId", "routeId", "segregationId", "items.shipmentId"]);
-export const getLoadingTally = async (recordId, user) => { const record = await LoadingTally.findById(recordId).populate("fromHubId toHubId routeId segregationId items.shipmentId"); if (!record) throw new NotFoundError("Loading tally not found", "TALLY_NOT_FOUND"); assertBranch(record, user); return dto(record); };
+export const getLoadingTally = async (recordId, user) => {
+  const record = await LoadingTally.findById(recordId).populate("fromHubId toHubId routeId segregationId items.shipmentId");
+  if (!record) throw new NotFoundError("Loading tally not found", "TALLY_NOT_FOUND");
+  assertBranch(record, user);
+  const packages = await PackageUnit.find({ shipmentId: { $in: record.items.map((item) => item.shipmentId._id ?? item.shipmentId) } }).select("barcode lrNumber status").sort({ barcode: 1 }).lean();
+  return { ...dto(record), packages };
+};
 export const listManifests = (query, user) => listCollection(Manifest, query, user, ["fromHubId", "toHubId", "routeId", "loadingTallyId", "vendorId"]);
 export const listTrips = (query, user) => listCollection(Trip, query, user, ["fromHubId", "toHubId", "routeId", "vendorId", "manifestIds", "shipmentIds"]);

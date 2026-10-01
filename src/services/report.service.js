@@ -1,8 +1,8 @@
+import { hasFullOperationsAccess } from "../utils/access.js";
 import mongoose from "mongoose";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { listQuery, paginated } from "../utils/query.js";
-import { ROLES } from "../constants/workflow.js";
 import { Shipment } from "../models/index.js";
 
 const escapeCsv = (value) => `"${String(value ?? "").replaceAll('"', '""')}"`;
@@ -18,7 +18,7 @@ export const buildReportFilter = (query, user) => ({
   ...((query.dateFrom || query.dateTo) && {
     createdAt: { ...(query.dateFrom && { $gte: query.dateFrom }), ...(query.dateTo && { $lte: query.dateTo }) },
   }),
-  ...(user.role !== ROLES.ADMIN && {
+  ...(!hasFullOperationsAccess(user) && {
     $and: [{ $or: [{ originBranchId: user.branchId }, { destinationBranchId: user.branchId }] }],
   }),
 });

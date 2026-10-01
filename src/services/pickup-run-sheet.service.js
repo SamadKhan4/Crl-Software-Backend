@@ -1,3 +1,4 @@
+import { hasFullOperationsAccess } from "../utils/access.js";
 import mongoose from "mongoose";
 import { ACTIVE, ROLES } from "../constants/workflow.js";
 import { Notification, PickupRequest, PickupRunSheet, User, Vendor } from "../models/index.js";
@@ -8,9 +9,9 @@ import { audit } from "./audit.service.js";
 
 const id = (value) => (value?._id ?? value)?.toString();
 const dto = (record) => ({ ...(record.toObject?.() ?? record), id: record._id });
-const branchFilter = (user) => user.role === ROLES.ADMIN ? {} : user.branchId ? { branchId: user.branchId } : { _id: null };
+const branchFilter = (user) => hasFullOperationsAccess(user) ? {} : user.branchId ? { branchId: user.branchId } : { _id: null };
 const assertSheetAccess = (sheet, user) => {
-  if (user.role !== ROLES.ADMIN && id(sheet.branchId) !== id(user.branchId))
+  if (!hasFullOperationsAccess(user) && id(sheet.branchId) !== id(user.branchId))
     throw new AuthorizationError("You can access PRS records only for your assigned branch");
 };
 const calculateVendorAmount = (sheet) => {
@@ -22,28 +23,34 @@ const calculateVendorAmount = (sheet) => {
 
 export async function pickupRunSheetOptions(user) {
   const employeeFilter = { role: ROLES.EMPLOYEE, status: ACTIVE.ACTIVE };
-  if (user.role !== ROLES.ADMIN) employeeFilter.branchId = user.branchId;
-  const [vendors, fieldExecutives] = await Promise.all([
+  if (!hasFullOperationsAccess(user)) employeeFilter.branchId = user.branchId;
+  const [vendors, fieldExecutives, marketPickups] = await Promise.all([
     Vendor.find({ status: ACTIVE.ACTIVE }).select("vendorCode vendorType name contactPerson mobile commercial vehicles services").sort({ name: 1 }).lean(),
     User.find(employeeFilter).select("employeeCode name mobile branchId").populate("branchId", "branchCode name city").sort({ name: 1 }).lean(),
+    PickupRequest.find({ ...branchFilter(user), status: "PENDING", pickupRunSheetId: null, "agentAssignment.sourceType": "MARKET" }).select("pickupRequestNumber agentAssignment").sort({ updatedAt: -1 }).lean(),
   ]);
-  return { vendors, fieldExecutives };
+  return { vendors, fieldExecutives, marketVehicles: marketPickups.map((pickup) => ({ pickupRequestId: pickup._id, pickupRequestNumber: pickup.pickupRequestNumber, ...pickup.agentAssignment })) };
 }
 
 export async function createPickupRunSheet(data, req) {
-  const [vendor, fieldExecutive] = await Promise.all([
-    Vendor.findOne({ _id: data.vendorId, status: ACTIVE.ACTIVE }),
+  const [vendor, fieldExecutive, marketPickup] = await Promise.all([
+    data.vendorId ? Vendor.findOne({ _id: data.vendorId, status: ACTIVE.ACTIVE }) : null,
     User.findOne({ _id: data.fieldExecutiveId, role: ROLES.EMPLOYEE, status: ACTIVE.ACTIVE }),
+    data.marketPickupRequestId ? PickupRequest.findOne({ _id: data.marketPickupRequestId, ...branchFilter(req.user), status: "PENDING", pickupRunSheetId: null, "agentAssignment.sourceType": "MARKET" }) : null,
   ]);
-  if (!vendor) throw new ConflictError("Select an active vendor from Vendor Master", "INVALID_PRS_VENDOR");
+  if (data.marketPickupRequestId ? !marketPickup : !vendor) throw new ConflictError("Select an active vendor or available market vehicle", "INVALID_PRS_VENDOR");
   if (!fieldExecutive) throw new ConflictError("Select an active FE from Employee Master", "INVALID_FIELD_EXECUTIVE");
   if (!fieldExecutive.mobile) throw new ConflictError("Add the FE contact number in Employee Master", "FIELD_EXECUTIVE_MOBILE_REQUIRED");
   if (!fieldExecutive.branchId) throw new ConflictError("Assign a branch to the selected FE", "FIELD_EXECUTIVE_BRANCH_REQUIRED");
-  if (req.user.role !== ROLES.ADMIN && id(fieldExecutive.branchId) !== id(req.user.branchId))
+  if (!hasFullOperationsAccess(req.user) && id(fieldExecutive.branchId) !== id(req.user.branchId))
     throw new AuthorizationError("Select a field executive from your assigned branch");
-  const vehicle = vendor.vehicles.find((item) => item.vehicleNumber === data.vehicleNumber);
+  if (marketPickup?.branchId && id(marketPickup.branchId) !== id(fieldExecutive.branchId))
+    throw new ConflictError("Select an FE from the market pickup branch", "INVALID_MARKET_PICKUP_BRANCH");
+  const vehicle = marketPickup ? marketPickup.agentAssignment : vendor.vehicles.find((item) => item.vehicleNumber === data.vehicleNumber && item.status !== ACTIVE.INACTIVE);
+  if (marketPickup && vehicle.vehicleNumber !== data.vehicleNumber)
+    throw new ConflictError("Market vehicle details changed; select the vehicle again", "INVALID_VENDOR_VEHICLE");
   if (!vehicle) throw new ConflictError("Select a vehicle configured in Vendor Master", "INVALID_VENDOR_VEHICLE");
-  const masterRate = Number(vendor.commercial?.rate || 0);
+  const masterRate = Number(vendor?.commercial?.rate || 0);
   if (data.rateSource === "MASTER" && masterRate <= 0)
     throw new ConflictError("Configure the agreed vendor rate in Vendor Master", "VENDOR_RATE_NOT_CONFIGURED");
 
@@ -57,10 +64,11 @@ export async function createPickupRunSheet(data, req) {
           branchId: fieldExecutive.branchId,
           vendorCategory: data.vendorCategory,
           rateSource: data.rateSource,
-          vendorId: vendor._id,
-          vendorCode: vendor.vendorCode,
-          vendorName: vendor.name,
-          rateBasis: data.vendorCategory === "BP_KG" ? "PER_KG" : vendor.commercial?.rateBasis || "PER_TRIP",
+          vendorId: vendor?._id,
+          marketPickupRequestId: marketPickup?._id,
+          vendorCode: vendor?.vendorCode || "MARKET",
+          vendorName: vendor?.name || vehicle.agentName,
+          rateBasis: data.vendorCategory === "BP_KG" ? "PER_KG" : vendor?.commercial?.rateBasis || "PER_TRIP",
           agreedRate: data.rateSource === "MASTER" ? masterRate : data.marketAmount,
           ...(data.rateSource === "MARKET" && { marketAmount: data.marketAmount }),
           approvalStatus: data.rateSource === "MARKET" ? "PENDING" : "NOT_REQUIRED",
@@ -105,6 +113,8 @@ export async function addPickupToRunSheet(recordId, data, req) {
         throw new ConflictError("PUR is already added to this sheet", "PUR_ALREADY_ADDED");
       const pickup = await PickupRequest.findById(data.pickupRequestId).session(session);
       if (!pickup) throw new NotFoundError("Pickup request not found", "PICKUP_REQUEST_NOT_FOUND");
+      if (!pickup.branchId && hasFullOperationsAccess(req.user) && id(sheet.marketPickupRequestId) === id(pickup._id))
+        pickup.branchId = sheet.branchId;
       if (id(pickup.branchId) !== id(sheet.branchId))
         throw new ConflictError("PUR and PRS must belong to the same branch", "PRS_BRANCH_MISMATCH");
       if (pickup.status !== "PENDING" || pickup.pickupRunSheetId)
@@ -122,9 +132,9 @@ export async function addPickupToRunSheet(recordId, data, req) {
 
       pickup.pickupRunSheetId = sheet._id;
       pickup.agentAssignment = {
-        sourceType: "VENDOR",
+        sourceType: sheet.marketPickupRequestId ? "MARKET" : "VENDOR",
         vendorId: sheet.vendorId,
-        agentName: sheet.fieldExecutiveName,
+        agentName: sheet.marketPickupRequestId ? sheet.vendorName : sheet.fieldExecutiveName,
         vehicleNumber: sheet.vehicleNumber,
         vehicleType: sheet.vehicleType,
         driverName: sheet.driverName || sheet.fieldExecutiveName,

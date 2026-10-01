@@ -1,5 +1,6 @@
+import { hasFullOperationsAccess } from "../utils/access.js";
 import mongoose from "mongoose";
-import { ACTIVE, DOCUMENT_STATUS, LAST_MILE_STATE, ROLES, SHIPMENT_STATUS, TRACKING_EVENT_STATUS } from "../constants/workflow.js";
+import { ACTIVE, DOCUMENT_STATUS, LAST_MILE_STATE, SHIPMENT_STATUS, TRACKING_EVENT_STATUS } from "../constants/workflow.js";
 import {
   Customer,
   DeliveryRunSheet,
@@ -25,7 +26,7 @@ import { storageService } from "./storage.service.js";
 const money = (value) => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
 const id = (value) => (value?._id ?? value)?.toString();
 const dto = (record) => ({ ...(record.toObject?.() ?? record), id: record._id });
-const isAdmin = (user) => user?.role === ROLES.ADMIN;
+const isAdmin = hasFullOperationsAccess;
 const summary = (record) => ({
   number:
     record.vendorCode ||

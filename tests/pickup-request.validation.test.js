@@ -123,6 +123,20 @@ describe("Pickup request validation", () => {
     expect(pickupRunSheetListSchema.safeParse({ status: "OPEN" }).success).toBe(false);
   });
 
+  test("accepts aligned market vehicles without a vendor and rejects ambiguous sources", () => {
+    const market = {
+      vendorCategory: "TRANSPORTER", rateSource: "MARKET",
+      marketPickupRequestId: "66d8f14124b86f067a916601",
+      fieldExecutiveId: "66d8f14124b86f067a916602",
+      vehicleNumber: "MH31AB1234", vehicleType: "Tata Ace",
+      pickupDate: "2026-10-01", route: "Nagpur to Hingna", marketAmount: 2500,
+    };
+    expect(pickupRunSheetSchema.safeParse(market).success).toBe(true);
+    expect(pickupRunSheetSchema.safeParse({ ...market, vendorId: "66d8f14124b86f067a916603" }).success).toBe(false);
+    expect(pickupRunSheetSchema.safeParse({ ...market, marketPickupRequestId: undefined }).success).toBe(false);
+    expect(pickupRunSheetSchema.safeParse({ ...market, rateSource: "MASTER", marketAmount: undefined }).success).toBe(false);
+  });
+
   test("validates Agent LR auto-reflection filters", () => {
     expect(agentLrListSchema.safeParse({ status: "DISPATCHED", sourceType: "VENDOR", search: "LR-100" }).success).toBe(true);
     expect(agentLrListSchema.safeParse({ sourceType: "UNKNOWN" }).success).toBe(false);

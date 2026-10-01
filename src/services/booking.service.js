@@ -1,5 +1,6 @@
+import { hasFullOperationsAccess } from "../utils/access.js";
 import { Booking, Branch, Customer, Shipment } from "../models/index.js";
-import { ACTIVE, ROLES } from "../constants/workflow.js";
+import { ACTIVE } from "../constants/workflow.js";
 import { audit } from "./audit.service.js";
 import { createShipment } from "./shipment.service.js";
 import { generateBusinessNumber } from "../utils/ids.js";
@@ -7,7 +8,7 @@ import { ConflictError, NotFoundError } from "../utils/errors.js";
 import { escapeSearch, listQuery, paginated } from "../utils/query.js";
 
 export async function createBooking(data, req) {
-  const branchId = req.user.role === ROLES.ADMIN ? (data.branchId || req.user.branchId) : req.user.branchId;
+  const branchId = hasFullOperationsAccess(req.user) ? (data.branchId || req.user.branchId) : req.user.branchId;
   const [customer, origin, destination] = await Promise.all([
     data.customerId ? Customer.exists({ _id: data.customerId, status: ACTIVE.ACTIVE }) : true,
     branchId ? Branch.findById(branchId).lean() : true,
@@ -19,7 +20,7 @@ export async function createBooking(data, req) {
   return { ...record.toObject(), id: record._id };
 }
 export async function listBookings(query, user) {
-  const options = listQuery(query); const filter = user.role === ROLES.ADMIN ? {} : { branchId: user.branchId };
+  const options = listQuery(query); const filter = hasFullOperationsAccess(user) ? {} : { branchId: user.branchId };
   if (query.status) filter.status = query.status;
   if (query.search) filter.$or = ["bookingNumber", "consignor", "consignee", "origin", "destination"].map((field) => ({ [field]: { $regex: escapeSearch(query.search), $options: "i" } }));
   const [items, total] = await Promise.all([Booking.find(filter).populate("customerId", "customerCode name companyName").populate("branchId destinationBranchId", "branchCode name city").populate("shipmentId", "lrNumber currentStatus").sort(options.sort).skip(options.skip).limit(options.limit).lean(), Booking.countDocuments(filter)]);
@@ -27,12 +28,12 @@ export async function listBookings(query, user) {
 }
 export async function getBooking(id, user) {
   const record = await Booking.findById(id).populate("customerId branchId destinationBranchId shipmentId");
-  if (!record || (user.role !== ROLES.ADMIN && String(record.branchId?._id || record.branchId) !== String(user.branchId))) throw new NotFoundError("Booking not found", "BOOKING_NOT_FOUND");
+  if (!record || (!hasFullOperationsAccess(user) && String(record.branchId?._id || record.branchId) !== String(user.branchId))) throw new NotFoundError("Booking not found", "BOOKING_NOT_FOUND");
   return { ...record.toObject(), id: record._id };
 }
 export async function linkLr(id, data, req) {
   const booking = await Booking.findById(id);
-  if (!booking || (req.user.role !== ROLES.ADMIN && String(booking.branchId) !== String(req.user.branchId)))
+  if (!booking || (!hasFullOperationsAccess(req.user) && String(booking.branchId) !== String(req.user.branchId)))
     throw new NotFoundError("Booking not found", "BOOKING_NOT_FOUND");
   const shipment = await Shipment.findById(data.shipmentId).select("lrNumber customerId originBranchId");
   if (!shipment) throw new NotFoundError("Shipment not found", "SHIPMENT_NOT_FOUND");
@@ -48,7 +49,7 @@ export async function linkLr(id, data, req) {
 }
 export async function generateLr(id, data, req) {
   const booking = await Booking.findById(id).populate("branchId destinationBranchId");
-  if (!booking || (req.user.role !== ROLES.ADMIN && String(booking.branchId._id) !== String(req.user.branchId))) throw new NotFoundError("Booking not found", "BOOKING_NOT_FOUND");
+  if (!booking || (!hasFullOperationsAccess(req.user) && String(booking.branchId._id) !== String(req.user.branchId))) throw new NotFoundError("Booking not found", "BOOKING_NOT_FOUND");
   if (booking.status === "LR_GENERATED") throw new ConflictError("LR already generated for booking", "BOOKING_ALREADY_CONVERTED");
   if (booking.status === "CANCELLED") throw new ConflictError("Cancelled booking cannot generate LR", "BOOKING_CANCELLED");
   const payload = {

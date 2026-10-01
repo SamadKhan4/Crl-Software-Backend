@@ -1,3 +1,4 @@
+import { hasFullOperationsAccess } from "../utils/access.js";
 import crypto from "node:crypto";
 import mongoose from "mongoose";
 import { ACTIVE, DOCUMENT_STATUS, ROLES, SHIPMENT_STATUS, TRANSITIONS } from "../constants/workflow.js";
@@ -13,7 +14,7 @@ import { env } from "../config/env.js";
 import { generatePackageUnits } from "./expansion.service.js";
 import { queueShipmentNotification } from "./notification.service.js";
 
-const isAdmin = (user) => user?.role === ROLES.ADMIN;
+const isAdmin = hasFullOperationsAccess;
 const RETAIL_CUSTOMER_KEY = "RETAIL";
 const resolvePricingCustomer = async (customerId, user) => {
   if (customerId !== RETAIL_CUSTOMER_KEY)

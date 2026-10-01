@@ -12,11 +12,12 @@ import {
 import { ACTIVE, ROLES, SHIPMENT_STATUS } from "../constants/workflow.js";
 import { AuthorizationError, ConflictError, NotFoundError } from "../utils/errors.js";
 import { audit } from "./audit.service.js";
+import { hasFullOperationsAccess } from "../utils/access.js";
 
 const resources = { branches: Branch, customers: Customer, users: User, managers: User, shipments: Shipment };
 
 export async function deleteResource(resource, id, req) {
-  if (req.user.role !== ROLES.ADMIN) throw new AuthorizationError();
+  if (!hasFullOperationsAccess(req.user)) throw new AuthorizationError();
   const Model = resources[resource];
   const session = await mongoose.startSession();
   try {

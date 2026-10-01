@@ -96,7 +96,7 @@ export async function createEmployee(data, req) {
 export async function listEmployees(query, req) {
   assertManagement(req, null, req.user.branchId);
   const options = listQuery(query);
-  const filter = { role: managedRole(req), ...(req.user.role === ROLES.MANAGER && { branchId: req.user.branchId }) };
+  const filter = { role: managedRole(req) };
   if (query.status) filter.status = query.status;
   if (query.search)
     filter.$or = ["employeeCode", "name", "email", "mobile"].map((field) => ({

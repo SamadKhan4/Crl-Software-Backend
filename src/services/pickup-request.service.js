@@ -1,5 +1,6 @@
+import { hasFullOperationsAccess } from "../utils/access.js";
 import mongoose from "mongoose";
-import { ACTIVE, ROLES } from "../constants/workflow.js";
+import { ACTIVE } from "../constants/workflow.js";
 import { Branch, Customer, Notification, PickupRequest, Shipment, Vendor } from "../models/index.js";
 import { ConflictError, NotFoundError } from "../utils/errors.js";
 import { generateBusinessNumber } from "../utils/ids.js";
@@ -8,10 +9,10 @@ import { audit } from "./audit.service.js";
 
 const dto = (record) => ({ ...(record.toObject?.() ?? record), id: record._id });
 const branchFilter = (user) =>
-  user.role === ROLES.ADMIN ? {} : user.branchId ? { branchId: user.branchId } : { _id: null };
+  hasFullOperationsAccess(user) ? {} : user.branchId ? { branchId: user.branchId } : { _id: null };
 
 export async function createPickupRequest(data, req) {
-  const branchId = req.user.role === ROLES.ADMIN ? data.branchId || req.user.branchId : req.user.branchId;
+  const branchId = hasFullOperationsAccess(req.user) ? data.branchId || req.user.branchId : req.user.branchId;
   const [branch, customer] = await Promise.all([
     branchId ? Branch.exists({ _id: branchId, status: ACTIVE.ACTIVE }) : true,
     data.customerId

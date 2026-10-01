@@ -3,6 +3,7 @@ import { env } from "../config/env.js";
 import { ROLES } from "../constants/workflow.js";
 import { AuthenticationError, AuthorizationError } from "../utils/errors.js";
 import { User } from "../models/index.js";
+import { hasFullOperationsAccess } from "../utils/access.js";
 export const authenticate = async (req, _res, next) => {
   try {
     const token = req.headers.authorization?.replace(/^Bearer\s+/i, "");
@@ -19,10 +20,10 @@ export const authenticate = async (req, _res, next) => {
 export const allow =
   (...roles) =>
   (req, _res, next) =>
-    roles.includes(req.user.role) ? next() : next(new AuthorizationError());
+    hasFullOperationsAccess(req.user) || roles.includes(req.user.role) ? next() : next(new AuthorizationError());
 export const internalRoles = allow(ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE, ROLES.HR, ROLES.VENDOR);
 export const permit = (module, action, ...defaultRoles) => (req, _res, next) => {
-  if (req.user.role === ROLES.ADMIN) return next();
+  if (hasFullOperationsAccess(req.user)) return next();
   const configured = Array.isArray(req.user.permissions) && req.user.permissions.length > 0;
   if (!configured) return defaultRoles.includes(req.user.role) ? next() : next(new AuthorizationError());
   const permission = req.user.permissions.find((entry) => entry.module === module);
