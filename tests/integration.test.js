@@ -155,7 +155,7 @@ describeIntegration("CRL API integration workflow", () => {
     expect(created.status).toBe(201);
     const shipment = created.body.data;
     expect(shipment.lrNumber).toBe("MANUAL-001");
-    expect(shipment.lrDetails).toMatchObject(fullLrDetails);
+    expect(shipment.lrDetails).toMatchObject({ ...fullLrDetails, consignorCode: "9966" });
     const replay = await request(app)
       .post("/api/shipments")
       .set({ ...auth(), "Idempotency-Key": "workflow-create-001" })
@@ -173,7 +173,7 @@ describeIntegration("CRL API integration workflow", () => {
       });
     expect(replay.status).toBe(200);
     expect(replay.body.data.lrNumber).toBe(shipment.lrNumber);
-    expect(replay.body.data.lrDetails).toMatchObject(fullLrDetails);
+    expect(replay.body.data.lrDetails).toMatchObject({ ...fullLrDetails, consignorCode: "9966" });
     expect(
       (
         await request(app)
@@ -219,7 +219,7 @@ describeIntegration("CRL API integration workflow", () => {
     expect((await request(app).post(`/api/shipments/${shipment.id}/close`).set(auth()).send({})).status).toBe(200);
     const detail = await request(app).get(`/api/shipments/${shipment.id}`).set(auth());
     expect(detail.body.data.documents).toHaveLength(1);
-    expect(detail.body.data.lrDetails).toMatchObject(fullLrDetails);
+    expect(detail.body.data.lrDetails).toMatchObject({ ...fullLrDetails, consignorCode: "9966" });
     expect(
       (
         await request(app)
@@ -700,6 +700,197 @@ describeIntegration("CRL API integration workflow", () => {
     app.locals.draining = false;
     expect((await request(app).get("/api/health/ready")).status).toBe(200);
   });
+
+  test("performs one complete First Mile to Middle Mile to Last Mile delivery", async () => {
+    const mmOrigin = (
+      await request(app)
+        .post("/api/branches")
+        .set(auth())
+        .send({ branchCode: "MMN", name: "MM Nagpur", city: "Nagpur", state: "Maharashtra", pincode: "440002" })
+    ).body.data;
+    const transitBranch = (
+      await request(app)
+        .post("/api/branches")
+        .set(auth())
+        .send({ branchCode: "MMI", name: "MM Indore", city: "Indore", state: "Madhya Pradesh", pincode: "452001" })
+    ).body.data;
+    const mmDestination = (
+      await request(app)
+        .post("/api/branches")
+        .set(auth())
+        .send({ branchCode: "MMM", name: "MM Mumbai", city: "Mumbai", state: "Maharashtra", pincode: "400002" })
+    ).body.data;
+    const mmCustomer = (await request(app).post("/api/customers").set(auth()).send({
+      customerType: "TO_PAY_PAID", name: "MM Customer", companyName: "MM Customer Company",
+      mobile: "9876500001", city: "Nagpur", state: "Maharashtra", pincode: "440002",
+    })).body.data;
+    const createRoute = async (code, name, origin, destination) => {
+      const response = await request(app).post("/api/master-data").set(auth()).send({
+        type: "ROUTE", code, name, origin, destination, status: "ACTIVE",
+      });
+      expect(response.status).toBe(201);
+      return response.body.data;
+    };
+    const routeToTransit = await createRoute("MMN-MMI", "MM Nagpur to Indore", "MM Nagpur", "MM Indore");
+    const routeToDestination = await createRoute("MMI-MMM", "MM Indore to Mumbai", "MM Indore", "MM Mumbai");
+
+    const pickup = await request(app).post("/api/pickup-requests").set(auth()).send({
+      branchId: mmOrigin._id,
+      shipper: { companyName: "FM Demo Shipper", city: "Nagpur", address: "MIDC Nagpur", pincode: "440002", contactName: "Demo Shipper", contactMobile: "9876500011" },
+      recipient: { companyName: "LM Demo Receiver", city: "Mumbai", address: "Andheri Mumbai", pincode: "400002", contactName: "Demo Receiver", contactMobile: "9876500012" },
+      serviceType: "PTL", movementType: "DOOR_TO_DOOR", totalBoxes: 2, totalWeightKg: 120,
+    });
+    expect(pickup.status).toBe(201);
+    const pur = pickup.body.data;
+    const aligned = await request(app).patch(`/api/pickup-requests/${pur.id}/assign-agent`).set(auth()).send({
+      sourceType: "MARKET", agentName: "FM Market Agent", vehicleNumber: "MH31FM1001", vehicleType: "Pickup Van",
+      driverName: "FM Demo Driver", driverMobile: "9876500013", remarks: "End-to-end example",
+    });
+    expect(aligned.status).toBe(200);
+
+    const created = await request(app)
+      .post("/api/shipments")
+      .set({ ...auth(), "Idempotency-Key": "middle-mile-multileg-001" })
+      .send({
+        pickupRequestId: pur.id,
+        customerId: mmCustomer.id,
+        originBranchId: mmOrigin._id,
+        destinationBranchId: mmDestination._id,
+        senderName: "Middle Mile Sender",
+        receiverName: "Middle Mile Receiver",
+        lrNumber: "MM-MULTI-001",
+        packageCount: 2,
+        weightKg: 120,
+      });
+    expect(created.status).toBe(201);
+    const shipmentId = created.body.data.id;
+
+    const vendor = await request(app).post("/api/vendors").set(auth()).send({
+      vendorType: "TRANSPORTER", name: "FM Demo Transporter", mobile: "9876500014", services: ["FM", "PICKUP"], documents: [],
+      commercial: { rateBasis: "PER_TRIP", rate: 2500, fuelSurchargePercent: 0, handlingCharge: 0, detentionPerDay: 0, creditDays: 15, gstRate: 5 },
+      vehicles: [{ vehicleNumber: "MH31FM2001", vehicleType: "Pickup Van", capacityKg: 1000, driverName: "PRS Demo Driver", driverMobile: "9876500015", status: "ACTIVE" }],
+    });
+    expect(vendor.status).toBe(201);
+    const fieldExecutive = await request(app).post("/api/users").set(auth()).send({
+      name: "FM Demo Executive", email: "fm-demo-executive@example.test", mobile: "9876500016", branchId: mmOrigin._id, password: "SafeDemoPassword123!",
+    });
+    expect(fieldExecutive.status).toBe(201);
+    const prs = await request(app).post("/api/pickup-run-sheets").set(auth()).send({
+      vendorCategory: "TRANSPORTER", rateSource: "MASTER", vendorId: vendor.body.data.id,
+      fieldExecutiveId: fieldExecutive.body.data.id, vehicleNumber: "MH31FM2001", vehicleType: "Pickup Van",
+      pickupDate: new Date().toISOString(), route: "Nagpur Local Pickup", remarks: "Complete workflow example",
+    });
+    expect(prs.status).toBe(201);
+    expect((await request(app).post(`/api/pickup-run-sheets/${prs.body.data.id}/pickups`).set(auth()).send({ pickupRequestId: pur.id, paymentTerm: "PREPAID", amount: 500 })).status).toBe(200);
+    const dispatchedPrs = await request(app).post(`/api/pickup-run-sheets/${prs.body.data.id}/dispatch`).set(auth()).send({});
+    expect(dispatchedPrs.status).toBe(200);
+    expect(dispatchedPrs.body.data.dispatchId).toMatch(/^DSP-/);
+
+    const runLeg = async ({ fromHubId, toHubId, routeId, sequence, final = false }) => {
+      const inward = await request(app).post("/api/middle-mile/hub-inward").set(auth()).send({
+        shipmentId, branchId: fromHubId, nextHubId: toHubId, routeId,
+      });
+      expect(inward.status).toBe(201);
+      expect(inward.body.data.movementState).toBe("HUB_INWARDED");
+
+      const sorting = await request(app).post("/api/middle-mile/sorting").set(auth()).send({
+        branchId: fromHubId, shipmentIds: [shipmentId], nextHubId: toHubId, routeId,
+        sortZone: `ZONE-${sequence}`, bay: `BAY-${sequence}`,
+      });
+      expect(sorting.status).toBe(201);
+
+      const tally = await request(app).post("/api/loading-tallies").set(auth()).send({
+        branchId: fromHubId, segregationId: sorting.body.data.id, loadingBay: `BAY-${sequence}`,
+      });
+      expect(tally.status).toBe(201);
+      const packages = await request(app).get("/api/package-barcodes").query({ shipmentId }).set(auth());
+      expect(packages.body.data).toHaveLength(2);
+      for (const unit of packages.body.data) {
+        const scanned = await request(app)
+          .post(`/api/loading-tallies/${tally.body.data.id}/scan`)
+          .set(auth())
+          .send({ barcode: unit.barcode });
+        expect(scanned.status).toBe(200);
+      }
+      const completed = await request(app).post(`/api/loading-tallies/${tally.body.data.id}/complete`).set(auth()).send({});
+      expect(completed.status).toBe(200);
+      expect(completed.body.data.status).toBe("TALLY_COMPLETED");
+
+      const manifest = await request(app).post("/api/middle-mile/manifests").set(auth()).send({ loadingTallyId: tally.body.data.id });
+      if (manifest.status !== 201) throw new Error(JSON.stringify(manifest.body));
+      const finalized = await request(app).post(`/api/middle-mile/manifests/${manifest.body.data.id}/finalize`).set(auth()).send({});
+      expect(finalized.status).toBe(200);
+      expect(finalized.body.data.workflowStatus).toBe("LOCKED");
+
+      const trip = await request(app).post("/api/middle-mile/trips").set(auth()).send({
+        manifestIds: [manifest.body.data.id], vehicleSource: "MV", vehicleNumber: `MH31MM100${sequence}`,
+        vehicleType: "Closed Body", vehicleCapacityKg: 1000, driverName: `Driver ${sequence}`,
+        departureDate: new Date().toISOString(), freightAmount: 5000, advanceAmount: 1000,
+      });
+      expect(trip.status).toBe(201);
+      expect((await request(app).post(`/api/middle-mile/trips/${trip.body.data.id}/dispatch`).set(auth()).send({})).status).toBe(200);
+      expect((await request(app).post(`/api/middle-mile/trips/${trip.body.data.id}/arrive`).set(auth()).send({})).status).toBe(200);
+      if (!final) {
+        const destinationInward = await request(app)
+          .post(`/api/middle-mile/trips/${trip.body.data.id}/inward`)
+          .set(auth())
+          .send({ receivedShipmentIds: [shipmentId] });
+        expect(destinationInward.status).toBe(200);
+      }
+      return { trip: trip.body.data, packages: packages.body.data };
+    };
+
+    await runLeg({ fromHubId: mmOrigin._id, toHubId: transitBranch._id, routeId: routeToTransit.id, sequence: 1 });
+    let shipment = await Shipment.findById(shipmentId).lean();
+    expect(shipment.movementState).toBe("DESTINATION_HUB_INWARDED");
+    expect(String(shipment.currentHubId)).toBe(String(transitBranch._id));
+
+    const finalLeg = await runLeg({ fromHubId: transitBranch._id, toHubId: mmDestination._id, routeId: routeToDestination.id, sequence: 2, final: true });
+    shipment = await Shipment.findById(shipmentId).lean();
+    expect(shipment.lastMileState).toBe("ARRIVED");
+
+    const unloading = await request(app).post("/api/last-mile/unloading-tallies").set(auth()).send({ tripId: finalLeg.trip.id, branchId: mmDestination._id });
+    expect(unloading.status).toBe(201);
+    const wrongScan = await request(app).post(`/api/last-mile/unloading-tallies/${unloading.body.data.id}/scan`).set(auth()).send({ barcode: "WRONG-PACKAGE-999" });
+    expect(wrongScan.status).toBe(422);
+    for (const unit of finalLeg.packages) {
+      expect((await request(app).post(`/api/last-mile/unloading-tallies/${unloading.body.data.id}/scan`).set(auth()).send({ barcode: unit.barcode })).status).toBe(200);
+    }
+    expect((await request(app).post(`/api/last-mile/unloading-tallies/${unloading.body.data.id}/complete`).set(auth()).send({ exceptions: [{ shipmentId, damagedPackages: 1, depsCode: "DMG", depsRemarks: "Outer packing damaged" }] })).status).toBe(200);
+    expect((await request(app).patch(`/api/last-mile/unloading-tallies/${unloading.body.data.id}/qc/${shipmentId}`).set(auth()).send({ qcStatus: "PASSED", storageLocation: "RACK-A1", depsCode: "DMG-CLEARED", depsRemarks: "Contents verified fit for delivery" })).status).toBe(200);
+    expect((await request(app).post(`/api/last-mile/unloading-tallies/${unloading.body.data.id}/inward`).set(auth()).send({ remarks: "All packages received" })).status).toBe(200);
+
+    shipment = await Shipment.findById(shipmentId).lean();
+    expect(shipment.movementState).toBe("LAST_MILE_READY");
+    expect(shipment.lastMileState).toBe("DESTINATION_INWARDED");
+    expect(shipment.currentStatus).toBe("RECEIVED");
+    const drs = await request(app).post("/api/last-mile/drs").set(auth()).send({ branchId: mmDestination._id, vehicleNumber: "MH31LM1001", driverName: "Last Mile Driver", deliveryDate: new Date().toISOString(), route: "Mumbai Local", shipmentIds: [shipmentId], partB: [] });
+    expect(drs.status).toBe(201);
+    const duplicateDrs = await request(app).post("/api/last-mile/drs").set(auth()).send({ branchId: mmDestination._id, vehicleNumber: "MH31LM1002", driverName: "Duplicate Driver", deliveryDate: new Date().toISOString(), route: "Mumbai Local", shipmentIds: [shipmentId], partB: [] });
+    expect(duplicateDrs.status).toBe(409);
+    expect((await request(app).post(`/api/last-mile/drs/${drs.body.data.id}/finalize`).set(auth()).send({})).status).toBe(200);
+    expect((await request(app).post(`/api/last-mile/drs/${drs.body.data.id}/dispatch`).set(auth()).send({})).status).toBe(200);
+    expect((await request(app).post(`/api/last-mile/drs/${drs.body.data.id}/attempt/${shipmentId}`).set(auth()).send({ outcome: "REATTEMPT", failureReason: "Customer unavailable", nextAction: "Retry tomorrow" })).status).toBe(200);
+    expect((await request(app).post(`/api/last-mile/drs/${drs.body.data.id}/close`).set(auth()).send({})).status).toBe(200);
+    shipment = await Shipment.findById(shipmentId).lean();
+    expect(shipment.lastMileState).toBe("DESTINATION_INWARDED");
+
+    const retryDrs = await request(app).post("/api/last-mile/drs").set(auth()).send({ branchId: mmDestination._id, vehicleNumber: "MH31LM1003", driverName: "Retry Driver", deliveryDate: new Date().toISOString(), route: "Mumbai Local Retry", shipmentIds: [shipmentId], partB: [] });
+    expect(retryDrs.status).toBe(201);
+    expect((await request(app).post(`/api/last-mile/drs/${retryDrs.body.data.id}/finalize`).set(auth()).send({})).status).toBe(200);
+    expect((await request(app).post(`/api/last-mile/drs/${retryDrs.body.data.id}/dispatch`).set(auth()).send({})).status).toBe(200);
+    expect((await request(app).post(`/api/last-mile/drs/${retryDrs.body.data.id}/attempt/${shipmentId}`).set(auth()).send({ outcome: "DELIVERED" })).status).toBe(200);
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64");
+    const pod = await request(app).post(`/api/last-mile/drs/${retryDrs.body.data.id}/pod/${shipmentId}`).set(auth()).field("receiverName", "Middle Mile Receiver").attach("pod", png, { filename: "pod.png", contentType: "image/png" });
+    expect(pod.status).toBe(201);
+    expect((await request(app).post(`/api/last-mile/drs/${retryDrs.body.data.id}/close`).set(auth()).send({})).status).toBe(200);
+    shipment = await Shipment.findById(shipmentId).lean();
+    expect(shipment.lastMileState).toBe("DELIVERED");
+    expect(shipment.currentStatus).toBe("CLOSED");
+    const legs = await (await import("../src/models/index.js")).MovementLeg.find({ shipmentId }).sort({ legNumber: 1 }).lean();
+    expect(legs).toHaveLength(2);
+    expect(legs.map((leg) => leg.legNumber)).toEqual([1, 2]);
+  }, 120000);
 
   stressTest(
     "preserves 100 unique manual LRs during concurrent creation",

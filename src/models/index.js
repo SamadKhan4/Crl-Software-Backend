@@ -22,3 +22,5 @@ export { Booking } from "./booking.model.js";
 export { PickupRequest } from "./pickup-request.model.js";
 export { PickupRunSheet } from "./pickup-run-sheet.model.js";
 export { Notification } from "./notification.model.js";
+export { MovementLeg, LoadingTally } from "./middle-mile.model.js";
+export { UnloadingTally } from "./last-mile.model.js";

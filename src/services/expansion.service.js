@@ -214,6 +214,8 @@ export async function scanPackage(barcode, data, req) {
   const unit = await PackageUnit.findOne({ barcode: barcode.toUpperCase() });
   if (!unit) throw new NotFoundError("Package barcode not found", "PACKAGE_NOT_FOUND");
   if (unit.status === "CANCELLED") throw new ConflictError("Cancelled package cannot be scanned", "PACKAGE_CANCELLED");
+  if (["HUB_INWARD", "SORTED", "LOADED", "UNLOADED"].includes(data.action))
+    throw new ConflictError("Use the Middle Mile workflow for hub, sorting and loading scans", "MIDDLE_MILE_WORKFLOW_REQUIRED");
   const scan = { action: data.action, location: data.location, branchId: data.branchId || req.user.branchId, routeCode: data.routeCode, vehicleNumber: data.vehicleNumber, remarks: data.remarks, scannedBy: req.user._id };
   unit.status = data.action;
   unit.currentLocation = data.location;

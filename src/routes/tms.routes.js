@@ -45,6 +45,42 @@ router.get("/trips", permit("TRIP", "VIEW", ROLES.ADMIN, ROLES.MANAGER, ROLES.EM
 router.get("/trips/:id", permit("TRIP", "VIEW", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.ids, "params"), c.getTrip);
 router.patch("/trips/:id/status", adminManager, validate(v.ids, "params"), validate(v.tripStatusSchema), c.tripStatus);
 
+router.post("/middle-mile/hub-inward", permit("HUB", "ADD", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.middleMileInwardSchema), c.middleMileHubInward);
+router.get("/middle-mile/sorting/inventory", permit("HUB", "VIEW", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.businessListSchema, "query"), c.middleMileSortingInventory);
+router.post("/middle-mile/sorting", permit("HUB", "ADD", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.middleMileSortingSchema), c.createMiddleMileSorting);
+router.post("/middle-mile/shipments/:id/hold", permit("HUB", "ADD", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.ids, "params"), validate(v.middleMileHoldSchema), c.middleMileShipmentHold);
+router.post("/loading-tallies", permit("LOADING", "ADD", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.loadingTallySchema), c.createLoadingTally);
+router.get("/loading-tallies", permit("LOADING", "VIEW", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.businessListSchema, "query"), c.listLoadingTallies);
+router.get("/loading-tallies/:id", permit("LOADING", "VIEW", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.ids, "params"), c.getLoadingTally);
+router.post("/loading-tallies/:id/scan", permit("LOADING", "ADD", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.ids, "params"), validate(v.loadingTallyScanSchema), c.scanLoadingTally);
+router.post("/loading-tallies/:id/complete", permit("LOADING", "ADD", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.ids, "params"), c.completeLoadingTally);
+router.post("/middle-mile/manifests", permit("MANIFEST", "ADD", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.middleMileManifestSchema), c.createMiddleMileManifest);
+router.get("/middle-mile/manifests", permit("MANIFEST", "VIEW", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.businessListSchema, "query"), c.listMiddleMileManifests);
+router.post("/middle-mile/manifests/:id/finalize", permit("MANIFEST", "APPROVE", ROLES.ADMIN, ROLES.MANAGER), validate(v.ids, "params"), c.finalizeMiddleMileManifest);
+router.post("/middle-mile/trips", permit("TRIP", "ADD", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.middleMileTripSchema), c.createMiddleMileTrip);
+router.get("/middle-mile/trips", permit("TRIP", "VIEW", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.businessListSchema, "query"), c.listMiddleMileTrips);
+router.post("/middle-mile/trips/:id/dispatch", permit("TRIP", "APPROVE", ROLES.ADMIN, ROLES.MANAGER), validate(v.ids, "params"), c.dispatchMiddleMileTrip);
+router.post("/middle-mile/trips/:id/arrive", permit("HUB", "ADD", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.ids, "params"), c.arriveMiddleMileTrip);
+router.post("/middle-mile/trips/:id/inward", permit("HUB", "ADD", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.ids, "params"), validate(v.destinationInwardSchema), c.destinationMiddleMileInward);
+
+router.get("/last-mile/arrivals", permit("DELIVERY", "VIEW", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.businessListSchema, "query"), c.lastMileArrivals);
+router.post("/last-mile/unloading-tallies", permit("DELIVERY", "ADD", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.unloadingTallySchema), c.createUnloadingTally);
+router.get("/last-mile/unloading-tallies", permit("DELIVERY", "VIEW", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.businessListSchema, "query"), c.listUnloadingTallies);
+router.get("/last-mile/unloading-tallies/:id", permit("DELIVERY", "VIEW", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.ids, "params"), c.getUnloadingTally);
+router.post("/last-mile/unloading-tallies/:id/scan", permit("DELIVERY", "ADD", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.ids, "params"), validate(v.loadingTallyScanSchema), c.scanUnloadingTally);
+router.post("/last-mile/unloading-tallies/:id/complete", permit("DELIVERY", "ADD", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.ids, "params"), validate(v.unloadingTallyCompleteSchema), c.completeUnloadingTally);
+router.patch("/last-mile/unloading-tallies/:id/qc/:shipmentId", permit("DELIVERY", "ADD", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.drsPodParams, "params"), validate(v.lastMileQcSchema), c.updateLastMileQc);
+router.post("/last-mile/unloading-tallies/:id/inward", permit("DELIVERY", "ADD", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.ids, "params"), validate(v.lastMileInwardSchema), c.lastMileDestinationInward);
+router.get("/last-mile/drs-inventory", permit("DELIVERY", "VIEW", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.businessListSchema, "query"), c.lastMileDrsInventory);
+router.post("/last-mile/drs", permit("DELIVERY", "ADD", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.lastMileDrsSchema), c.createLastMileDrs);
+router.get("/last-mile/drs", permit("DELIVERY", "VIEW", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.businessListSchema, "query"), c.listLastMileDrs);
+router.get("/last-mile/drs/:id", permit("DELIVERY", "VIEW", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.ids, "params"), c.getLastMileDrs);
+router.post("/last-mile/drs/:id/finalize", permit("DELIVERY", "APPROVE", ROLES.ADMIN, ROLES.MANAGER), validate(v.ids, "params"), c.finalizeLastMileDrs);
+router.post("/last-mile/drs/:id/dispatch", permit("DELIVERY", "APPROVE", ROLES.ADMIN, ROLES.MANAGER), validate(v.ids, "params"), c.dispatchLastMileDrs);
+router.post("/last-mile/drs/:id/attempt/:shipmentId", permit("DELIVERY", "ADD", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.drsPodParams, "params"), validate(v.deliveryAttemptSchema), c.recordLastMileAttempt);
+router.post("/last-mile/drs/:id/pod/:shipmentId", permit("DELIVERY", "ADD", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.drsPodParams, "params"), uploadPOD, c.uploadDrsPod);
+router.post("/last-mile/drs/:id/close", permit("DELIVERY", "APPROVE", ROLES.ADMIN, ROLES.MANAGER), validate(v.ids, "params"), c.closeLastMileDrs);
+
 router.post("/drs", permit("DELIVERY", "ADD", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.drsSchema), c.createDrs);
 router.get("/drs", permit("DELIVERY", "VIEW", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.businessListSchema, "query"), c.listDrs);
 router.get("/drs/:id", permit("DELIVERY", "VIEW", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.ids, "params"), c.getDrs);

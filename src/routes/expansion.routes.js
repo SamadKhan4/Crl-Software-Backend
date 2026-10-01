@@ -10,6 +10,7 @@ const router = Router();
 const adminManager = allow(ROLES.ADMIN, ROLES.MANAGER);
 
 router.get("/master-data/expiring-documents", adminManager, c.expiringDocuments);
+router.get("/master-data/options", validate(v.masterListSchema, "query"), c.listMasters);
 router.post("/master-data", adminManager, validate(v.masterSchema), c.createMaster);
 router.get("/master-data", adminManager, validate(v.masterListSchema, "query"), c.listMasters);
 router.get("/master-data/:id", adminManager, validate(ids, "params"), c.getMaster);

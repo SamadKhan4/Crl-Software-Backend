@@ -2,11 +2,21 @@ import {
   drsSchema,
   invoiceSchema,
   manifestSchema,
+  middleMileInwardSchema,
+  middleMileManifestSchema,
+  middleMileSortingSchema,
+  middleMileTripSchema,
+  loadingTallySchema,
   moneyReceiptSchema,
   publicQuotationSchema,
   stationerySchema,
   tripSchema,
   vendorSchema,
+  unloadingTallySchema,
+  unloadingTallyCompleteSchema,
+  lastMileQcSchema,
+  lastMileDrsSchema,
+  deliveryAttemptSchema,
 } from "../src/validators/schemas.js";
 
 const id = "66d8f14124b86f067a916601";
@@ -95,5 +105,29 @@ describe("TMS request validation", () => {
         transactionDate: "2026-09-18",
       }).success,
     ).toBe(false);
+  });
+
+  test("validates the connected Middle Mile request contracts", () => {
+    expect(middleMileInwardSchema.safeParse({ lrNumber: "LR-1001", nextHubId: id }).success).toBe(true);
+    expect(middleMileSortingSchema.safeParse({ shipmentIds: [id], nextHubId: otherId, sortZone: "A-01" }).success).toBe(true);
+    expect(loadingTallySchema.safeParse({ segregationId: id, loadingBay: "BAY-1" }).success).toBe(true);
+    expect(middleMileManifestSchema.safeParse({ loadingTallyId: id }).success).toBe(true);
+    expect(middleMileTripSchema.safeParse({
+      manifestIds: [id], vehicleSource: "MV", vehicleNumber: "MH31AB1234", driverName: "Driver Name",
+      departureDate: "2026-09-28T10:00:00.000Z",
+    }).success).toBe(true);
+    expect(middleMileTripSchema.safeParse({
+      manifestIds: [id, id], vehicleSource: "VV", vehicleNumber: "MH31AB1234", driverName: "Driver Name",
+      departureDate: "2026-09-28T10:00:00.000Z",
+    }).success).toBe(false);
+  });
+
+  test("validates Last Mile unloading, QC, DRS and delivery attempts", () => {
+    expect(unloadingTallySchema.safeParse({ tripId: id, unloadingBay: "BAY-LM-1" }).success).toBe(true);
+    expect(unloadingTallyCompleteSchema.safeParse({ exceptions: [{ shipmentId: otherId, damagedPackages: 1, depsCode: "DMG" }] }).success).toBe(true);
+    expect(lastMileQcSchema.safeParse({ qcStatus: "PASSED", storageLocation: "RACK-A1" }).success).toBe(true);
+    expect(lastMileDrsSchema.safeParse({ vehicleNumber: "MH31AB1234", driverName: "Driver Name", deliveryDate: "2026-09-28", route: "Local", shipmentIds: [otherId], partB: [] }).success).toBe(true);
+    expect(deliveryAttemptSchema.safeParse({ outcome: "REATTEMPT", failureReason: "Customer unavailable", reattemptDate: "2026-09-29" }).success).toBe(true);
+    expect(deliveryAttemptSchema.safeParse({ outcome: "UNKNOWN" }).success).toBe(false);
   });
 });

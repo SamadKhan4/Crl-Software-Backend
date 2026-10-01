@@ -523,6 +523,77 @@ export const tripStatusSchema = z
   .object({ status: z.enum(["DISPATCHED", "ARRIVED", "CLOSED", "CANCELLED"]), remarks: optionalText(500) })
   .strict();
 
+export const middleMileInwardSchema = z.object({
+  shipmentId: objectId.optional(),
+  lrNumber: optionalText(50),
+  branchId: objectId.optional(),
+  nextHubId: objectId,
+  routeId: objectId.optional(),
+  remarks: optionalText(500),
+}).strict().refine((value) => value.shipmentId || value.lrNumber, {
+  path: ["shipmentId"], message: "Select an LR or enter an LR number",
+});
+
+export const middleMileSortingSchema = z.object({
+  branchId: objectId.optional(),
+  shipmentIds: shipmentIdList,
+  nextHubId: objectId,
+  routeId: objectId.optional(),
+  sortZone: z.string().trim().min(1).max(80),
+  bay: optionalText(80),
+  rack: optionalText(80),
+  remarks: optionalText(500),
+}).strict();
+
+export const loadingTallySchema = z.object({
+  branchId: objectId.optional(),
+  segregationId: objectId,
+  loadingBay: optionalText(80),
+  vehicleType: optionalText(80),
+  vehicleCapacityKg: z.coerce.number().finite().positive().max(1000000).optional(),
+  remarks: optionalText(500),
+}).strict();
+export const loadingTallyScanSchema = z.object({ barcode: z.string().trim().min(5).max(100) }).strict();
+
+export const middleMileManifestSchema = z.object({
+  loadingTallyId: objectId,
+  vendorId: objectId.optional(),
+  vendorReference: optionalText(120),
+  remarks: optionalText(500),
+}).strict();
+
+export const middleMileTripSchema = z.object({
+  manifestIds: z.array(objectId).min(1).max(50).refine((ids) => new Set(ids).size === ids.length, "Duplicate manifest selected"),
+  vehicleSource: z.enum(["VV", "MV"]),
+  vendorId: objectId.optional(),
+  vehicleMasterId: objectId.optional(),
+  driverMasterId: objectId.optional(),
+  vehicleNumber: z.string().trim().toUpperCase().min(4).max(20),
+  vehicleType: optionalText(80),
+  vehicleCapacityKg: z.coerce.number().finite().positive().max(1000000).optional(),
+  driverName: z.string().trim().min(2).max(120),
+  driverMobile: mobile.optional(),
+  departureDate: requiredDate,
+  expectedArrival: z.coerce.date().optional(),
+  freightAmount: amount.default(0),
+  advanceAmount: amount.default(0),
+  remarks: optionalText(500),
+}).strict().superRefine((value, ctx) => {
+  if (value.vehicleSource === "VV" && !value.vendorId)
+    ctx.addIssue({ code: "custom", path: ["vendorId"], message: "Select vendor for VV" });
+  if (value.expectedArrival && value.expectedArrival < value.departureDate)
+    ctx.addIssue({ code: "custom", path: ["expectedArrival"], message: "Expected arrival must be after departure" });
+});
+
+export const destinationInwardSchema = z.object({
+  receivedShipmentIds: shipmentIdList,
+  remarks: optionalText(500),
+}).strict();
+export const middleMileHoldSchema = z.object({
+  action: z.enum(["HOLD", "RELEASE"]),
+  reason: z.string().trim().min(2).max(500),
+}).strict();
+
 const partBSchema = z
   .object({
     eWayBillNo: z.string().trim().min(3).max(50),
@@ -549,6 +620,37 @@ export const drsVehicleSchema = z
   })
   .strict();
 export const drsPodParams = z.object({ id: objectId, shipmentId: objectId }).strict();
+
+export const unloadingTallySchema = z.object({
+  tripId: objectId,
+  branchId: objectId.optional(),
+  unloadingBay: optionalText(80),
+  remarks: optionalText(500),
+}).strict();
+export const unloadingTallyCompleteSchema = z.object({
+  exceptions: z.array(z.object({
+    shipmentId: objectId,
+    excessPackages: z.coerce.number().int().min(0).max(10000).default(0),
+    damagedPackages: z.coerce.number().int().min(0).max(10000).default(0),
+    depsCode: optionalText(80),
+    depsRemarks: optionalText(500),
+  }).strict()).max(500).default([]),
+}).strict();
+export const lastMileQcSchema = z.object({
+  qcStatus: z.enum(["PASSED", "HOLD"]),
+  depsCode: optionalText(80),
+  depsRemarks: optionalText(500),
+  storageLocation: z.string().trim().min(1).max(120),
+}).strict();
+export const lastMileInwardSchema = z.object({ remarks: optionalText(500) }).strict();
+export const lastMileDrsSchema = drsSchema.extend({ deliveryAgentId: objectId.optional() }).strict();
+export const deliveryAttemptSchema = z.object({
+  outcome: z.enum(["DELIVERED", "UNDELIVERED", "REATTEMPT"]),
+  failureReason: optionalText(300),
+  nextAction: optionalText(300),
+  reattemptDate: z.coerce.date().optional(),
+  remarks: optionalText(500),
+}).strict();
 
 export const invoiceSchema = z
   .object({

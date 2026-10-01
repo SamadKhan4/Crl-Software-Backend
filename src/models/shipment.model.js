@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import { SHIPMENT_STATUS } from "../constants/workflow.js";
+import { LAST_MILE_STATE, MIDDLE_MILE_STATE, SHIPMENT_STATUS } from "../constants/workflow.js";
 import { base, objectId } from "./shared.js";
 
 const { Schema, model } = mongoose;
@@ -95,6 +95,28 @@ const shipmentSchema = new Schema(
       index: true,
     },
     currentLocation: { type: String, trim: true },
+    movementState: { type: String, enum: Object.values(MIDDLE_MILE_STATE), index: true },
+    currentHubId: { ...objectId, ref: "Branch", index: true },
+    nextHubId: { ...objectId, ref: "Branch", index: true },
+    routeId: { ...objectId, ref: "BusinessMaster", index: true },
+    activeMovementLegId: { ...objectId, ref: "MovementLeg", index: true },
+    movementHold: {
+      previousState: { type: String, enum: Object.values(MIDDLE_MILE_STATE) },
+      reason: { type: String, trim: true, maxlength: 500 },
+      heldAt: Date,
+      heldBy: { ...objectId, ref: "User" },
+      releasedAt: Date,
+      releasedBy: { ...objectId, ref: "User" },
+    },
+    lastMileState: { type: String, enum: Object.values(LAST_MILE_STATE), index: true },
+    unloadingTallyId: { ...objectId, ref: "UnloadingTally", index: true },
+    activeDrsId: { ...objectId, ref: "DeliveryRunSheet", index: true },
+    destinationInwardAt: Date,
+    destinationInwardBy: { ...objectId, ref: "User" },
+    storageLocation: { type: String, trim: true, maxlength: 120 },
+    lastDeliveryAttemptAt: Date,
+    deliveredAt: Date,
+    deliveredBy: { ...objectId, ref: "User" },
     senderName: { type: String, required: true, trim: true },
     receiverName: { type: String, required: true, trim: true },
     receiverMobile: { type: String, trim: true },

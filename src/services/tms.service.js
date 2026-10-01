@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import { ACTIVE, DOCUMENT_STATUS, ROLES, SHIPMENT_STATUS, TRACKING_EVENT_STATUS } from "../constants/workflow.js";
+import { ACTIVE, DOCUMENT_STATUS, LAST_MILE_STATE, ROLES, SHIPMENT_STATUS, TRACKING_EVENT_STATUS } from "../constants/workflow.js";
 import {
   Customer,
   DeliveryRunSheet,
@@ -155,6 +155,8 @@ export async function createSegregation(data, req) {
         [SHIPMENT_STATUS.BOOKED],
         session,
       );
+      if (shipments.some((shipment) => shipment.lastMileState))
+        throw new ConflictError("Use the Last Mile DRS workflow for destination-inwarded LRs", "LAST_MILE_DRS_REQUIRED");
       if (await Segregation.exists({ shipmentIds: { $in: data.shipmentIds }, status: "READY" }).session(session))
         throw new ConflictError("A selected LR is already in a ready segregation batch", "SHIPMENT_ALREADY_SEGREGATED");
       segregation = (
@@ -200,7 +202,9 @@ export async function segregationOptions(query, user) {
     }));
   return Segregation.find(filter)
     .populate("vendorId", "vendorCode name")
-    .select("segregationNumber destination vendorId driverName driverMobile vehicleNumber shipmentIds")
+    .populate("fromHubId nextHubId", "branchCode name city")
+    .populate("routeId", "code name origin destination")
+    .select("segregationNumber destination vendorId driverName driverMobile vehicleNumber shipmentIds fromHubId nextHubId routeId items")
     .sort({ createdAt: -1, _id: -1 })
     .limit(Math.min(Number(query.limit) || 100, 100))
     .lean();
@@ -373,6 +377,7 @@ export async function updateManifestStatus(recordId, data, req) {
     await session.withTransaction(async () => {
       manifest = await Manifest.findById(recordId).session(session);
       if (!manifest) throw new NotFoundError("Manifest not found", "MANIFEST_NOT_FOUND");
+      if (manifest.loadingTallyId) throw new ConflictError("Use the Middle Mile manifest workflow for this record", "MIDDLE_MILE_WORKFLOW_REQUIRED");
       assertBranchAccess(manifest, req.user);
       if (manifest.status !== "OPEN")
         throw new ConflictError("Only an open manifest can be updated", "MANIFEST_CLOSED");
@@ -477,6 +482,7 @@ export async function updateTripStatus(recordId, data, req) {
     await session.withTransaction(async () => {
       trip = await Trip.findById(recordId).session(session);
       if (!trip) throw new NotFoundError("Trip not found", "TRIP_NOT_FOUND");
+      if (trip.tripType === "MIDDLE_MILE") throw new ConflictError("Use the Middle Mile trip workflow for this record", "MIDDLE_MILE_WORKFLOW_REQUIRED");
       assertBranchAccess(trip, req.user);
       if (!allowed[trip.status]?.includes(data.status))
         throw new ConflictError("Invalid trip status transition", "INVALID_TRIP_TRANSITION");
@@ -614,6 +620,9 @@ export async function uploadDrsPod(recordId, shipmentId, file, req) {
       savedDrs = await DeliveryRunSheet.findById(recordId).session(session);
       if (!savedDrs || savedDrs.status !== "OPEN")
         throw new ConflictError("DRS is not open", "DRS_NOT_OPEN");
+      const deliveryItem = savedDrs.items?.find((row) => id(row.shipmentId) === shipmentId);
+      if (savedDrs.items?.length && deliveryItem?.attemptStatus !== "DELIVERED")
+        throw new ConflictError("Record a successful delivery attempt before uploading POD", "DELIVERY_ATTEMPT_REQUIRED");
       if (savedDrs.podShipmentIds.some((value) => id(value) === shipmentId))
         throw new ConflictError("POD is already uploaded for this LR", "POD_ALREADY_UPLOADED");
       const currentShipment = await Shipment.findById(shipmentId).session(session);
@@ -644,9 +653,11 @@ export async function uploadDrsPod(recordId, shipmentId, file, req) {
         recordedBy: req.user._id,
         documentId: document._id,
       });
+      if (deliveryItem) deliveryItem.podDocumentId = document._id;
       await savedDrs.save({ session });
       currentShipment.currentStatus = SHIPMENT_STATUS.COMPLETED;
       currentShipment.currentLocation = "Delivered";
+      currentShipment.lastMileState = LAST_MILE_STATE.POD_UPLOADED;
       await currentShipment.save({ session });
       await addTrackingEvents(
         session,
