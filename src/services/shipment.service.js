@@ -123,7 +123,7 @@ const applyLrCalculations = (data) => {
   if (!data.lrDetails) return data;
   const details = data.lrDetails.toObject?.() ?? data.lrDetails;
   if (details.goods?.length) {
-    const { packageCount, ...totals } = calculateGoods(details.goods);
+    const { packageCount, ...totals } = calculateGoods(details.goods, details.cftFactor ?? 7);
     data.packageCount = packageCount;
     data.weightKg = totals.actualWeight;
     Object.assign(details, totals);

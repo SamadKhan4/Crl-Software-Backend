@@ -1,6 +1,6 @@
 const round = (value) => Math.round(value * 1000000) / 1000000;
 
-export function calculateGoods(goods = []) {
+export function calculateGoods(goods = [], cftFactor = 7) {
   const rows = goods.map((value) => {
     const item = value.toObject?.() ?? value;
     const volume = Number(item.length || 0) * Number(item.breadth || 0) * Number(item.height || 0)
@@ -8,10 +8,10 @@ export function calculateGoods(goods = []) {
     const actualWeight = Number(item.actualWeight || 0);
     const goodsItem = { ...item };
     delete goodsItem.declaredValue;
-    return { ...goodsItem, volume, volumetricWeight: volume * 7, chargedWeight: Math.max(actualWeight, volume * 7) };
+    return { ...goodsItem, volume, volumetricWeight: volume * cftFactor, chargedWeight: Math.max(actualWeight, volume * cftFactor) };
   });
   const sum = (key) => rows.reduce((total, row) => total + Number(row[key] || 0), 0);
-  const actualWeight = sum('actualWeight'), volume = sum('volume'), volumetricWeight = volume * 7;
+  const actualWeight = sum('actualWeight'), volume = sum('volume'), volumetricWeight = volume * cftFactor;
   return {
     goods: rows.map((row) => ({ ...row, volume: round(row.volume), volumetricWeight: round(row.volumetricWeight), chargedWeight: round(row.chargedWeight) })),
     packageCount: sum('quantity'), actualWeight: round(actualWeight), volume: round(volume),

@@ -21,6 +21,7 @@ const goodsRowSchema = new Schema({
 
 const lrDetailsSchema = new Schema(
   {
+    cftFactor: { type: Number, min: 0.000001, max: 1000, default: 7 },
     goods: { type: [goodsRowSchema], default: undefined },
     volumetricWeight: { type: Number, min: 0 },
     consignorCode: { type: String, trim: true, maxlength: 80 },
@@ -59,8 +60,9 @@ const lrDetailsSchema = new Schema(
     receiverDateTime: Date,
     receiverSignature: { type: String, trim: true, maxlength: 50000 },
     paymentMode: { type: String, enum: ["PAID", "TO_PAY", "CREDIT"] },
-    riskType: { type: String, enum: ["CARRIER_RISK", "OWNER_RISK"] },
-    insuranceType: { type: String, enum: ["INSURED", "NOT_INSURED"] },
+    gstPaidBy: { type: String, enum: ["TRANSPORTER", "CUSTOMER"] },
+    riskType: { type: String, enum: ["CARRIER_RISK", "OWNER_RISK"], default: "OWNER_RISK" },
+    insuranceType: { type: String, enum: ["INSURED", "NOT_INSURED"], default: "NOT_INSURED" },
     freightBasis: { type: String, enum: ["PER_KG", "PER_BOX", "FIXED"] },
     freightRate: { type: Number, min: 0 },
     fuelRatePercent: { type: Number, min: 0, max: 100 },

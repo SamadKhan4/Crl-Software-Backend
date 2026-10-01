@@ -187,6 +187,7 @@ const manualLrNumber = z
   .regex(/^[A-Z0-9][A-Z0-9/._-]*$/, "Use letters, numbers, /, ., _ or -");
 export const lrDetailsSchema = z
   .object({
+    cftFactor: z.number().finite().positive().max(1000).default(7),
     goods: goodsList.optional(),
     volumetricWeight: z.number().finite().min(0).optional(),
     consignorCode: optionalText(80),
@@ -225,6 +226,7 @@ export const lrDetailsSchema = z
     receiverDateTime: z.coerce.date().optional(),
     receiverSignature: optionalText(50000),
     paymentMode: z.enum(["PAID", "TO_PAY", "CREDIT"]).optional(),
+    gstPaidBy: z.enum(["TRANSPORTER", "CUSTOMER"]).optional(),
     riskType: z.enum(["CARRIER_RISK", "OWNER_RISK"]).optional(),
     insuranceType: z.enum(["INSURED", "NOT_INSURED"]).optional(),
     freightBasis: z.enum(["PER_KG", "PER_BOX", "FIXED"]).optional(),

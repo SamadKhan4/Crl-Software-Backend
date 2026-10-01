@@ -42,3 +42,8 @@ test('requires location-wise per-kg rates for credit customers', () => {
   expect(customerSchema.safeParse({ ...customer, creditRateCard: [] }).success).toBe(false);
   expect(customerSchema.safeParse({ ...customer, creditCharges: { freightRate: 10 } }).success).toBe(false);
 });
+test('uses a custom CFT factor for volumetric and charged weight', () => {
+  const totals = calculateGoods([{ quantity: 2, actualWeight: 1, length: 1, breadth: 1, height: 1, dimensionUnit: 'FT' }], 10);
+  expect(totals.volumetricWeight).toBe(20);
+  expect(totals.chargedWeight).toBe(20);
+});
