@@ -23,13 +23,13 @@ const calculateVendorAmount = (sheet) => {
 
 export async function pickupRunSheetOptions(user) {
   const employeeFilter = { role: ROLES.EMPLOYEE, status: ACTIVE.ACTIVE };
-  if (!hasFullOperationsAccess(user)) employeeFilter.branchId = user.branchId;
-  const [vendors, fieldExecutives, marketPickups] = await Promise.all([
+  const [vendors, fieldExecutives, marketPickups, pickups] = await Promise.all([
     Vendor.find({ status: ACTIVE.ACTIVE }).select("vendorCode vendorType name contactPerson mobile commercial vehicles services").sort({ name: 1 }).lean(),
     User.find(employeeFilter).select("employeeCode name mobile branchId").populate("branchId", "branchCode name city").sort({ name: 1 }).lean(),
     PickupRequest.find({ ...branchFilter(user), status: "PENDING", pickupRunSheetId: null, "agentAssignment.sourceType": "MARKET" }).select("pickupRequestNumber agentAssignment").sort({ updatedAt: -1 }).lean(),
+    PickupRequest.find({ ...branchFilter(user), status: "PENDING", pickupRunSheetId: null, shipmentId: { $ne: null } }).select("pickupRequestNumber branchId agentAssignment shipmentId shipper recipient totalBoxes totalWeightKg").populate("shipmentId", "lrNumber").sort({ createdAt: -1 }).lean(),
   ]);
-  return { vendors, fieldExecutives, marketVehicles: marketPickups.map((pickup) => ({ pickupRequestId: pickup._id, pickupRequestNumber: pickup.pickupRequestNumber, ...pickup.agentAssignment })) };
+  return { vendors, fieldExecutives, pickups, marketVehicles: marketPickups.map((pickup) => ({ pickupRequestId: pickup._id, pickupRequestNumber: pickup.pickupRequestNumber, ...pickup.agentAssignment })) };
 }
 
 export async function createPickupRunSheet(data, req) {
@@ -41,11 +41,8 @@ export async function createPickupRunSheet(data, req) {
   if (data.marketPickupRequestId ? !marketPickup : !vendor) throw new ConflictError("Select an active vendor or available market vehicle", "INVALID_PRS_VENDOR");
   if (!fieldExecutive) throw new ConflictError("Select an active FE from Employee Master", "INVALID_FIELD_EXECUTIVE");
   if (!fieldExecutive.mobile) throw new ConflictError("Add the FE contact number in Employee Master", "FIELD_EXECUTIVE_MOBILE_REQUIRED");
-  if (!fieldExecutive.branchId) throw new ConflictError("Assign a branch to the selected FE", "FIELD_EXECUTIVE_BRANCH_REQUIRED");
-  if (!hasFullOperationsAccess(req.user) && id(fieldExecutive.branchId) !== id(req.user.branchId))
-    throw new AuthorizationError("Select a field executive from your assigned branch");
-  if (marketPickup?.branchId && id(marketPickup.branchId) !== id(fieldExecutive.branchId))
-    throw new ConflictError("Select an FE from the market pickup branch", "INVALID_MARKET_PICKUP_BRANCH");
+  if (!hasFullOperationsAccess(req.user) && !req.user.branchId)
+    throw new AuthorizationError("Assign an operations branch before creating PRS");
   const vehicle = marketPickup ? marketPickup.agentAssignment : vendor.vehicles.find((item) => item.vehicleNumber === data.vehicleNumber && item.status !== ACTIVE.INACTIVE);
   if (marketPickup && vehicle.vehicleNumber !== data.vehicleNumber)
     throw new ConflictError("Market vehicle details changed; select the vehicle again", "INVALID_VENDOR_VEHICLE");
@@ -58,10 +55,16 @@ export async function createPickupRunSheet(data, req) {
   try {
     let sheet;
     await session.withTransaction(async () => {
+      if (!data.pickups?.length) throw new ConflictError("Select at least one vendor LR", "PRS_PUR_REQUIRED");
+      const firstPickup = await PickupRequest.findById(data.pickups[0].pickupRequestId).session(session);
+      const sheetBranch = hasFullOperationsAccess(req.user)
+        ? firstPickup?.branchId || marketPickup?.branchId || req.user.branchId || fieldExecutive.branchId
+        : req.user.branchId;
+      if (!sheetBranch) throw new ConflictError("Assign an operations branch to create PRS", "PRS_BRANCH_REQUIRED");
       sheet = (
         await PickupRunSheet.create([{
           prsNumber: await generateBusinessNumber("pickup-run-sheet", "PRS", session),
-          branchId: fieldExecutive.branchId,
+          branchId: sheetBranch,
           vendorCategory: data.vendorCategory,
           rateSource: data.rateSource,
           vendorId: vendor?._id,
@@ -86,6 +89,15 @@ export async function createPickupRunSheet(data, req) {
           createdBy: req.user._id,
         }], { session })
       )[0];
+      if (!data.pickups?.length) throw new ConflictError("Select at least one vendor LR", "PRS_PUR_REQUIRED");
+      for (const entry of data.pickups) {
+        const pickup = await PickupRequest.findById(entry.pickupRequestId).session(session);
+        const matchesVendor = marketPickup
+          ? id(pickup?._id) === id(marketPickup._id)
+          : pickup?.agentAssignment?.sourceType === "VENDOR" && id(pickup.agentAssignment.vendorId) === id(vendor._id);
+        if (!matchesVendor) throw new ConflictError("Selected LR does not belong to this vendor", "PRS_VENDOR_MISMATCH");
+        await attachPickup(sheet, entry, req, session);
+      }
       await audit(session, req, "PICKUP_RUN_SHEET_CREATED", "PickupRunSheet", sheet._id, null, {
         prsNumber: sheet.prsNumber,
         vendorCode: sheet.vendorCode,
@@ -99,6 +111,52 @@ export async function createPickupRunSheet(data, req) {
   }
 }
 
+async function attachPickup(sheet, data, req, session) {
+  if (!["DRAFT", "READY", "PENDING_APPROVAL"].includes(sheet.status))
+    throw new ConflictError("PUR cannot be added after PRS dispatch", "PRS_ALREADY_DISPATCHED");
+  if (sheet.pickupRequestIds.some((value) => id(value) === data.pickupRequestId))
+    throw new ConflictError("PUR is already added to this sheet", "PUR_ALREADY_ADDED");
+  const pickup = await PickupRequest.findById(data.pickupRequestId).session(session);
+  if (!pickup) throw new NotFoundError("Pickup request not found", "PICKUP_REQUEST_NOT_FOUND");
+  if (!pickup.branchId && hasFullOperationsAccess(req.user) && id(sheet.marketPickupRequestId) === id(pickup._id))
+    pickup.branchId = sheet.branchId;
+  if (!hasFullOperationsAccess(req.user) && id(pickup.branchId) !== id(req.user.branchId))
+    throw new AuthorizationError("You can assign LRs only from your operations branch");
+  if (pickup.status !== "PENDING" || pickup.pickupRunSheetId)
+    throw new ConflictError("PUR is already dispatched or assigned to another sheet", "PICKUP_REQUEST_NOT_ELIGIBLE");
+  if (!pickup.shipmentId) throw new ConflictError("Create LR before adding the PUR to PRS", "PICKUP_LR_REQUIRED");
+
+  sheet.pickupRequestIds.push(pickup._id);
+  sheet.shipmentIds.push(pickup.shipmentId);
+  sheet.purEntries.push({ pickupRequestId: pickup._id, shipmentId: pickup.shipmentId, paymentTerm: data.paymentTerm, amount: data.amount, addedBy: req.user._id });
+  sheet.totalBoxes += Number(pickup.totalBoxes || 0);
+  sheet.totalWeightKg += Number(pickup.totalWeightKg || 0);
+  sheet.vendorPayableAmount = calculateVendorAmount(sheet);
+  sheet.status = sheet.approvalStatus === "PENDING" ? "PENDING_APPROVAL" : "READY";
+  await sheet.save({ session });
+
+  pickup.pickupRunSheetId = sheet._id;
+  pickup.agentAssignment = {
+    sourceType: sheet.marketPickupRequestId ? "MARKET" : "VENDOR",
+    vendorId: sheet.vendorId,
+    agentName: sheet.marketPickupRequestId ? sheet.vendorName : sheet.fieldExecutiveName,
+    vehicleNumber: sheet.vehicleNumber,
+    vehicleType: sheet.vehicleType,
+    driverName: sheet.driverName || sheet.fieldExecutiveName,
+    driverMobile: sheet.driverMobile || sheet.fieldExecutiveMobile,
+    remarks: `Aligned through ${sheet.prsNumber}`,
+    assignedAt: new Date(),
+    assignedBy: req.user._id,
+  };
+  await pickup.save({ session });
+  await audit(session, req, "PICKUP_ADDED_TO_PRS", "PickupRunSheet", sheet._id, null, {
+    prsNumber: sheet.prsNumber,
+    pickupRequestNumber: pickup.pickupRequestNumber,
+    paymentTerm: data.paymentTerm,
+    amount: data.amount,
+  });
+}
+
 export async function addPickupToRunSheet(recordId, data, req) {
   const session = await mongoose.startSession();
   try {
@@ -107,49 +165,7 @@ export async function addPickupToRunSheet(recordId, data, req) {
       sheet = await PickupRunSheet.findById(recordId).session(session);
       if (!sheet) throw new NotFoundError("Pickup run sheet not found", "PICKUP_RUN_SHEET_NOT_FOUND");
       assertSheetAccess(sheet, req.user);
-      if (!["DRAFT", "READY", "PENDING_APPROVAL"].includes(sheet.status))
-        throw new ConflictError("PUR cannot be added after PRS dispatch", "PRS_ALREADY_DISPATCHED");
-      if (sheet.pickupRequestIds.some((value) => id(value) === data.pickupRequestId))
-        throw new ConflictError("PUR is already added to this sheet", "PUR_ALREADY_ADDED");
-      const pickup = await PickupRequest.findById(data.pickupRequestId).session(session);
-      if (!pickup) throw new NotFoundError("Pickup request not found", "PICKUP_REQUEST_NOT_FOUND");
-      if (!pickup.branchId && hasFullOperationsAccess(req.user) && id(sheet.marketPickupRequestId) === id(pickup._id))
-        pickup.branchId = sheet.branchId;
-      if (id(pickup.branchId) !== id(sheet.branchId))
-        throw new ConflictError("PUR and PRS must belong to the same branch", "PRS_BRANCH_MISMATCH");
-      if (pickup.status !== "PENDING" || pickup.pickupRunSheetId)
-        throw new ConflictError("PUR is already dispatched or assigned to another sheet", "PICKUP_REQUEST_NOT_ELIGIBLE");
-      if (!pickup.shipmentId) throw new ConflictError("Create LR before adding the PUR to PRS", "PICKUP_LR_REQUIRED");
-
-      sheet.pickupRequestIds.push(pickup._id);
-      sheet.shipmentIds.push(pickup.shipmentId);
-      sheet.purEntries.push({ pickupRequestId: pickup._id, shipmentId: pickup.shipmentId, paymentTerm: data.paymentTerm, amount: data.amount, addedBy: req.user._id });
-      sheet.totalBoxes += Number(pickup.totalBoxes || 0);
-      sheet.totalWeightKg += Number(pickup.totalWeightKg || 0);
-      sheet.vendorPayableAmount = calculateVendorAmount(sheet);
-      sheet.status = sheet.approvalStatus === "PENDING" ? "PENDING_APPROVAL" : "READY";
-      await sheet.save({ session });
-
-      pickup.pickupRunSheetId = sheet._id;
-      pickup.agentAssignment = {
-        sourceType: sheet.marketPickupRequestId ? "MARKET" : "VENDOR",
-        vendorId: sheet.vendorId,
-        agentName: sheet.marketPickupRequestId ? sheet.vendorName : sheet.fieldExecutiveName,
-        vehicleNumber: sheet.vehicleNumber,
-        vehicleType: sheet.vehicleType,
-        driverName: sheet.driverName || sheet.fieldExecutiveName,
-        driverMobile: sheet.driverMobile || sheet.fieldExecutiveMobile,
-        remarks: `Aligned through ${sheet.prsNumber}`,
-        assignedAt: new Date(),
-        assignedBy: req.user._id,
-      };
-      await pickup.save({ session });
-      await audit(session, req, "PICKUP_ADDED_TO_PRS", "PickupRunSheet", sheet._id, null, {
-        prsNumber: sheet.prsNumber,
-        pickupRequestNumber: pickup.pickupRequestNumber,
-        paymentTerm: data.paymentTerm,
-        amount: data.amount,
-      });
+      await attachPickup(sheet, data, req, session);
     });
     return dto(sheet);
   } finally {

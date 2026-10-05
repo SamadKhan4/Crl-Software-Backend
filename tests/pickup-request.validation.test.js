@@ -103,6 +103,7 @@ describe("Pickup request validation", () => {
   test("validates PRS creation and register filters", () => {
     expect(
       pickupRunSheetSchema.safeParse({
+        pickups: [{ pickupRequestId: "66d8f14124b86f067a916604", paymentTerm: "CREDIT", amount: 0 }],
         vendorCategory: "TRANSPORTER",
         rateSource: "MASTER",
         vendorId: "66d8f14124b86f067a916601",
@@ -125,6 +126,7 @@ describe("Pickup request validation", () => {
 
   test("accepts aligned market vehicles without a vendor and rejects ambiguous sources", () => {
     const market = {
+      pickups: [{ pickupRequestId: "66d8f14124b86f067a916601", paymentTerm: "PAID", amount: 100 }],
       vendorCategory: "TRANSPORTER", rateSource: "MARKET",
       marketPickupRequestId: "66d8f14124b86f067a916601",
       fieldExecutiveId: "66d8f14124b86f067a916602",
@@ -132,6 +134,9 @@ describe("Pickup request validation", () => {
       pickupDate: "2026-10-01", route: "Nagpur to Hingna", marketAmount: 2500,
     };
     expect(pickupRunSheetSchema.safeParse(market).success).toBe(true);
+    expect(pickupRunSheetSchema.safeParse({ ...market, pickups: [] }).success).toBe(false);
+    expect(pickupRunSheetSchema.safeParse({ ...market, pickups: [...market.pickups, ...market.pickups] }).success).toBe(false);
+    expect(pickupRunSheetSchema.safeParse({ ...market, pickups: [{ ...market.pickups[0], amount: -1 }] }).success).toBe(false);
     expect(pickupRunSheetSchema.safeParse({ ...market, vendorId: "66d8f14124b86f067a916603" }).success).toBe(false);
     expect(pickupRunSheetSchema.safeParse({ ...market, marketPickupRequestId: undefined }).success).toBe(false);
     expect(pickupRunSheetSchema.safeParse({ ...market, rateSource: "MASTER", marketAmount: undefined }).success).toBe(false);

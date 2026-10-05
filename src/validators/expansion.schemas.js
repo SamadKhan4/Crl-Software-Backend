@@ -149,6 +149,11 @@ export const pickupAgentAssignmentSchema = z.object({
 });
 
 export const pickupRunSheetSchema = z.object({
+  pickups: z.array(z.object({
+    pickupRequestId: objectId,
+    paymentTerm: z.enum(["PAID", "PREPAID", "CREDIT"]),
+    amount: z.coerce.number().finite().min(0).max(100000000),
+  }).strict()).min(1).refine((entries) => new Set(entries.map((entry) => entry.pickupRequestId)).size === entries.length, "Duplicate LR selected"),
   vendorCategory: z.enum(["TRANSPORTER", "BP_KG"]),
   rateSource: z.enum(["MASTER", "MARKET"]),
   vendorId: objectId.optional(),
