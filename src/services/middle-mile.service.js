@@ -106,7 +106,7 @@ export async function hubInward(data, req) {
         $set: { status: "HUB_INWARD", currentLocation: hub.name, currentCustodianType: "BRANCH", currentCustodianId: id(branchId) },
         $push: { scans: { action: "HUB_INWARD", location: hub.name, branchId, remarks: data.remarks || "Origin hub inward", scannedBy: req.user._id } },
       }, { session });
-      await ShipmentEvent.create(eventRows([shipment], TRACKING_EVENT_STATUS.HUB_INWARDED, branchId, req.user, `Inwarded at ${hub.name}; next hub ${nextHub.name}`, { movementLegId: leg._id }), { session });
+      await ShipmentEvent.create(eventRows([shipment], TRACKING_EVENT_STATUS.HUB_INWARDED, branchId, req.user, `Inwarded at ${hub.name}; next hub ${nextHub.name}`, { movementLegId: leg._id }), { session, ordered: true });
       await audit(session, req, "MIDDLE_MILE_HUB_INWARD", "Shipment", shipment._id, null, { lrNumber: shipment.lrNumber, currentHubId: id(branchId), nextHubId: id(data.nextHubId) });
     });
     return dto(shipment);
@@ -154,9 +154,21 @@ export async function createSorting(data, req) {
         }], { session }))[0];
         shipment.currentHubId = office._id; shipment.nextHubId = office._id; shipment.routeId = route?._id;
         shipment.currentLocation = office.city || office.name; shipment.activeMovementLegId = leg._id; shipment.movementState = MIDDLE_MILE_STATE.SORTED;
-        await shipment.save({ session });
+        // Sorting changes movement metadata only. Do not revalidate historical
+        // invoice/goods fields that were accepted by older LR schemas.
+        const result = await Shipment.updateOne({ ...filter, _id: shipment._id }, {
+          $set: {
+            currentHubId: office._id, nextHubId: office._id,
+            currentLocation: shipment.currentLocation, activeMovementLegId: leg._id,
+            movementState: MIDDLE_MILE_STATE.SORTED,
+            ...(route && { routeId: route._id }),
+          },
+          ...(!route && { $unset: { routeId: 1 } }),
+        }, { session, runValidators: true });
+        if (result.matchedCount !== 1)
+          throw new ConflictError("LR availability changed; refresh sorting inventory", "INVALID_SHIPMENT_SELECTION");
       }
-      await ShipmentEvent.create(eventRows(shipments, TRACKING_EVENT_STATUS.SORTED, office._id, req.user, `Sorted under ${sorting.segregationNumber}`), { session });
+      await ShipmentEvent.create(eventRows(shipments, TRACKING_EVENT_STATUS.SORTED, office._id, req.user, `Sorted under ${sorting.segregationNumber}`), { session, ordered: true });
       await audit(session, req, "MIDDLE_MILE_SORTED", "Segregation", sorting._id, null, { number: sorting.segregationNumber, shipmentCount: shipments.length });
     });
     return dto(sorting);
@@ -200,7 +212,7 @@ export async function setShipmentHold(recordId, data, req) {
       }
       await shipment.save({ session });
       await MovementLeg.updateOne({ _id: shipment.activeMovementLegId }, { $set: { status: shipment.movementState, remarks: data.reason } }, { session });
-      await ShipmentEvent.create(eventRows([shipment], data.action === "HOLD" ? TRACKING_EVENT_STATUS.HOLD : shipment.movementState, shipment.currentHubId, req.user, data.reason, { movementLegId: shipment.activeMovementLegId }), { session });
+      await ShipmentEvent.create(eventRows([shipment], data.action === "HOLD" ? TRACKING_EVENT_STATUS.HOLD : shipment.movementState, shipment.currentHubId, req.user, data.reason, { movementLegId: shipment.activeMovementLegId }), { session, ordered: true });
       await audit(session, req, `MIDDLE_MILE_${data.action}`, "Shipment", shipment._id, null, { lrNumber: shipment.lrNumber, movementState: shipment.movementState, reason: data.reason });
     });
     return dto(shipment);
@@ -271,7 +283,7 @@ export async function createLoadingTally(data, req) {
       await segregation.save({ session });
       await MovementLeg.updateMany({ segregationId: segregation._id, status: MIDDLE_MILE_STATE.SORTED }, { $set: { loadingTallyId: tally._id, status: MIDDLE_MILE_STATE.LOADING_TALLY_COMPLETED } }, { session });
       await Shipment.updateMany({ _id: { $in: shipmentIds } }, { $set: { movementState: MIDDLE_MILE_STATE.LOADING_TALLY_COMPLETED } }, { session });
-      await ShipmentEvent.create(eventRows(shipments, TRACKING_EVENT_STATUS.LOADING_TALLY_COMPLETED, branchId, req.user, `Selected for ${tally.tallyNumber}`, { loadingTallyId: tally._id }), { session });
+      await ShipmentEvent.create(eventRows(shipments, TRACKING_EVENT_STATUS.LOADING_TALLY_COMPLETED, branchId, req.user, `Selected for ${tally.tallyNumber}`, { loadingTallyId: tally._id }), { session, ordered: true });
       await audit(session, req, "LOADING_TALLY_CREATED", "LoadingTally", tally._id, null, { number: tally.tallyNumber, shipmentCount: shipments.length });
     });
     return dto(tally);
@@ -326,7 +338,7 @@ export async function completeLoadingTally(recordId, req) {
       const shipments = await Shipment.find({ _id: { $in: tally.shipmentIds } }).session(session);
       await Shipment.updateMany({ _id: { $in: tally.shipmentIds } }, { $set: { movementState: MIDDLE_MILE_STATE.LOADING_TALLY_COMPLETED } }, { session });
       await MovementLeg.updateMany({ loadingTallyId: tally._id }, { $set: { status: MIDDLE_MILE_STATE.LOADING_TALLY_COMPLETED, loadedAt: new Date() } }, { session });
-      await ShipmentEvent.create(eventRows(shipments, TRACKING_EVENT_STATUS.LOADING_TALLY_COMPLETED, tally.branchId, req.user, `Loading tally ${tally.tallyNumber} completed`, { loadingTallyId: tally._id }), { session });
+      await ShipmentEvent.create(eventRows(shipments, TRACKING_EVENT_STATUS.LOADING_TALLY_COMPLETED, tally.branchId, req.user, `Loading tally ${tally.tallyNumber} completed`, { loadingTallyId: tally._id }), { session, ordered: true });
       await audit(session, req, "LOADING_TALLY_COMPLETED", "LoadingTally", tally._id, null, { number: tally.tallyNumber, totalPackages: tally.totalPackages });
     });
     return dto(tally);
@@ -376,7 +388,7 @@ export async function createManifest(data, req) {
       await Shipment.updateMany({ _id: { $in: tally.shipmentIds } }, { $set: { movementState: MIDDLE_MILE_STATE.MANIFESTED } }, { session });
       await MovementLeg.updateMany({ loadingTallyId: tally._id }, { $set: { status: MIDDLE_MILE_STATE.MANIFESTED, manifestId: manifest._id, loadedAt: new Date() } }, { session });
       await PackageUnit.updateMany({ shipmentId: { $in: tally.shipmentIds } }, { $set: { status: "LOADED" } }, { session });
-      await ShipmentEvent.create(eventRows(shipments, TRACKING_EVENT_STATUS.MANIFEST_LOCKED, tally.branchId, req.user, `Loaded LRs verified for ${manifest.manifestNumber}`, { manifestId: manifest._id }), { session });
+      await ShipmentEvent.create(eventRows(shipments, TRACKING_EVENT_STATUS.MANIFEST_LOCKED, tally.branchId, req.user, `Loaded LRs verified for ${manifest.manifestNumber}`, { manifestId: manifest._id }), { session, ordered: true });
       tally.items.forEach((item) => { item.status = "LOADED"; });
       tally.status = "MANIFEST_READY"; await tally.save({ session });
       await Segregation.updateOne({ _id: tally.segregationId }, { $set: { status: "MANIFESTED", manifestId: manifest._id } }, { session });
@@ -406,7 +418,7 @@ export async function finalizeManifest(recordId, req) {
       const shipments = activeShipments;
       await Shipment.updateMany({ _id: { $in: manifest.shipmentIds } }, { $set: { movementState: MIDDLE_MILE_STATE.MANIFESTED } }, { session });
       await MovementLeg.updateMany({ loadingTallyId: manifest.loadingTallyId }, { $set: { status: MIDDLE_MILE_STATE.MANIFESTED, manifestId: manifest._id } }, { session });
-      await ShipmentEvent.create(eventRows(shipments, TRACKING_EVENT_STATUS.MANIFEST_LOCKED, manifest.branchId, req.user, `Manifest ${manifest.manifestNumber} locked`, { manifestId: manifest._id }), { session });
+      await ShipmentEvent.create(eventRows(shipments, TRACKING_EVENT_STATUS.MANIFEST_LOCKED, manifest.branchId, req.user, `Manifest ${manifest.manifestNumber} locked`, { manifestId: manifest._id }), { session, ordered: true });
       await audit(session, req, "MIDDLE_MILE_MANIFEST_LOCKED", "Manifest", manifest._id, { workflowStatus: "DRAFT" }, { number: manifest.manifestNumber, workflowStatus: "LOCKED" });
     });
     return dto(manifest);
@@ -455,7 +467,7 @@ export async function createTrip(data, req) {
       await Shipment.updateMany({ _id: { $in: shipmentIds } }, { $set: { movementState: MIDDLE_MILE_STATE.TRIP_ASSIGNED, routeId: route._id } }, { session });
       await MovementLeg.updateMany({ manifestId: { $in: manifests.map((row) => row._id) } }, { $set: { status: MIDDLE_MILE_STATE.TRIP_ASSIGNED, tripId: trip._id, routeId: route._id, vehicleNumber: trip.vehicleNumber, driverName: trip.driverName } }, { session });
       const shipments = await Shipment.find({ _id: { $in: shipmentIds } }).session(session);
-      await ShipmentEvent.create(eventRows(shipments, TRACKING_EVENT_STATUS.TRIP_ASSIGNED, trip.branchId, req.user, `Assigned to trip ${trip.tripNumber}`, { tripId: trip._id }), { session });
+      await ShipmentEvent.create(eventRows(shipments, TRACKING_EVENT_STATUS.TRIP_ASSIGNED, trip.branchId, req.user, `Assigned to trip ${trip.tripNumber}`, { tripId: trip._id }), { session, ordered: true });
       await audit(session, req, "MIDDLE_MILE_TRIP_CREATED", "Trip", trip._id, null, { number: trip.tripNumber, manifestCount: manifests.length, shipmentCount: shipmentIds.length });
     });
     return dto(trip);
@@ -481,7 +493,7 @@ export async function dispatchTrip(recordId, req) {
       await Shipment.updateMany({ _id: { $in: trip.shipmentIds }, movementState: MIDDLE_MILE_STATE.TRIP_ASSIGNED }, { $set: { currentStatus: SHIPMENT_STATUS.IN_TRANSIT, movementState: MIDDLE_MILE_STATE.IN_TRANSIT, currentLocation: `In transit: ${trip.origin} to ${trip.destination}` } }, { session });
       await MovementLeg.updateMany({ tripId: trip._id }, { $set: { status: MIDDLE_MILE_STATE.IN_TRANSIT, dispatchedAt: trip.dispatchedAt } }, { session });
       const shipments = await Shipment.find({ _id: { $in: trip.shipmentIds } }).session(session);
-      await ShipmentEvent.create(eventRows(shipments, SHIPMENT_STATUS.IN_TRANSIT, trip.fromHubId, req.user, `Dispatched under trip ${trip.tripNumber}`, { tripId: trip._id }), { session });
+      await ShipmentEvent.create(eventRows(shipments, SHIPMENT_STATUS.IN_TRANSIT, trip.fromHubId, req.user, `Dispatched under trip ${trip.tripNumber}`, { tripId: trip._id }), { session, ordered: true });
       await audit(session, req, "MIDDLE_MILE_TRIP_DISPATCHED", "Trip", trip._id, { status: "PLANNED" }, { number: trip.tripNumber, status: "DISPATCHED" });
     });
     return dto(trip);
