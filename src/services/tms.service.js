@@ -365,7 +365,7 @@ export const listManifests = (query, user) =>
     search: ["manifestNumber", "destination", "vendorReference", "coLoaderStatus"],
     populate: ["segregationId", "vendorId", "branchId"],
   });
-export const getManifest = (recordId, user) => get(Manifest, recordId, user, ["segregationId", "vendorId", "branchId", "shipmentIds"]);
+export const getManifest = (recordId, user) => get(Manifest, recordId, user, ["segregationId", "vendorId", "branchId", "shipmentIds", "loadingTallyId", "routeId"]);
 export async function updateManifestStatus(recordId, data, req) {
   const session = await mongoose.startSession();
   try {

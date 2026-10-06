@@ -559,6 +559,7 @@ export const loadingTallySchema = z.object({
 export const loadingTallyScanSchema = z.object({ barcode: z.string().trim().min(5).max(100) }).strict();
 
 export const middleMileManifestSchema = z.object({
+  eWayUpdates: z.array(z.object({ shipmentId: objectId, eWayBillNo: z.string().trim().min(1).max(120) }).strict()).max(10000).optional(),
   loadingTallyId: objectId,
   verifiedShipmentIds: shipmentIdList,
   vendorId: objectId.optional(),

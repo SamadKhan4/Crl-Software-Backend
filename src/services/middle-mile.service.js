@@ -348,8 +348,24 @@ export async function createManifest(data, req) {
       const verified = new Set(data.verifiedShipmentIds.map(id));
       if (verified.size !== tally.shipmentIds.length || tally.shipmentIds.some((value) => !verified.has(id(value)))) throw new ConflictError("Verify every LR in the loading tally", "MANIFEST_VERIFICATION_REQUIRED");
       if (shipments.length !== tally.shipmentIds.length || shipments.some((row) => row.movementState !== MIDDLE_MILE_STATE.LOADING_TALLY_COMPLETED)) throw new ConflictError("One or more LRs are no longer available", "SHIPMENT_ALREADY_MANIFESTED");
+      const eWayUpdates = new Map();
+      for (const update of data.eWayUpdates || []) {
+        const shipment = shipments.find((row) => id(row) === id(update.shipmentId));
+        if (!shipment || Number(shipment.lrDetails?.declaredValue || 0) <= 50000 || eWayUpdates.has(id(update.shipmentId)))
+          throw new BusinessRuleError("E-way updates must refer to distinct high-value LRs in this tally", "INVALID_EWAY_UPDATE");
+        eWayUpdates.set(id(update.shipmentId), update.eWayBillNo.trim());
+      }
+      for (const shipment of shipments) {
+        if (Number(shipment.lrDetails?.declaredValue || 0) <= 50000) continue;
+        const number = eWayUpdates.get(id(shipment)) || shipment.lrDetails?.eWayBillNo?.trim();
+        if (!number) throw new BusinessRuleError(`Enter an E-way bill number for ${shipment.lrNumber}`, "EWAY_NUMBER_REQUIRED");
+      }
       const legs = await MovementLeg.find({ _id: { $in: shipments.map((row) => row.activeMovementLegId) }, loadingTallyId: tally._id }).session(session);
       if (legs.length !== shipments.length) throw new ConflictError("LR movement changed; refresh the tally", "SHIPMENT_ALREADY_MANIFESTED");
+      for (const [shipmentId, eWayBillNo] of eWayUpdates) {
+        await Shipment.updateOne({ _id: shipmentId }, { $set: { "lrDetails.eWayBillNo": eWayBillNo } }, { session });
+        await audit(session, req, "MANIFEST_EWAY_UPDATED", "Shipment", shipmentId, { eWayBillNo: shipments.find((row) => id(row) === shipmentId)?.lrDetails?.eWayBillNo }, { eWayBillNo });
+      }
       manifest = (await Manifest.create([{
         manifestNumber: await generateBusinessNumber("manifest", "MNF", session), branchId: tally.branchId,
         loadingTallyId: tally._id, segregationId: tally.segregationId, fromHubId: tally.fromHubId, toHubId: tally.toHubId, routeId: tally.routeId,

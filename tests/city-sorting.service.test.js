@@ -1,7 +1,7 @@
 import { jest } from "@jest/globals";
 import mongoose from "mongoose";
-import { Branch, BusinessMaster, PickupRequest, Shipment, Manifest, LoadingTally, Segregation } from "../src/models/index.js";
-import { sortingInventory, createSorting, createLoadingTally, createTrip } from "../src/services/middle-mile.service.js";
+import { Branch, BusinessMaster, PickupRequest, Shipment, Manifest, LoadingTally, Segregation, PackageUnit } from "../src/models/index.js";
+import { sortingInventory, createSorting, createLoadingTally, createTrip, createManifest } from "../src/services/middle-mile.service.js";
 
 afterEach(() => jest.restoreAllMocks());
 const req = { user: { role: "ADMIN", _id: "admin" } };
@@ -48,4 +48,21 @@ test("trip rejects a selected route whose destination differs from the manifest 
   jest.spyOn(Manifest, "find").mockReturnValue({ session: async () => [{ _id: "manifest", origin: "Nagpur", destination: "Mumbai" }] });
   jest.spyOn(BusinessMaster, "findOne").mockReturnValue({ session: async () => ({ _id: "route", origin: "Nagpur", destination: "Pune" }) });
   await expect(createTrip({ routeId: "route", destination: "Mumbai", manifestIds: ["manifest"] }, req)).rejects.toMatchObject({ errorCode: "ROUTE_DESTINATION_MISMATCH" });
+});
+
+function manifestContext(value) {
+  transaction();
+  jest.spyOn(LoadingTally, "findOne").mockReturnValue({ session: async () => ({ _id: "tally", shipmentIds: ["lr"], toHubId: "office" }) });
+  jest.spyOn(Manifest, "exists").mockReturnValue({ session: async () => false });
+  jest.spyOn(Branch, "findById").mockReturnValue({ session: async () => ({ city: "Mumbai" }) });
+  jest.spyOn(Shipment, "find").mockReturnValue({ session: async () => [{ _id: "lr", lrNumber: "LR001", movementState: "LOADING_TALLY_COMPLETED", lrDetails: { declaredValue: value } }] });
+  jest.spyOn(PackageUnit, "exists").mockReturnValue({ session: async () => false });
+}
+test("manifest requires an E-way number for an LR above 50000", async () => {
+  manifestContext(50001);
+  await expect(createManifest({ loadingTallyId: "tally", verifiedShipmentIds: ["lr"] }, req)).rejects.toMatchObject({ errorCode: "EWAY_NUMBER_REQUIRED" });
+});
+test.each([49999, 50000])("manifest rejects E-way updates at goods value %s", async (value) => {
+  manifestContext(value);
+  await expect(createManifest({ loadingTallyId: "tally", verifiedShipmentIds: ["lr"], eWayUpdates: [{ shipmentId: "lr", eWayBillNo: "271234567890" }] }, req)).rejects.toMatchObject({ errorCode: "INVALID_EWAY_UPDATE" });
 });
