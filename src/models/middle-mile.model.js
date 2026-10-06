@@ -46,6 +46,8 @@ const tallyItemSchema = new Schema(
 
 const loadingTallySchema = new Schema(
   {
+    origin: { type: String, trim: true },
+    destination: { type: String, trim: true },
     tallyNumber: { type: String, required: true, unique: true, index: true },
     branchId: { ...objectId, ref: "Branch", required: true, index: true },
     fromHubId: { ...objectId, ref: "Branch", required: true, index: true },

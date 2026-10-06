@@ -25,11 +25,7 @@ export async function listActivity(query, user) {
   const options = listQuery({ ...query, sortBy: "createdAt", sortOrder: "desc" });
   const filter = {};
   if (user.role === ROLES.EMPLOYEE) filter.userId = user._id;
-  else if (user.role === ROLES.MANAGER) {
-    if (!user.branchId) throw new AuthorizationError("A branch assignment is required");
-    // Historical branch ownership is immutable; transfers must not expose another branch's events.
-    filter.$or = [{ actorBranchId: user.branchId }, { userId: user._id }];
-  } else if (user.role !== ROLES.ADMIN) throw new AuthorizationError();
+  else if (![ROLES.ADMIN, ROLES.MANAGER].includes(user.role)) throw new AuthorizationError();
   if (query.action) filter.action = query.action;
   if (query.entityType) filter.entityType = query.entityType;
   if (query.dateFrom || query.dateTo)

@@ -1,12 +1,14 @@
-import { hasFullOperationsAccess } from "../utils/access.js";
+import { sameLocation } from "../utils/locations.js";
+import { hasCrossBranchAccess as hasFullOperationsAccess } from "../utils/access.js";
 import mongoose from "mongoose";
 import { ACTIVE, ROLES } from "../constants/workflow.js";
-import { Notification, PickupRequest, PickupRunSheet, User, Vendor } from "../models/index.js";
+import { Notification, PickupRequest, PickupRunSheet, Shipment, User, Vendor } from "../models/index.js";
 import { AuthorizationError, ConflictError, NotFoundError } from "../utils/errors.js";
 import { generateBusinessNumber } from "../utils/ids.js";
 import { escapeSearch, listQuery, paginated } from "../utils/query.js";
 import { audit } from "./audit.service.js";
 
+const alignedRoute = (pickup) => pickup?.agentAssignment?.route || [pickup?.shipper?.city, pickup?.recipient?.city].filter(Boolean).join(' - ');
 const id = (value) => (value?._id ?? value)?.toString();
 const dto = (record) => ({ ...(record.toObject?.() ?? record), id: record._id });
 const branchFilter = (user) => hasFullOperationsAccess(user) ? {} : user.branchId ? { branchId: user.branchId } : { _id: null };
@@ -26,10 +28,10 @@ export async function pickupRunSheetOptions(user) {
   const [vendors, fieldExecutives, marketPickups, pickups] = await Promise.all([
     Vendor.find({ status: ACTIVE.ACTIVE }).select("vendorCode vendorType name contactPerson mobile commercial vehicles services").sort({ name: 1 }).lean(),
     User.find(employeeFilter).select("employeeCode name mobile branchId").populate("branchId", "branchCode name city").sort({ name: 1 }).lean(),
-    PickupRequest.find({ ...branchFilter(user), status: "PENDING", pickupRunSheetId: null, "agentAssignment.sourceType": "MARKET" }).select("pickupRequestNumber agentAssignment").sort({ updatedAt: -1 }).lean(),
-    PickupRequest.find({ ...branchFilter(user), status: "PENDING", pickupRunSheetId: null, shipmentId: { $ne: null } }).select("pickupRequestNumber branchId agentAssignment shipmentId shipper recipient totalBoxes totalWeightKg").populate("shipmentId", "lrNumber").sort({ createdAt: -1 }).lean(),
+    PickupRequest.find({ ...branchFilter(user), status: "PENDING", pickupRunSheetId: null, "agentAssignment.sourceType": "MARKET" }).select("shipmentId agentAssignment").populate("shipmentId", "lrNumber").sort({ updatedAt: -1 }).lean(),
+    PickupRequest.find({ ...branchFilter(user), status: "PENDING", pickupRunSheetId: null, shipmentId: { $ne: null } }).select("pickupRequestNumber branchId agentAssignment shipmentId shipper recipient totalBoxes totalWeightKg").populate({ path: "shipmentId", select: "lrNumber customerId senderName receiverName lrDetails packageCount weightKg", populate: { path: "customerId", select: "name companyName customerCode" } }).sort({ createdAt: -1 }).lean(),
   ]);
-  return { vendors, fieldExecutives, pickups, marketVehicles: marketPickups.map((pickup) => ({ pickupRequestId: pickup._id, pickupRequestNumber: pickup.pickupRequestNumber, ...pickup.agentAssignment })) };
+  return { vendors, fieldExecutives, pickups, marketVehicles: marketPickups.map((pickup) => ({ pickupRequestId: pickup._id, lrNumber: pickup.shipmentId?.lrNumber, ...pickup.agentAssignment })) };
 }
 
 export async function createPickupRunSheet(data, req) {
@@ -57,6 +59,8 @@ export async function createPickupRunSheet(data, req) {
     await session.withTransaction(async () => {
       if (!data.pickups?.length) throw new ConflictError("Select at least one vendor LR", "PRS_PUR_REQUIRED");
       const firstPickup = await PickupRequest.findById(data.pickups[0].pickupRequestId).session(session);
+      const route = alignedRoute(firstPickup) || data.route;
+      if (!route) throw new ConflictError("Enter pickup and destination cities before creating PRS", "PRS_ROUTE_REQUIRED");
       const sheetBranch = hasFullOperationsAccess(req.user)
         ? firstPickup?.branchId || marketPickup?.branchId || req.user.branchId || fieldExecutive.branchId
         : req.user.branchId;
@@ -83,7 +87,7 @@ export async function createPickupRunSheet(data, req) {
           driverName: vehicle.driverName,
           driverMobile: vehicle.driverMobile,
           pickupDate: data.pickupDate,
-          route: data.route,
+          route,
           status: data.rateSource === "MARKET" ? "PENDING_APPROVAL" : "DRAFT",
           remarks: data.remarks,
           createdBy: req.user._id,
@@ -98,6 +102,7 @@ export async function createPickupRunSheet(data, req) {
         if (!matchesVendor) throw new ConflictError("Selected LR does not belong to this vendor", "PRS_VENDOR_MISMATCH");
         await attachPickup(sheet, entry, req, session);
       }
+      await dispatchSheet(sheet, req, session);
       await audit(session, req, "PICKUP_RUN_SHEET_CREATED", "PickupRunSheet", sheet._id, null, {
         prsNumber: sheet.prsNumber,
         vendorCode: sheet.vendorCode,
@@ -124,19 +129,26 @@ async function attachPickup(sheet, data, req, session) {
     throw new AuthorizationError("You can assign LRs only from your operations branch");
   if (pickup.status !== "PENDING" || pickup.pickupRunSheetId)
     throw new ConflictError("PUR is already dispatched or assigned to another sheet", "PICKUP_REQUEST_NOT_ELIGIBLE");
+  const route = alignedRoute(pickup);
+  if (route && !sameLocation(route, sheet.route)) throw new ConflictError("Select LRs aligned to the same route for one PRS", "PRS_ROUTE_MISMATCH");
   if (!pickup.shipmentId) throw new ConflictError("Create LR before adding the PUR to PRS", "PICKUP_LR_REQUIRED");
 
+  const shipment = await Shipment.findById(pickup.shipmentId).populate("customerId", "name companyName").session(session);
+  if (!shipment || shipment.currentStatus === "CANCELLED") throw new ConflictError("LR is unavailable for PRS", "PICKUP_LR_REQUIRED");
+  const paymentTerm = shipment.lrDetails?.paymentMode || data.paymentTerm || "CREDIT";
+  const amount = shipment.lrDetails?.totalAmount ?? data.amount ?? 0;
   sheet.pickupRequestIds.push(pickup._id);
   sheet.shipmentIds.push(pickup.shipmentId);
-  sheet.purEntries.push({ pickupRequestId: pickup._id, shipmentId: pickup.shipmentId, paymentTerm: data.paymentTerm, amount: data.amount, addedBy: req.user._id });
-  sheet.totalBoxes += Number(pickup.totalBoxes || 0);
-  sheet.totalWeightKg += Number(pickup.totalWeightKg || 0);
+  sheet.purEntries.push({ pickupRequestId: pickup._id, shipmentId: pickup.shipmentId, lrNumber: shipment.lrNumber, clientName: shipment.customerId?.companyName || shipment.customerId?.name || shipment.senderName, destination: shipment.lrDetails?.to || pickup.recipient?.city, paymentTerm, amount, addedBy: req.user._id });
+  sheet.totalBoxes += Number(shipment.packageCount || 0);
+  sheet.totalWeightKg += Number(shipment.weightKg || 0);
   sheet.vendorPayableAmount = calculateVendorAmount(sheet);
   sheet.status = sheet.approvalStatus === "PENDING" ? "PENDING_APPROVAL" : "READY";
   await sheet.save({ session });
 
   pickup.pickupRunSheetId = sheet._id;
   pickup.agentAssignment = {
+    route: pickup.agentAssignment?.route || sheet.route,
     sourceType: sheet.marketPickupRequestId ? "MARKET" : "VENDOR",
     vendorId: sheet.vendorId,
     agentName: sheet.marketPickupRequestId ? sheet.vendorName : sheet.fieldExecutiveName,
@@ -152,8 +164,8 @@ async function attachPickup(sheet, data, req, session) {
   await audit(session, req, "PICKUP_ADDED_TO_PRS", "PickupRunSheet", sheet._id, null, {
     prsNumber: sheet.prsNumber,
     pickupRequestNumber: pickup.pickupRequestNumber,
-    paymentTerm: data.paymentTerm,
-    amount: data.amount,
+    paymentTerm,
+    amount,
   });
 }
 
@@ -183,7 +195,7 @@ export async function reviewMarketRate(recordId, data, req) {
   sheet.approvalRemarks = data.remarks;
   sheet.approvedAt = new Date();
   sheet.approvedBy = req.user._id;
-  sheet.status = data.decision === "APPROVED" ? (sheet.pickupRequestIds.length ? "READY" : "DRAFT") : "PENDING_APPROVAL";
+  if (sheet.status !== "DISPATCHED") sheet.status = data.decision === "APPROVED" ? (sheet.pickupRequestIds.length ? "READY" : "DRAFT") : "PENDING_APPROVAL";
   await sheet.save();
   await audit(null, req, `PRS_MARKET_RATE_${data.decision}`, "PickupRunSheet", sheet._id, null, {
     prsNumber: sheet.prsNumber,
@@ -193,19 +205,8 @@ export async function reviewMarketRate(recordId, data, req) {
   return dto(sheet);
 }
 
-export async function dispatchPickupRunSheet(recordId, req) {
-  const session = await mongoose.startSession();
-  try {
-    let sheet;
-    await session.withTransaction(async () => {
-      sheet = await PickupRunSheet.findById(recordId).session(session);
-      if (!sheet) throw new NotFoundError("Pickup run sheet not found", "PICKUP_RUN_SHEET_NOT_FOUND");
-      assertSheetAccess(sheet, req.user);
-      if (sheet.status === "DISPATCHED") throw new ConflictError("PRS is already dispatched", "PRS_ALREADY_DISPATCHED");
-      if (!sheet.pickupRequestIds.length) throw new ConflictError("Add at least one PUR before dispatch", "PRS_PUR_REQUIRED");
-      if (["PENDING", "REJECTED"].includes(sheet.approvalStatus))
-        throw new ConflictError("Manager approval is required for the market amount", "PRS_MARKET_APPROVAL_REQUIRED");
-
+// Operational dispatch is independent of the vendor market-rate review.
+async function dispatchSheet(sheet, req, session) {
       sheet.dispatchId = await generateBusinessNumber("pickup-dispatch", "DSP", session);
       sheet.dispatchedAt = new Date();
       sheet.dispatchedBy = req.user._id;
@@ -228,11 +229,11 @@ export async function dispatchPickupRunSheet(recordId, req) {
           pickupRequestId: pickup._id,
           customerId: pickup.customerId,
           branchId: sheet.branchId,
-          recipientName: pickup.shipper.contactName,
-          mobile: pickup.shipper.contactMobile,
+          recipientName: pickup.shipper?.contactName,
+          mobile: pickup.shipper?.contactMobile,
           channels: ["WHATSAPP", "SMS"],
           subject: "Pickup vehicle dispatched",
-          message: `${sheet.dispatchId}: ${sheet.fieldExecutiveName} (${sheet.fieldExecutiveMobile}) has been dispatched for pickup request ${pickup.pickupRequestNumber}. Vehicle: ${sheet.vehicleNumber}.`,
+          message: `${sheet.dispatchId}: ${sheet.fieldExecutiveName} (${sheet.fieldExecutiveMobile}) has been dispatched for LR ${sheet.purEntries.find((entry) => id(entry.pickupRequestId) === id(pickup))?.lrNumber || ""}. Vehicle: ${sheet.vehicleNumber}.`,
         }], { session });
       }
       await audit(session, req, "PICKUP_RUN_SHEET_DISPATCHED", "PickupRunSheet", sheet._id, null, {
@@ -241,6 +242,22 @@ export async function dispatchPickupRunSheet(recordId, req) {
         pickupCount: sheet.pickupRequestIds.length,
         vendorPayableAmount: sheet.vendorPayableAmount,
       });
+}
+
+export async function dispatchPickupRunSheet(recordId, req) {
+  const session = await mongoose.startSession();
+  try {
+    let sheet;
+    await session.withTransaction(async () => {
+      sheet = await PickupRunSheet.findById(recordId).session(session);
+      if (!sheet) throw new NotFoundError("Pickup run sheet not found", "PICKUP_RUN_SHEET_NOT_FOUND");
+      assertSheetAccess(sheet, req.user);
+      if (sheet.status === "DISPATCHED") throw new ConflictError("PRS is already dispatched", "PRS_ALREADY_DISPATCHED");
+      if (!sheet.pickupRequestIds.length) throw new ConflictError("Add at least one PUR before dispatch", "PRS_PUR_REQUIRED");
+      if (["PENDING", "REJECTED"].includes(sheet.approvalStatus))
+        throw new ConflictError("Manager approval is required for the market amount", "PRS_MARKET_APPROVAL_REQUIRED");
+
+      await dispatchSheet(sheet, req, session);
     });
     return dto(sheet);
   } finally {

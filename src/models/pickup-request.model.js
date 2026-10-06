@@ -23,6 +23,7 @@ const partySchema = new Schema(
 
 const agentAssignmentSchema = new Schema(
   {
+    route: { type: String, trim: true, maxlength: 250 },
     sourceType: { type: String, enum: ["VENDOR", "MARKET"], required: true },
     vendorId: { ...objectId, ref: "Vendor" },
     agentName: { type: String, required: true, trim: true, maxlength: 120 },

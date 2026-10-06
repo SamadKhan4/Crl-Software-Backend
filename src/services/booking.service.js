@@ -1,4 +1,4 @@
-import { hasFullOperationsAccess } from "../utils/access.js";
+import { hasCrossBranchAccess as hasFullOperationsAccess } from "../utils/access.js";
 import { Booking, Branch, Customer, Shipment } from "../models/index.js";
 import { ACTIVE } from "../constants/workflow.js";
 import { audit } from "./audit.service.js";

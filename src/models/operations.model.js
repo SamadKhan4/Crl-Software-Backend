@@ -25,6 +25,9 @@ const sortingItemSchema = new Schema(
 
 const segregationSchema = new Schema(
   {
+    destinationPincode: { type: String, trim: true },
+    origin: { type: String, trim: true },
+    loadingTallyId: { ...objectId, ref: "LoadingTally", index: true },
     segregationNumber: { type: String, required: true, unique: true, index: true },
     ...common,
     vendorId: { ...objectId, ref: "Vendor", index: true },
@@ -45,6 +48,7 @@ const segregationSchema = new Schema(
 
 const manifestSchema = new Schema(
   {
+    origin: { type: String, trim: true },
     manifestNumber: { type: String, required: true, unique: true, index: true },
     ...common,
     segregationId: { ...objectId, ref: "Segregation", index: true },
@@ -83,6 +87,7 @@ const tripSchema = new Schema(
     vendorId: { ...objectId, ref: "Vendor" },
     manifestIds: [{ ...objectId, ref: "Manifest" }],
     tripType: { type: String, enum: ["MIDDLE_MILE", "LEGACY"], default: "LEGACY", index: true },
+    sealNumber: { type: String, trim: true, maxlength: 80 },
     vehicleSource: { type: String, enum: ["VV", "MV"] },
     vehicleMasterId: { ...objectId, ref: "BusinessMaster" },
     driverMasterId: { ...objectId, ref: "BusinessMaster" },

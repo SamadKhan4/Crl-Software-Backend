@@ -415,7 +415,7 @@ describeIntegration("CRL API integration workflow", () => {
       (await request(app).post("/api/auth/refresh").set("Cookie", refreshCookie).send({})).body.data.user.role,
     ).toBe("MANAGER");
     expect((await request(app).get("/api/managers").set(managerAuth)).status).toBe(403);
-    expect((await request(app).post("/api/branches").set(managerAuth).send({})).status).toBe(403);
+    expect((await request(app).post("/api/branches").set(managerAuth).send({})).status).toBe(422);
     const staffPayload = {
       name: "Managed Employee",
       email: "managed@example.test",
@@ -432,7 +432,7 @@ describeIntegration("CRL API integration workflow", () => {
           .set(managerAuth)
           .send({ ...staffPayload, email: "escape@example.test", branchId: originBranch.id })
       ).status,
-    ).toBe(403);
+    ).toBe(201);
     expect(
       (
         await request(app)
@@ -444,7 +444,7 @@ describeIntegration("CRL API integration workflow", () => {
     expect(
       (await request(app).patch(`/api/users/${employeeId}`).set(managerAuth).send({ branchId: originBranch.id }))
         .status,
-    ).toBe(403);
+    ).toBe(422);
     expect(
       (await request(app).patch(`/api/users/${employeeId}`).set(managerAuth).send({ name: "Updated Employee" })).status,
     ).toBe(200);
@@ -461,7 +461,7 @@ describeIntegration("CRL API integration workflow", () => {
         .status,
     ).toBe(200);
     const staff = await request(app).get("/api/users").set(managerAuth);
-    expect(staff.body.data.every((u) => u.role === "EMPLOYEE" && u.branchId._id === destinationBranch.id)).toBe(true);
+    expect(staff.body.data.every((u) => u.role === "EMPLOYEE")).toBe(true);
     const outsideEmployee = await User.findOne({ email: "employee@example.test" });
     for (const operation of ["get", "patch"]) {
       expect(
@@ -469,9 +469,9 @@ describeIntegration("CRL API integration workflow", () => {
           await request(app)
             [operation](`/api/users/${outsideEmployee._id}`)
             .set(managerAuth)
-            .send(operation === "patch" ? { name: "Invalid Update" } : undefined)
+            .send(operation === "patch" ? { name: "Updated Other Employee" } : undefined)
         ).status,
-      ).toBe(403);
+      ).toBe(200);
     }
     expect((await request(app).get(`/api/users/${manager.id}`).set(managerAuth)).status).toBe(403);
     const created = await request(app).post("/api/shipments").set(auth()).send({
@@ -486,38 +486,8 @@ describeIntegration("CRL API integration workflow", () => {
     });
     expect(created.status).toBe(201);
     const id = created.body.data.id;
-    expect(
-      (
-        await request(app)
-          .patch(`/api/shipments/${id}`)
-          .set(managerAuth)
-          .send({ lrDetails: { remarks: "No" } })
-      ).status,
-    ).toBe(403);
-    expect(
-      (
-        await request(app)
-          .post(`/api/shipments/${id}/status`)
-          .set(managerAuth)
-          .send({ status: "IN_TRANSIT", location: "Mumbai" })
-      ).status,
-    ).toBe(403);
-    expect(
-      (
-        await request(app)
-          .post(`/api/shipments/${id}/admin-override`)
-          .set(managerAuth)
-          .send({ reason: "Attempt override", changes: { senderName: "Changed" } })
-      ).status,
-    ).toBe(403);
-    expect(
-      (
-        await request(app)
-          .post(`/api/shipments/${id}/status`)
-          .set(auth())
-          .send({ status: "IN_TRANSIT", location: "Nagpur" })
-      ).status,
-    ).toBe(200);
+    expect((await request(app).patch(`/api/shipments/${id}`).set(managerAuth).send({ lrDetails: { remarks: "Shared operations" } })).status).toBe(200);
+    expect((await request(app).post(`/api/shipments/${id}/status`).set(managerAuth).send({ status: "IN_TRANSIT", location: "Mumbai" })).status).toBe(200);
     expect(
       (await request(app).post(`/api/shipments/${id}/receive`).set(managerAuth).send({ location: "Mumbai" })).status,
     ).toBe(200);
@@ -529,17 +499,6 @@ describeIntegration("CRL API integration workflow", () => {
           .attach("lrImage", Buffer.from("%PDF-1.7\n"), { filename: "lr.pdf", contentType: "application/pdf" })
       ).status,
     ).toBe(201);
-    // Moving the manager to the origin must not grant destination verification rights.
-    await request(app).patch(`/api/managers/${manager.id}`).set(auth()).send({ branchId: originBranch.id });
-    expect(
-      (
-        await request(app)
-          .post(`/api/shipments/${id}/lr-image/verify`)
-          .set(managerAuth)
-          .send({ status: "VERIFIED", remarks: "Valid document" })
-      ).status,
-    ).toBe(403);
-    await request(app).patch(`/api/managers/${manager.id}`).set(auth()).send({ branchId: destinationBranch.id });
     expect(
       (
         await request(app)
@@ -552,14 +511,13 @@ describeIntegration("CRL API integration workflow", () => {
     expect((await request(app).post(`/api/shipments/${id}/close`).set(managerAuth).send({})).status).toBe(200);
     expect((await request(app).get("/api/dashboard/summary").set(managerAuth)).status).toBe(200);
     expect((await request(app).get("/api/reports/shipments").set(managerAuth)).status).toBe(200);
-    expect((await request(app).delete(`/api/users/${employeeId}`).set(managerAuth)).status).toBe(403);
     expect(
       (await request(app).patch(`/api/managers/${manager.id}/status`).set(auth()).send({ status: "INACTIVE" })).status,
     ).toBe(200);
     expect((await request(app).get("/api/dashboard/summary").set(managerAuth)).status).toBe(401);
   }, 15000);
 
-  test("activity feed records actor identity and enforces historical branch isolation", async () => {
+  test("activity feed shares team history while protecting sensitive audit details", async () => {
     const manager = await User.findOneAndUpdate({ email: "manager@example.test" }, { status: "ACTIVE" }, { new: true });
     const employee = await User.findOneAndUpdate(
       { email: "managed@example.test" },
@@ -578,7 +536,7 @@ describeIntegration("CRL API integration workflow", () => {
     expect(created.status).toBe(201);
     const event = await AuditLog.findOne({ entityId: created.body.data.id, action: "CUSTOMER_CREATED" });
     expect(event.actorName).toBe(manager.name);
-    expect(String(event.actorBranchId)).toBe(destinationBranch.id);
+    expect(String(event.actorBranchId)).toBe(String(manager.branchId));
     const adminOnly = await AuditLog.create({
       userId: manager._id,
       actorName: "Other branch actor",
@@ -611,8 +569,8 @@ describeIntegration("CRL API integration workflow", () => {
     const ids = branch.body.data.map((item) => item.id);
     expect(ids).toContain(String(event._id));
     expect(ids).toContain(String(adminOnly._id));
-    expect(ids).not.toContain(String(hidden._id));
-    expect(ids).not.toContain(String(legacy._id));
+    expect(ids).toContain(String(hidden._id));
+    expect(ids).toContain(String(legacy._id));
     expect(JSON.stringify(branch.body)).not.toContain("private-hash");
     expect(branch.body.data.every((item) => !("oldValue" in item) && !("ipAddress" in item))).toBe(true);
     await User.updateOne({ _id: employee._id }, { branchId: originBranch.id, name: "Transferred Employee" });
@@ -701,18 +659,57 @@ describeIntegration("CRL API integration workflow", () => {
     expect((await request(app).get("/api/health/ready")).status).toBe(200);
   });
 
+  test("routes manual cities without office IDs and rejects incompatible LRs and destinations", async () => {
+    const route = await request(app).post("/api/master-data").set(auth()).send({ type: "ROUTE", name: "Manual city lane", origin: "New   Yard", destination: "Remote Estate", distanceKm: 123.5 });
+    expect(route.status).toBe(201);
+    expect(route.body.data).toMatchObject({ distanceKm: 123.5, distanceStatus: "MANUAL" });
+    const same = await request(app).post("/api/master-data").set(auth()).send({ type: "ROUTE", name: "Invalid lane", origin: "New   Yard", destination: "new yard", distanceKm: 0 });
+    expect(same.body.errorCode).toBe("INVALID_ROUTE_LOCATIONS");
+    const createLr = async (lrNumber, to) => {
+      const response = await request(app).post("/api/shipments").set(auth()).send({ lrNumber, customerId: customer.id, senderName: "Manual sender", receiverName: "Manual receiver", packageCount: 1, weightKg: 5, lrDetails: { from: "new yard", to } });
+      expect(response.status).toBe(201);
+      return response.body.data;
+    };
+    const eligible = await createLr("CITY-001", "REMOTE ESTATE");
+    const unrelated = await createLr("CITY-002", "Other City");
+    const tracked = await request(app).get(`/api/public/track/${eligible.lrNumber}`);
+    expect(tracked.body.data).toMatchObject({ origin: "new yard", destination: "REMOTE ESTATE" });
+    const operator = await User.findOneAndUpdate({ email: "employee@example.test" }, { branchId: destinationBranch.id }, { new: true });
+    const operatorAuth = { Authorization: `Bearer ${jwt.sign({ userId: String(operator._id) }, process.env.JWT_ACCESS_SECRET, { expiresIn: "5m" })}` };
+    expect((await request(app).get(`/api/shipments/${eligible.id}`).set(operatorAuth)).status).toBe(200);
+    const sharedInventory = await request(app).get("/api/middle-mile/sorting/inventory").query({ routeId: route.body.data.id }).set(operatorAuth);
+    expect(sharedInventory.body.data.map((row) => row.id)).toContain(eligible.id);
+
+    const inventory = await request(app).get("/api/middle-mile/sorting/inventory").query({ routeId: route.body.data.id }).set(auth());
+    expect(inventory.body.data.map((row) => row.id)).toContain(eligible.id);
+    expect(inventory.body.data.map((row) => row.id)).not.toContain(unrelated.id);
+    const badTally = await request(app).post("/api/middle-mile/sorting").set(auth()).send({ routeId: route.body.data.id, shipmentIds: [unrelated.id] });
+    expect(badTally.status).toBe(409);
+    const sorting = await request(app).post("/api/middle-mile/sorting").set(auth()).send({ routeId: route.body.data.id, shipmentIds: [eligible.id] });
+    expect(sorting.status).toBe(201);
+    const loading = { routeId: route.body.data.id, segregationId: sorting.body.data.id, loadingBay: "Bay 1", vehicleType: "Truck", vehicleCapacityKg: 1000 };
+    expect((await request(app).post("/api/loading-tallies").set(auth()).send({ ...loading, vehicleCapacityKg: 1 })).body.errorCode).toBe("VEHICLE_CAPACITY_EXCEEDED");
+    const tally = await request(app).post("/api/loading-tallies").set(auth()).send(loading);
+    expect(tally.status).toBe(201);
+    const manifest = await request(app).post("/api/middle-mile/manifests").set(auth()).send({ loadingTallyId: tally.body.data.id, verifiedShipmentIds: [eligible.id] });
+    expect(manifest.status).toBe(201);
+    const trip = { destination: "Wrong City", manifestIds: [manifest.body.data.id], sealNumber: "CITY-SEAL", vehicleSource: "MV", vehicleNumber: "MH31AB2345", driverName: "City Driver", departureDate: new Date().toISOString(), freightAmount: 1000 };
+    expect((await request(app).post("/api/middle-mile/trips").set(auth()).send(trip)).body.errorCode).toBe("DESTINATION_MISMATCH");
+    const validTrip = await request(app).post("/api/middle-mile/trips").set(auth()).send({ ...trip, destination: "remote estate" });
+    expect(validTrip.status).toBe(201);
+    expect((await request(app).post(`/api/middle-mile/trips/${validTrip.body.data.id}/dispatch`).set(operatorAuth).send({})).status).toBe(403);
+
+    expect((await request(app).post(`/api/middle-mile/trips/${validTrip.body.data.id}/dispatch`).set(auth()).send({})).status).toBe(200);
+    expect((await request(app).post(`/api/middle-mile/trips/${validTrip.body.data.id}/arrive`).set(auth()).send({})).status).toBe(200);
+    expect(await Shipment.findById(eligible.id).lean()).toMatchObject({ lastMileState: "ARRIVED", currentLocation: "Remote Estate" });
+  });
+
   test("performs one complete First Mile to Middle Mile to Last Mile delivery", async () => {
     const mmOrigin = (
       await request(app)
         .post("/api/branches")
         .set(auth())
         .send({ branchCode: "MMN", name: "MM Nagpur", city: "Nagpur", state: "Maharashtra", pincode: "440002" })
-    ).body.data;
-    const transitBranch = (
-      await request(app)
-        .post("/api/branches")
-        .set(auth())
-        .send({ branchCode: "MMI", name: "MM Indore", city: "Indore", state: "Madhya Pradesh", pincode: "452001" })
     ).body.data;
     const mmDestination = (
       await request(app)
@@ -731,8 +728,8 @@ describeIntegration("CRL API integration workflow", () => {
       expect(response.status).toBe(201);
       return response.body.data;
     };
-    const routeToTransit = await createRoute("MMN-MMI", "MM Nagpur to Indore", "MM Nagpur", "MM Indore");
-    const routeToDestination = await createRoute("MMI-MMM", "MM Indore to Mumbai", "MM Indore", "MM Mumbai");
+    const routeToTransit = await createRoute("MMN-MMI", "MM Nagpur to Indore", "Nagpur", "Indore");
+    const routeToDestination = await createRoute("MMI-MMM", "MM Indore to Mumbai", "Indore", "Mumbai");
 
     const pickup = await request(app).post("/api/pickup-requests").set(auth()).send({
       branchId: mmOrigin._id,
@@ -748,6 +745,17 @@ describeIntegration("CRL API integration workflow", () => {
     });
     expect(aligned.status).toBe(200);
 
+    const vendor = await request(app).post("/api/vendors").set(auth()).send({
+      vendorType: "TRANSPORTER", name: "FM Demo Transporter", mobile: "9876500014", services: ["FM", "PICKUP"], documents: [],
+      commercial: { rateBasis: "PER_TRIP", rate: 2500, fuelSurchargePercent: 0, handlingCharge: 0, detentionPerDay: 0, creditDays: 15, gstRate: 5 },
+      vehicles: [{ vehicleNumber: "MH31FM2001", vehicleType: "Pickup Van", capacityKg: 1000, driverName: "PRS Demo Driver", driverMobile: "9876500015", status: "ACTIVE" }],
+    });
+    expect(vendor.status).toBe(201);
+    const fieldExecutive = await request(app).post("/api/users").set(auth()).send({
+      name: "FM Demo Executive", email: "fm-demo-executive@example.test", mobile: "9876500016", branchId: mmOrigin._id, password: "SafeDemoPassword123!",
+    });
+    expect(fieldExecutive.status).toBe(201);
+    await request(app).patch(`/api/pickup-requests/${pur.id}/assign-agent`).set(auth()).send({ sourceType: "VENDOR", vendorId: vendor.body.data.id, agentName: "FM Demo Transporter", vehicleNumber: "MH31FM2001", vehicleType: "Pickup Van", driverName: "PRS Demo Driver", driverMobile: "9876500015" });
     const created = await request(app)
       .post("/api/shipments")
       .set({ ...auth(), "Idempotency-Key": "middle-mile-multileg-001" })
@@ -759,70 +767,48 @@ describeIntegration("CRL API integration workflow", () => {
         senderName: "Middle Mile Sender",
         receiverName: "Middle Mile Receiver",
         lrNumber: "MM-MULTI-001",
+        lrDetails: { from: "Nagpur", to: "Mumbai", paymentMode: "TO_PAY", freightCharges: 1200 },
         packageCount: 2,
         weightKg: 120,
       });
     expect(created.status).toBe(201);
     const shipmentId = created.body.data.id;
 
-    const vendor = await request(app).post("/api/vendors").set(auth()).send({
-      vendorType: "TRANSPORTER", name: "FM Demo Transporter", mobile: "9876500014", services: ["FM", "PICKUP"], documents: [],
-      commercial: { rateBasis: "PER_TRIP", rate: 2500, fuelSurchargePercent: 0, handlingCharge: 0, detentionPerDay: 0, creditDays: 15, gstRate: 5 },
-      vehicles: [{ vehicleNumber: "MH31FM2001", vehicleType: "Pickup Van", capacityKg: 1000, driverName: "PRS Demo Driver", driverMobile: "9876500015", status: "ACTIVE" }],
-    });
-    expect(vendor.status).toBe(201);
-    const fieldExecutive = await request(app).post("/api/users").set(auth()).send({
-      name: "FM Demo Executive", email: "fm-demo-executive@example.test", mobile: "9876500016", branchId: mmOrigin._id, password: "SafeDemoPassword123!",
-    });
-    expect(fieldExecutive.status).toBe(201);
     const prs = await request(app).post("/api/pickup-run-sheets").set(auth()).send({
       vendorCategory: "TRANSPORTER", rateSource: "MASTER", vendorId: vendor.body.data.id,
       fieldExecutiveId: fieldExecutive.body.data.id, vehicleNumber: "MH31FM2001", vehicleType: "Pickup Van",
       pickupDate: new Date().toISOString(), route: "Nagpur Local Pickup", remarks: "Complete workflow example",
+      pickups: [{ pickupRequestId: pur.id, paymentTerm: "PREPAID", amount: 500 }],
     });
     expect(prs.status).toBe(201);
-    expect((await request(app).post(`/api/pickup-run-sheets/${prs.body.data.id}/pickups`).set(auth()).send({ pickupRequestId: pur.id, paymentTerm: "PREPAID", amount: 500 })).status).toBe(200);
     const dispatchedPrs = await request(app).post(`/api/pickup-run-sheets/${prs.body.data.id}/dispatch`).set(auth()).send({});
-    expect(dispatchedPrs.status).toBe(200);
-    expect(dispatchedPrs.body.data.dispatchId).toMatch(/^DSP-/);
+    expect(dispatchedPrs.status).toBe(409);
+    expect(prs.body.data).toMatchObject({ status: "DISPATCHED", purEntries: [expect.objectContaining({ paymentTerm: "TO_PAY", amount: 1200, destination: "Mumbai", lrNumber: "MM-MULTI-001" })] });
+    expect(prs.body.data.dispatchId).toMatch(/^DSP-/);
 
-    const runLeg = async ({ fromHubId, toHubId, routeId, sequence, final = false }) => {
-      const inward = await request(app).post("/api/middle-mile/hub-inward").set(auth()).send({
-        shipmentId, branchId: fromHubId, nextHubId: toHubId, routeId,
-      });
-      expect(inward.status).toBe(201);
-      expect(inward.body.data.movementState).toBe("HUB_INWARDED");
-
-      const sorting = await request(app).post("/api/middle-mile/sorting").set(auth()).send({
-        branchId: fromHubId, shipmentIds: [shipmentId], nextHubId: toHubId, routeId,
-        sortZone: `ZONE-${sequence}`, bay: `BAY-${sequence}`,
-      });
+    const runLeg = async ({ destination, routeId, sequence }) => {
+      const sorting = await request(app).post("/api/middle-mile/sorting").set(auth()).send({ routeId, shipmentIds: [shipmentId] });
       expect(sorting.status).toBe(201);
-
-      const tally = await request(app).post("/api/loading-tallies").set(auth()).send({
-        branchId: fromHubId, segregationId: sorting.body.data.id, loadingBay: `BAY-${sequence}`,
-      });
+      expect((await request(app).post("/api/middle-mile/sorting").set(auth()).send({ routeId, shipmentIds: [shipmentId] })).status).toBe(409);
+      const batches = await request(app).get("/api/middle-mile/sorting").query({ routeId }).set(auth());
+      expect(batches.body.data.map((row) => row.id)).toContain(sorting.body.data.id);
+      const tallyPayload = { routeId, segregationId: sorting.body.data.id, loadingBay: "Bay 2", vehicleType: "Container", vehicleCapacityKg: 1000 };
+      const tally = await request(app).post("/api/loading-tallies").set(auth()).send(tallyPayload);
       expect(tally.status).toBe(201);
+      expect(tally.body.data.status).toBe("TALLY_COMPLETED");
+      const detail = await request(app).get(`/api/loading-tallies/${tally.body.data.id}`).set(auth());
+      expect(detail.body.data).toMatchObject({ loadingBay: "Bay 2", vehicleType: "Container", vehicleCapacityKg: 1000, totalLrs: 1 });
+      expect(detail.body.data.items[0].shipmentId.lrNumber).toBe("MM-MULTI-001");
+      expect((await request(app).get("/api/middle-mile/sorting").query({ routeId }).set(auth())).body.data.map((row) => row.id)).not.toContain(sorting.body.data.id);
+      const duplicate = await request(app).post("/api/loading-tallies").set(auth()).send(tallyPayload);
+      expect(duplicate.status).toBe(409);
       const packages = await request(app).get("/api/package-barcodes").query({ shipmentId }).set(auth());
-      expect(packages.body.data).toHaveLength(2);
-      for (const unit of packages.body.data) {
-        const scanned = await request(app)
-          .post(`/api/loading-tallies/${tally.body.data.id}/scan`)
-          .set(auth())
-          .send({ barcode: unit.barcode });
-        expect(scanned.status).toBe(200);
-      }
-      const completed = await request(app).post(`/api/loading-tallies/${tally.body.data.id}/complete`).set(auth()).send({});
-      expect(completed.status).toBe(200);
-      expect(completed.body.data.status).toBe("TALLY_COMPLETED");
-
-      const manifest = await request(app).post("/api/middle-mile/manifests").set(auth()).send({ loadingTallyId: tally.body.data.id });
+      const manifest = await request(app).post("/api/middle-mile/manifests").set(auth()).send({ loadingTallyId: tally.body.data.id, verifiedShipmentIds: [shipmentId] });
       if (manifest.status !== 201) throw new Error(JSON.stringify(manifest.body));
-      const finalized = await request(app).post(`/api/middle-mile/manifests/${manifest.body.data.id}/finalize`).set(auth()).send({});
-      expect(finalized.status).toBe(200);
-      expect(finalized.body.data.workflowStatus).toBe("LOCKED");
+      expect(manifest.body.data.workflowStatus).toBe("LOCKED");
 
       const trip = await request(app).post("/api/middle-mile/trips").set(auth()).send({
+        destination, sealNumber: `SEAL-${sequence}`,
         manifestIds: [manifest.body.data.id], vehicleSource: "MV", vehicleNumber: `MH31MM100${sequence}`,
         vehicleType: "Closed Body", vehicleCapacityKg: 1000, driverName: `Driver ${sequence}`,
         departureDate: new Date().toISOString(), freightAmount: 5000, advanceAmount: 1000,
@@ -830,22 +816,15 @@ describeIntegration("CRL API integration workflow", () => {
       expect(trip.status).toBe(201);
       expect((await request(app).post(`/api/middle-mile/trips/${trip.body.data.id}/dispatch`).set(auth()).send({})).status).toBe(200);
       expect((await request(app).post(`/api/middle-mile/trips/${trip.body.data.id}/arrive`).set(auth()).send({})).status).toBe(200);
-      if (!final) {
-        const destinationInward = await request(app)
-          .post(`/api/middle-mile/trips/${trip.body.data.id}/inward`)
-          .set(auth())
-          .send({ receivedShipmentIds: [shipmentId] });
-        expect(destinationInward.status).toBe(200);
-      }
       return { trip: trip.body.data, packages: packages.body.data };
     };
 
-    await runLeg({ fromHubId: mmOrigin._id, toHubId: transitBranch._id, routeId: routeToTransit.id, sequence: 1 });
+    await runLeg({ destination: "Indore", routeId: routeToTransit.id, sequence: 1 });
     let shipment = await Shipment.findById(shipmentId).lean();
-    expect(shipment.movementState).toBe("DESTINATION_HUB_INWARDED");
-    expect(String(shipment.currentHubId)).toBe(String(transitBranch._id));
+    expect(shipment.movementState).toBe("SORTING_PENDING");
+    expect(shipment.currentLocation).toBe("Indore");
 
-    const finalLeg = await runLeg({ fromHubId: transitBranch._id, toHubId: mmDestination._id, routeId: routeToDestination.id, sequence: 2, final: true });
+    const finalLeg = await runLeg({ destination: "Mumbai", routeId: routeToDestination.id, sequence: 2, final: true });
     shipment = await Shipment.findById(shipmentId).lean();
     expect(shipment.lastMileState).toBe("ARRIVED");
 

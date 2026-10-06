@@ -7,7 +7,10 @@ const purEntrySchema = new Schema(
   {
     pickupRequestId: { ...objectId, ref: "PickupRequest", required: true },
     shipmentId: { ...objectId, ref: "Shipment", required: true },
-    paymentTerm: { type: String, enum: ["PAID", "PREPAID", "CREDIT"], required: true },
+    lrNumber: { type: String, trim: true },
+    clientName: { type: String, trim: true },
+    destination: { type: String, trim: true },
+    paymentTerm: { type: String, enum: ["PAID", "PREPAID", "CREDIT", "TO_PAY"], required: true },
     amount: { type: Number, required: true, min: 0 },
     addedAt: { type: Date, default: Date.now },
     addedBy: { ...objectId, ref: "User", required: true },

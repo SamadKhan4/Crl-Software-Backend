@@ -35,6 +35,7 @@ export const listSchema = z
     status: z.enum(Object.values(ACTIVE)).optional(),
   })
   .strict();
+export const customerLookupSchema = listSchema.extend({ customerType: z.enum(["CREDIT", "TO_PAY_PAID"]).optional() }).strict();
 export const shipmentListSchema = listSchema
   .omit({ status: true })
   .extend({
@@ -390,6 +391,7 @@ const businessListBase = z.object({
   branchId: objectId.optional(),
   customerId: objectId.optional(),
   vendorId: objectId.optional(),
+  routeId: objectId.optional(),
   dateFrom: z.coerce.date().optional(),
   dateTo: z.coerce.date().optional(),
 });
@@ -536,35 +538,38 @@ export const middleMileInwardSchema = z.object({
   path: ["shipmentId"], message: "Select an LR or enter an LR number",
 });
 
+export const sortingListSchema = businessListBase.extend({ destination: z.string().trim().min(1).max(150).optional(), destinationPincode: pincode.optional() }).strict();
+
 export const middleMileSortingSchema = z.object({
-  branchId: objectId.optional(),
-  shipmentIds: shipmentIdList,
-  nextHubId: objectId,
   routeId: objectId.optional(),
-  sortZone: z.string().trim().min(1).max(80),
-  bay: optionalText(80),
-  rack: optionalText(80),
+  destination: z.string().trim().min(1).max(150).optional(),
+  destinationPincode: pincode.optional(),
+  shipmentIds: shipmentIdList,
   remarks: optionalText(500),
-}).strict();
+}).strict().refine((value) => value.destination || value.routeId, { message: "Select a destination city", path: ["destination"] });
 
 export const loadingTallySchema = z.object({
-  branchId: objectId.optional(),
+  routeId: objectId.optional(),
   segregationId: objectId,
-  loadingBay: optionalText(80),
-  vehicleType: optionalText(80),
-  vehicleCapacityKg: z.coerce.number().finite().positive().max(1000000).optional(),
+  loadingBay: z.string().trim().min(1).max(80),
+  vehicleType: z.string().trim().min(1).max(80),
+  vehicleCapacityKg: z.coerce.number().finite().positive().max(1000000),
   remarks: optionalText(500),
 }).strict();
 export const loadingTallyScanSchema = z.object({ barcode: z.string().trim().min(5).max(100) }).strict();
 
 export const middleMileManifestSchema = z.object({
   loadingTallyId: objectId,
+  verifiedShipmentIds: shipmentIdList,
   vendorId: objectId.optional(),
   vendorReference: optionalText(120),
   remarks: optionalText(500),
 }).strict();
 
 export const middleMileTripSchema = z.object({
+  routeId: objectId,
+  destination: z.string().trim().min(1).max(150),
+  sealNumber: z.string().trim().min(1).max(80),
   manifestIds: z.array(objectId).min(1).max(50).refine((ids) => new Set(ids).size === ids.length, "Duplicate manifest selected"),
   vehicleSource: z.enum(["VV", "MV"]),
   vendorId: objectId.optional(),
@@ -581,6 +586,8 @@ export const middleMileTripSchema = z.object({
   advanceAmount: amount.default(0),
   remarks: optionalText(500),
 }).strict().superRefine((value, ctx) => {
+  if (value.vehicleSource === "MV" && value.freightAmount <= 0)
+    ctx.addIssue({ code: "custom", path: ["freightAmount"], message: "Enter trip cost for MV" });
   if (value.vehicleSource === "VV" && !value.vendorId)
     ctx.addIssue({ code: "custom", path: ["vendorId"], message: "Select vendor for VV" });
   if (value.expectedArrival && value.expectedArrival < value.departureDate)

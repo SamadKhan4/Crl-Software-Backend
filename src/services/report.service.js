@@ -1,4 +1,4 @@
-import { hasFullOperationsAccess } from "../utils/access.js";
+import { hasCrossBranchAccess as hasFullOperationsAccess } from "../utils/access.js";
 import mongoose from "mongoose";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
@@ -27,7 +27,7 @@ export const reportQuery = async (query, user) => {
   const filter = buildReportFilter(query, user);
   const [items, counts] = await Promise.all([
     Shipment.find(filter)
-      .select("lrNumber customerId originBranchId destinationBranchId currentStatus packageCount weightKg createdAt")
+      .select("lrNumber lrDetails.from lrDetails.to customerId originBranchId destinationBranchId currentStatus packageCount weightKg createdAt")
       .populate("customerId", "customerCode name companyName")
       .populate("originBranchId destinationBranchId", "branchCode name city")
       .sort(options.sort)
@@ -50,7 +50,7 @@ export const streamShipmentCsv = async (query, user, res) => {
   );
 
   const cursor = Shipment.find(buildReportFilter(query, user))
-    .select("lrNumber customerId originBranchId destinationBranchId currentStatus packageCount weightKg createdAt")
+    .select("lrNumber lrDetails.from lrDetails.to customerId originBranchId destinationBranchId currentStatus packageCount weightKg createdAt")
     .populate("customerId", "name")
     .populate("originBranchId destinationBranchId", "name city")
     .sort({ createdAt: -1, _id: -1 })
@@ -60,7 +60,7 @@ export const streamShipmentCsv = async (query, user, res) => {
     try {
       yield "LR Number,Customer,Origin,Destination,Status,Packages,Weight Kg,Booked At\n";
       for await (const item of cursor) {
-        yield `${[item.lrNumber, item.customerId?.name, item.originBranchId?.name, item.destinationBranchId?.name, item.currentStatus, item.packageCount, item.weightKg, item.createdAt.toISOString()].map(escapeCsv).join(",")}\n`;
+        yield `${[item.lrNumber, item.customerId?.name, item.lrDetails?.from || item.originBranchId?.city || item.originBranchId?.name, item.lrDetails?.to || item.destinationBranchId?.city || item.destinationBranchId?.name, item.currentStatus, item.packageCount, item.weightKg, item.createdAt.toISOString()].map(escapeCsv).join(",")}\n`;
       }
     } finally {
       await cursor.close();

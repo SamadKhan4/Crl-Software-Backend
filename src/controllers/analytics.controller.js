@@ -1,40 +1,24 @@
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { success, successPaginated } from "../utils/response.js";
-import { Branch, Invoice, PackageUnit, Shipment, TmsRegister } from "../models/index.js";
-import { ROLES } from "../constants/workflow.js";
+import { Invoice, PackageUnit, Shipment, TmsRegister } from "../models/index.js";
 import { listActivity } from "../services/activity.service.js";
 import { reportQuery, streamShipmentCsv } from "../services/report.service.js";
 
 export const dashboard = asyncHandler(async (req, res) => {
-  const filter =
-    req.user.role === ROLES.ADMIN
-      ? {}
-      : { $or: [{ originBranchId: req.user.branchId }, { destinationBranchId: req.user.branchId }] };
-  const branchMatch = req.user.role === ROLES.ADMIN ? {} : { branchId: req.user.branchId };
-  const [counts, todayShipments, monthlyShipments, branchWise, packageStats, revenueStats, costStats, vendorPayable] = await Promise.all([
+  const filter = {};
+  const branchMatch = {};
+  const [counts, todayShipments, monthlyShipments, locationWise, packageStats, revenueStats, costStats, vendorPayable] = await Promise.all([
     Shipment.aggregate([{ $match: filter }, { $group: { _id: "$currentStatus", count: { $sum: 1 } } }]),
     Shipment.countDocuments({ ...filter, createdAt: { $gte: new Date(new Date().setHours(0, 0, 0, 0)) } }),
     Shipment.countDocuments({
       ...filter,
       createdAt: { $gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) },
     }),
-    req.user.role !== ROLES.ADMIN
-      ? []
-      : Shipment.aggregate([
-          { $match: filter },
-          { $group: { _id: "$originBranchId", count: { $sum: 1 } } },
-          { $lookup: { from: Branch.collection.name, localField: "_id", foreignField: "_id", as: "branch" } },
-          { $unwind: "$branch" },
-          { $project: { _id: 0, branch: "$branch.name", branchCode: "$branch.branchCode", count: 1 } },
-        ]),
-    PackageUnit.aggregate([
-      ...(req.user.role === ROLES.ADMIN ? [] : [
-        { $lookup: { from: Shipment.collection.name, localField: "shipmentId", foreignField: "_id", as: "shipment" } },
-        { $unwind: "$shipment" },
-        { $match: { $or: [{ "shipment.originBranchId": req.user.branchId }, { "shipment.destinationBranchId": req.user.branchId }] } },
-      ]),
-      { $group: { _id: "$status", count: { $sum: 1 } } },
+    Shipment.aggregate([
+      { $group: { _id: "$lrDetails.from", count: { $sum: 1 } } },
+      { $project: { _id: 0, location: { $ifNull: ["$_id", "Nagpur"] }, count: 1 } },
     ]),
+    PackageUnit.aggregate([{ $group: { _id: "$status", count: { $sum: 1 } } }]),
     Invoice.aggregate([{ $match: { ...branchMatch, status: { $ne: "CANCELLED" } } }, { $group: { _id: null, revenue: { $sum: "$totalAmount" }, outstanding: { $sum: "$balanceAmount" } } }]),
     TmsRegister.aggregate([
       { $match: { ...branchMatch, module: { $in: ["PICKUP", "PTL", "FTL", "HANDLING", "ACCOUNTING"] }, status: { $ne: "CANCELLED" } } },
@@ -58,7 +42,7 @@ export const dashboard = asyncHandler(async (req, res) => {
     cancelled: map.CANCELLED || 0,
     todayShipments,
     monthlyShipments,
-    branchWise,
+    locationWise,
     totalBoxes: packageStats.reduce((sum, item) => sum + item.count, 0),
     outForDeliveryBoxes: packages.OUT_FOR_DELIVERY || 0,
     deliveredBoxes: packages.DELIVERED || 0,

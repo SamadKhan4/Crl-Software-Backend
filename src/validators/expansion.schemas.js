@@ -14,13 +14,14 @@ const documentSchema = z.object({
 
 const masterBaseSchema = z.object({
   type: z.enum(MASTER_TYPES),
-  code: z.string().trim().min(2).max(40),
+  code: z.string().trim().min(2).max(40).optional(),
   name: z.string().trim().min(2).max(180),
   status: z.enum(["ACTIVE", "INACTIVE"]).default("ACTIVE"),
   branchId: objectId.optional(), vendorId: objectId.optional(), driverId: objectId.optional(),
   address: text(500), city: text(100), state: text(100), pincode: z.string().regex(/^\d{6}$/).optional(), zone: text(80),
   latitude: optionalNumber.pipe(z.number().min(-90).max(90).optional()),
   longitude: optionalNumber.pipe(z.number().min(-180).max(180).optional()),
+  fromHubId: objectId.optional(), toHubId: objectId.optional(),
   origin: text(150), destination: text(150), distanceKm: amount.optional(), transitDays: z.coerce.number().int().min(0).max(365).optional(),
   intermediateHubs: z.array(z.string().trim().min(2).max(120)).max(30).default([]),
   vehicleType: text(80), vehicleNumber: text(20), capacityKg: amount.optional(), capacityTon: amount.optional(),
@@ -35,6 +36,7 @@ const masterBaseSchema = z.object({
   documents: z.array(documentSchema).max(50).default([]), notes: text(2000),
 }).strict();
 export const masterSchema = masterBaseSchema.superRefine((value, ctx) => {
+  if (value.type !== "ROUTE" && !value.code) ctx.addIssue({ code: "custom", path: ["code"], message: "Master code is required" });
   if (value.type === "ROUTE" && (!value.origin || !value.destination)) ctx.addIssue({ code: "custom", path: ["origin"], message: "Route requires origin and destination" });
   if (value.type === "LOCATION" && !value.pincode) ctx.addIssue({ code: "custom", path: ["pincode"], message: "Location requires pincode" });
   if (value.type === "VEHICLE" && !value.vehicleNumber) ctx.addIssue({ code: "custom", path: ["vehicleNumber"], message: "Vehicle number is required" });
@@ -133,6 +135,7 @@ export const pickupRequestStatusSchema = z.object({
 }).strict();
 
 export const pickupAgentAssignmentSchema = z.object({
+  route: z.string().trim().min(2).max(250).optional(),
   sourceType: z.enum(["VENDOR", "MARKET"]),
   vendorId: objectId.optional(),
   agentName: z.string().trim().min(2).max(120),
@@ -151,8 +154,8 @@ export const pickupAgentAssignmentSchema = z.object({
 export const pickupRunSheetSchema = z.object({
   pickups: z.array(z.object({
     pickupRequestId: objectId,
-    paymentTerm: z.enum(["PAID", "PREPAID", "CREDIT"]),
-    amount: z.coerce.number().finite().min(0).max(100000000),
+    paymentTerm: z.enum(["PAID", "PREPAID", "CREDIT", "TO_PAY"]).optional(),
+    amount: z.coerce.number().finite().min(0).max(100000000).optional(),
   }).strict()).min(1).refine((entries) => new Set(entries.map((entry) => entry.pickupRequestId)).size === entries.length, "Duplicate LR selected"),
   vendorCategory: z.enum(["TRANSPORTER", "BP_KG"]),
   rateSource: z.enum(["MASTER", "MARKET"]),
@@ -162,7 +165,7 @@ export const pickupRunSheetSchema = z.object({
   vehicleNumber: z.string().trim().toUpperCase().min(4).max(20),
   vehicleType: z.string().trim().min(2).max(80),
   pickupDate: z.coerce.date(),
-  route: z.string().trim().min(2).max(250),
+  route: z.string().trim().min(2).max(250).optional(),
   marketAmount: z.coerce.number().finite().positive().max(100000000).optional(),
   remarks: text(500),
 }).strict().superRefine((value, ctx) => {
@@ -178,8 +181,8 @@ export const pickupRunSheetSchema = z.object({
 
 export const pickupRunSheetPurSchema = z.object({
   pickupRequestId: objectId,
-  paymentTerm: z.enum(["PAID", "PREPAID", "CREDIT"]),
-  amount: z.coerce.number().finite().min(0).max(100000000),
+  paymentTerm: z.enum(["PAID", "PREPAID", "CREDIT", "TO_PAY"]).optional(),
+  amount: z.coerce.number().finite().min(0).max(100000000).optional(),
 }).strict();
 
 export const pickupRunSheetApprovalSchema = z.object({

@@ -8,7 +8,7 @@ import { allow } from "../middlewares/auth.js";
 
 const router = Router();
 const adminManager = allow(ROLES.ADMIN, ROLES.MANAGER);
-router.get("/customers/lookup", validate(v.listSchema, "query"), c.lookupCustomers);
+router.get("/customers/lookup", validate(v.customerLookupSchema, "query"), c.lookupCustomers);
 router.post("/customers", adminManager, validate(v.customerSchema), c.createCustomer);
 router.get("/customers", adminManager, validate(v.listSchema, "query"), c.listCustomers);
 router.get("/customers/code/:customerCode", adminManager, validate(v.customerCodeParams, "params"), c.getCustomerByCode);

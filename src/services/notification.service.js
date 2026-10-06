@@ -1,4 +1,4 @@
-import { hasFullOperationsAccess } from "../utils/access.js";
+import { hasCrossBranchAccess as hasFullOperationsAccess } from "../utils/access.js";
 import { Customer, Notification } from "../models/index.js";
 import { NotFoundError } from "../utils/errors.js";
 import { listQuery, paginated } from "../utils/query.js";

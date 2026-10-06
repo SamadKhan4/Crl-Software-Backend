@@ -78,12 +78,13 @@ export async function listCustomers(query) {
 
 export async function lookupCustomers(query) {
   const filter = { status: ACTIVE.ACTIVE };
+  if (query.customerType) filter.customerType = query.customerType;
   if (query.search)
     filter.$or = ["customerCode", "name", "companyName", "mobile"].map((field) => ({
       [field]: { $regex: escapeSearch(query.search), $options: "i" },
     }));
   return Customer.find(filter)
-    .select("customerCode customerType name companyName mobile address pincode gstNumber creditRateCard creditCharges")
+    .select("customerCode customerType name companyName mobile address city state pincode gstNumber creditRateCard creditCharges")
     .sort({ name: 1, _id: 1 })
     .limit(Math.min(Number(query.limit) || 3, 3))
     .lean();

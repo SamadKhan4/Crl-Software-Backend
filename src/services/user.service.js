@@ -30,7 +30,7 @@ const activeBranch = async (branchId, session) => {
 };
 
 const managedRole = (req) => req.managementRole || ROLES.EMPLOYEE;
-const assertManagement = (req, target, branchId = target?.branchId) => {
+const assertManagement = (req, target) => {
   if (req.user.role === ROLES.ADMIN) {
     if (target && target.role !== managedRole(req)) throw new AuthorizationError("Account is outside this directory");
     return;
@@ -43,11 +43,9 @@ const assertManagement = (req, target, branchId = target?.branchId) => {
   if (
     req.user.role !== ROLES.MANAGER ||
     managedRole(req) !== ROLES.EMPLOYEE ||
-    (target && target.role !== ROLES.EMPLOYEE) ||
-    !req.user.branchId ||
-    String(branchId?._id ?? branchId) !== String(req.user.branchId)
+    (target && target.role !== ROLES.EMPLOYEE)
   )
-    throw new AuthorizationError("Managers can manage employees only in their assigned branch");
+    throw new AuthorizationError("Managers can manage employee accounts only");
 };
 const findUser = async (id, req, session = null) => {
   const user = await User.findById(id).session(session);

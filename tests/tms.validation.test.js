@@ -109,10 +109,11 @@ describe("TMS request validation", () => {
 
   test("validates the connected Middle Mile request contracts", () => {
     expect(middleMileInwardSchema.safeParse({ lrNumber: "LR-1001", nextHubId: id }).success).toBe(true);
-    expect(middleMileSortingSchema.safeParse({ shipmentIds: [id], nextHubId: otherId, sortZone: "A-01" }).success).toBe(true);
-    expect(loadingTallySchema.safeParse({ segregationId: id, loadingBay: "BAY-1" }).success).toBe(true);
-    expect(middleMileManifestSchema.safeParse({ loadingTallyId: id }).success).toBe(true);
+    expect(middleMileSortingSchema.safeParse({ shipmentIds: [id], routeId: otherId }).success).toBe(true);
+    expect(loadingTallySchema.safeParse({ routeId: id, segregationId: otherId, loadingBay: "Bay 1", vehicleType: "Truck", vehicleCapacityKg: 1000 }).success).toBe(true);
+    expect(middleMileManifestSchema.safeParse({ loadingTallyId: id, verifiedShipmentIds: [otherId] }).success).toBe(true);
     expect(middleMileTripSchema.safeParse({
+      routeId: id, destination: "Mumbai", sealNumber: "SEAL-001", freightAmount: 5000,
       manifestIds: [id], vehicleSource: "MV", vehicleNumber: "MH31AB1234", driverName: "Driver Name",
       departureDate: "2026-09-28T10:00:00.000Z",
     }).success).toBe(true);
@@ -131,3 +132,23 @@ describe("TMS request validation", () => {
     expect(deliveryAttemptSchema.safeParse({ outcome: "UNKNOWN" }).success).toBe(false);
   });
 });
+
+test("requires route LRs, verified manifest LRs, trip seal and MV cost", () => {
+  expect(loadingTallySchema.safeParse({ routeId: id, shipmentIds: [] }).success).toBe(false);
+  expect(loadingTallySchema.safeParse({ routeId: id, shipmentIds: [otherId, otherId] }).success).toBe(false);
+  expect(middleMileManifestSchema.safeParse({ loadingTallyId: id, verifiedShipmentIds: [] }).success).toBe(false);
+  const trip = { routeId: id, destination: "Mumbai", sealNumber: "SEAL-1", manifestIds: [id], vehicleSource: "MV", vehicleNumber: "MH31AB1234", driverName: "Driver", departureDate: "2026-10-05", freightAmount: 100 };
+  expect(middleMileTripSchema.safeParse(trip).success).toBe(true);
+  expect(middleMileTripSchema.safeParse({ ...trip, freightAmount: 0 }).success).toBe(false);
+  expect(middleMileTripSchema.safeParse({ ...trip, sealNumber: "" }).success).toBe(false);
+});
+
+ test("city sorting and tally do not require a route; trip does", () => {
+  expect(middleMileSortingSchema.safeParse({ destination: "Mumbai", destinationPincode: "400001", shipmentIds: [id] }).success).toBe(true);
+  expect(middleMileSortingSchema.safeParse({ destination: "Mumbai", destinationPincode: "4000", shipmentIds: [id] }).success).toBe(false);
+  expect(middleMileSortingSchema.safeParse({ shipmentIds: [id] }).success).toBe(false);
+  expect(loadingTallySchema.safeParse({ segregationId: id, loadingBay: "Bay 1", vehicleType: "Truck", vehicleCapacityKg: 1000 }).success).toBe(true);
+  const trip = { destination: "Mumbai", sealNumber: "SEAL", manifestIds: [id], vehicleSource: "MV", vehicleNumber: "MH31AB1234", driverName: "Driver", departureDate: "2026-10-06", freightAmount: 100 };
+  expect(middleMileTripSchema.safeParse(trip).success).toBe(false);
+  expect(middleMileTripSchema.safeParse({ ...trip, routeId: id }).success).toBe(true);
+ });

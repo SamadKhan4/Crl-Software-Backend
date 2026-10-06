@@ -1,4 +1,4 @@
-import { hasFullOperationsAccess } from "../utils/access.js";
+import { hasFullOperationsAccess, hasCrossBranchAccess } from "../utils/access.js";
 import crypto from "node:crypto";
 import mongoose from "mongoose";
 import { ACTIVE, DOCUMENT_STATUS, ROLES, SHIPMENT_STATUS, TRANSITIONS } from "../constants/workflow.js";
@@ -54,11 +54,11 @@ const getShipment = async (id, session) => {
   return shipment;
 };
 const assertBranch = (user, branchId, message = "You are not authorized for this branch operation") => {
-  if (!isAdmin(user) && user?.branchId?.toString() !== (branchId?._id ?? branchId)?.toString())
+  if (!hasCrossBranchAccess(user) && user?.branchId?.toString() !== (branchId?._id ?? branchId)?.toString())
     throw new AuthorizationError(message);
 };
 const assertShipmentBranchAccess = (user, shipment, operation) => {
-  if (isAdmin(user)) return;
+  if (hasCrossBranchAccess(user)) return;
   const branchId = operation === "origin" ? shipment.originBranchId : shipment.destinationBranchId;
   assertBranch(user, branchId);
 };
@@ -109,8 +109,12 @@ const canonicalValue = (value) => {
 };
 const matchesCreatePayload = (shipment, data) => {
   const prior = shipment.toObject?.() ?? shipment;
-  const savedPayload = Object.fromEntries(Object.keys(data).map((key) => [key, prior[key]]));
-  return JSON.stringify(canonicalValue(savedPayload)) === JSON.stringify(canonicalValue(data));
+  // Compare using the same schema defaults and casting applied during persistence.
+  const normalized = new Shipment(data).toObject();
+  const keys = Object.keys(data);
+  const savedPayload = Object.fromEntries(keys.map((key) => [key, prior[key]]));
+  const requestedPayload = Object.fromEntries(keys.map((key) => [key, normalized[key]]));
+  return JSON.stringify(canonicalValue(savedPayload)) === JSON.stringify(canonicalValue(requestedPayload));
 };
 const lrDetailsAuditSummary = (lrDetails) => ({
   fields: Object.keys(lrDetails?.toObject?.() ?? lrDetails ?? {}).sort(),
@@ -200,7 +204,7 @@ const validatePickupRequestForLr = async (data, user, session) => {
   if (!data.pickupRequestId) return null;
   const pickupRequest = await PickupRequest.findById(data.pickupRequestId).session(session);
   if (!pickupRequest) throw new NotFoundError("Pickup request not found", "PICKUP_REQUEST_NOT_FOUND");
-  if (!isAdmin(user) && String(pickupRequest.branchId) !== String(user.branchId))
+  if (!hasCrossBranchAccess(user) && String(pickupRequest.branchId) !== String(user.branchId))
     throw new AuthorizationError("You cannot create an LR for another branch pickup request");
   if (pickupRequest.status !== "PENDING")
     throw new ConflictError("LR can be created only for a pending pickup request", "PICKUP_REQUEST_NOT_PENDING");
@@ -208,8 +212,6 @@ const validatePickupRequestForLr = async (data, user, session) => {
     throw new ConflictError("Complete agent alignment before creating the LR", "PICKUP_AGENT_NOT_ASSIGNED");
   if (pickupRequest.shipmentId)
     throw new ConflictError("LR has already been created for this pickup request", "PICKUP_REQUEST_ALREADY_LINKED");
-  if (pickupRequest.branchId && String(pickupRequest.branchId) !== String(data.originBranchId))
-    throw new ConflictError("LR origin branch must match the pickup request branch", "PICKUP_BRANCH_MISMATCH");
   if (pickupRequest.customerId && String(pickupRequest.customerId) !== String(data.customerId))
     throw new ConflictError("Select the same customer used in the pickup request", "PICKUP_CUSTOMER_MISMATCH");
   if (
@@ -254,7 +256,7 @@ export async function createShipment(data, req, idempotencyKey) {
             {
               ...data,
               idempotencyKey,
-              currentLocation: origin.name,
+              currentLocation: data.lrDetails?.from || origin.city || origin.name,
               createdBy: req.user._id,
             },
           ],
@@ -265,7 +267,7 @@ export async function createShipment(data, req, idempotencyKey) {
         session,
         shipment,
         SHIPMENT_STATUS.BOOKED,
-        origin.name,
+        data.lrDetails?.from || origin.city || origin.name,
         origin._id,
         "Shipment booked",
         req.user._id,
@@ -309,7 +311,7 @@ export async function createShipment(data, req, idempotencyKey) {
 export async function listShipments(query, user) {
   const options = listQuery(query);
   const filter = {};
-  if (!isAdmin(user)) {
+  if (!hasCrossBranchAccess(user)) {
     if (!user.branchId) return paginated([], 0, options);
     filter.$or = [{ originBranchId: user.branchId }, { destinationBranchId: user.branchId }];
   }
@@ -322,7 +324,7 @@ export async function listShipments(query, user) {
     });
   if (query.lrNumber) criteria.push({ lrNumber: query.lrNumber.toUpperCase() });
   if (query.status) criteria.push({ currentStatus: query.status });
-  for (const field of ["customerId", "originBranchId", "destinationBranchId"])
+  for (const field of ["customerId"])
     if (query[field]) criteria.push({ [field]: query[field] });
   if (query.dateFrom || query.dateTo)
     criteria.push({
@@ -332,7 +334,7 @@ export async function listShipments(query, user) {
   const [items, total] = await Promise.all([
     Shipment.find(filter)
       .select(
-        "lrNumber customerId originBranchId destinationBranchId currentStatus currentLocation senderName receiverName packageCount weightKg expectedDeliveryDate createdAt",
+        "lrNumber lrDetails.from lrDetails.to customerId originBranchId destinationBranchId currentStatus currentLocation senderName receiverName packageCount weightKg expectedDeliveryDate createdAt",
       )
       .populate("customerId", "customerCode name companyName")
       .populate("originBranchId destinationBranchId", "branchCode name city")
@@ -796,8 +798,8 @@ export async function publicTrack(lrNumber) {
     .lean();
   return {
     lrNumber: shipment.lrNumber,
-    origin: shipment.originBranchId?.city,
-    destination: shipment.destinationBranchId?.city,
+    origin: shipment.lrDetails?.from || shipment.originBranchId?.city,
+    destination: shipment.lrDetails?.to || shipment.destinationBranchId?.city,
     status: shipment.currentStatus,
     lrUploadEligible: shipment.currentStatus === SHIPMENT_STATUS.RECEIVED,
     currentLocation: shipment.currentLocation,

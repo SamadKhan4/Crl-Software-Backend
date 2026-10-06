@@ -1,4 +1,4 @@
-import { hasFullOperationsAccess } from "../utils/access.js";
+import { hasCrossBranchAccess as hasFullOperationsAccess } from "../utils/access.js";
 import mongoose from "mongoose";
 import { ACTIVE } from "../constants/workflow.js";
 import { Branch, Customer, Notification, PickupRequest, Shipment, Vendor } from "../models/index.js";
@@ -85,7 +85,7 @@ export async function listPickupRequests(query, user) {
   const [items, total] = await Promise.all([
     PickupRequest.find(filter)
       .populate("branchId", "branchCode name city")
-      .populate("customerId", "customerCode name companyName")
+      .populate("customerId", "customerCode customerType name companyName")
       .populate("createdBy", "name employeeCode")
       .populate("agentAssignment.vendorId", "vendorCode name contactPerson mobile vehicles")
       .populate("shipmentId", "lrNumber currentStatus")

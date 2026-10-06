@@ -1,4 +1,6 @@
-import { hasFullOperationsAccess } from "../utils/access.js";
+import { sameLocation } from "../utils/locations.js";
+import { generateBusinessNumber } from "../utils/ids.js";
+import { hasCrossBranchAccess as hasFullOperationsAccess } from "../utils/access.js";
 import mongoose from "mongoose";
 import {
   BusinessMaster,
@@ -22,9 +24,17 @@ const scope = (user) =>
     ? {}
     : { $or: [{ branchId: user.branchId }, { branchId: { $exists: false } }, { branchId: null }] };
 
+async function prepareRoute(data) {
+  if (data.type !== "ROUTE") return data;
+  if (sameLocation(data.origin, data.destination)) throw new BusinessRuleError("Origin and destination must differ", "INVALID_ROUTE_LOCATIONS");
+  return { ...data, ...(data.distanceKm != null && { distanceStatus: "MANUAL" }) };
+}
+
 export async function createMaster(data, req) {
   try {
-    const record = await BusinessMaster.create({ ...data, code: data.code.toUpperCase(), createdBy: req.user._id });
+    data = await prepareRoute(data);
+    const code = data.code || await generateBusinessNumber("route", "RTE");
+    const record = await BusinessMaster.create({ ...data, code: code.toUpperCase(), createdBy: req.user._id });
     await audit(null, req, "MASTER_CREATED", "BusinessMaster", record._id, null, { name: record.name, type: record.type, code: record.code });
     return dto(record);
   } catch (error) {
@@ -57,6 +67,10 @@ export async function updateMaster(id, data, req) {
   const record = await BusinessMaster.findOne({ _id: id, ...scope(req.user) });
   if (!record) throw new NotFoundError("Master record not found", "MASTER_NOT_FOUND");
   const before = { name: record.name, status: record.status, code: record.code };
+  if (record.type === "ROUTE" && ["origin", "destination", "fromHubId", "toHubId", "intermediateHubs"].some((key) => data[key] !== undefined)) {
+    data = await prepareRoute({ ...record.toObject(), ...data });
+  }
+  if (record.type === "ROUTE" && data.distanceKm != null) data.distanceStatus = "MANUAL";
   Object.assign(record, data, { updatedBy: req.user._id });
   if (data.code) record.code = data.code.toUpperCase();
   try {
@@ -112,6 +126,7 @@ export async function updateRateCard(id, data, req) {
   const record = await RateCard.findById(id);
   if (!record) throw new NotFoundError("Rate card not found", "RATE_CARD_NOT_FOUND");
   const before = { code: record.code, rate: record.rate, status: record.status };
+  if (record.type === "ROUTE" && data.distanceKm != null) data.distanceStatus = "MANUAL";
   Object.assign(record, data, { updatedBy: req.user._id });
   await record.save();
   await audit(null, req, "RATE_CARD_UPDATED", "RateCard", record._id, before, { code: record.code, rate: record.rate, status: record.status });

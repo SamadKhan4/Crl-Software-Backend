@@ -1,7 +1,8 @@
-import { hasFullOperationsAccess } from "../utils/access.js";
+import { operationsOffice } from "./operations-office.service.js";
+import { hasCrossBranchAccess as hasFullOperationsAccess } from "../utils/access.js";
 import mongoose from "mongoose";
 import { LAST_MILE_STATE, MIDDLE_MILE_STATE, SHIPMENT_STATUS, TRACKING_EVENT_STATUS } from "../constants/workflow.js";
-import { Branch, DeliveryRunSheet, MovementLeg, PackageUnit, Shipment, ShipmentEvent, Trip, UnloadingTally, User } from "../models/index.js";
+import { DeliveryRunSheet, MovementLeg, PackageUnit, Shipment, ShipmentEvent, Trip, UnloadingTally, User } from "../models/index.js";
 import { AuthorizationError, BusinessRuleError, ConflictError, NotFoundError } from "../utils/errors.js";
 import { generateBusinessNumber } from "../utils/ids.js";
 import { escapeSearch, listQuery, paginated } from "../utils/query.js";
@@ -45,9 +46,8 @@ export async function createUnloadingTally(data, req) {
       const trip = await Trip.findOne({ _id: data.tripId, tripType: "MIDDLE_MILE", status: "ARRIVED" }).session(session);
       if (!trip) throw new NotFoundError("Arrived trip not found", "ARRIVED_TRIP_NOT_FOUND");
       const branchId = branchFor(data.branchId || trip.toHubId, req.user);
-      if (id(branchId) !== id(trip.toHubId)) throw new AuthorizationError("Unloading must happen at the trip destination hub");
       if (await UnloadingTally.exists({ tripId: trip._id }).session(session)) throw new ConflictError("Unloading tally already exists for this trip", "UNLOADING_TALLY_EXISTS");
-      const shipments = await Shipment.find({ _id: { $in: trip.shipmentIds }, destinationBranchId: trip.toHubId, lastMileState: LAST_MILE_STATE.ARRIVED }).session(session);
+      const shipments = await Shipment.find({ _id: { $in: trip.shipmentIds }, lastMileState: LAST_MILE_STATE.ARRIVED }).session(session);
       if (!shipments.length) throw new BusinessRuleError("Trip has no final-destination LR for Last Mile", "NO_LAST_MILE_SHIPMENTS");
       tally = (await UnloadingTally.create([{
         tallyNumber: await generateBusinessNumber("unloading-tally", "UT", session), tripId: trip._id, branchId,
@@ -158,15 +158,17 @@ export async function destinationInward(recordId, data, req) {
       tally = await UnloadingTally.findById(recordId).session(session);
       if (!tally) throw new NotFoundError("Unloading tally not found", "UNLOADING_TALLY_NOT_FOUND"); assertBranch(tally, req.user);
       if (tally.status !== "READY_FOR_INWARD" || tally.items.some((row) => row.qcStatus !== "PASSED")) throw new ConflictError("Every LR must pass QC before destination inward", "QC_INCOMPLETE");
-      const [branch, shipments] = await Promise.all([Branch.findById(tally.branchId).session(session), Shipment.find({ _id: { $in: tally.shipmentIds } }).session(session)]);
+      const [trip, shipments] = await Promise.all([Trip.findById(tally.tripId).session(session), Shipment.find({ _id: { $in: tally.shipmentIds } }).session(session)]);
+      const destination = trip?.destination || shipments[0]?.currentLocation;
+      if (!destination) throw new ConflictError("Trip destination is missing", "DESTINATION_REQUIRED");
       const now = new Date();
       for (const shipment of shipments) {
         shipment.currentStatus = SHIPMENT_STATUS.RECEIVED; shipment.currentHubId = tally.branchId; shipment.receivingBranchId = tally.branchId;
-        shipment.currentLocation = branch?.name || "Destination hub"; shipment.movementState = MIDDLE_MILE_STATE.LAST_MILE_READY;
+        shipment.currentLocation = destination; shipment.movementState = MIDDLE_MILE_STATE.LAST_MILE_READY;
         shipment.lastMileState = LAST_MILE_STATE.DESTINATION_INWARDED; shipment.receivedAt = now; shipment.receivedBy = req.user._id;
         shipment.destinationInwardAt = now; shipment.destinationInwardBy = req.user._id; await shipment.save({ session });
       }
-      await PackageUnit.updateMany({ shipmentId: { $in: tally.shipmentIds } }, { $set: { status: "HUB_INWARD", currentLocation: branch?.name || "Destination hub", currentCustodianType: "BRANCH", currentCustodianId: id(tally.branchId) } }, { session });
+      await PackageUnit.updateMany({ shipmentId: { $in: tally.shipmentIds } }, { $set: { status: "HUB_INWARD", currentLocation: destination, currentCustodianType: "BRANCH", currentCustodianId: id(tally.branchId) } }, { session });
       tally.status = "INWARDED"; tally.inwardedAt = now; tally.inwardedBy = req.user._id; tally.remarks = data.remarks || tally.remarks; await tally.save({ session });
       await Trip.updateOne({ _id: tally.tripId }, { $set: { status: "CLOSED", workflowStatus: "CLOSED" } }, { session });
       await MovementLeg.updateMany({ tripId: tally.tripId, shipmentId: { $in: tally.shipmentIds } }, { $set: { status: MIDDLE_MILE_STATE.LAST_MILE_READY, completedAt: now } }, { session });
@@ -176,24 +178,21 @@ export async function destinationInward(recordId, data, req) {
   } finally { await session.endSession(); }
 }
 
-export async function drsInventory(query, user) {
-  const options = listQuery(query); const branchId = isAdmin(user) && !query.branchId ? null : branchFor(query.branchId, user);
-  const filter = { ...(branchId && { destinationBranchId: branchId }), lastMileState: LAST_MILE_STATE.DESTINATION_INWARDED, activeDrsId: { $exists: false }, currentStatus: SHIPMENT_STATUS.RECEIVED };
+export async function drsInventory(query, _user) {
+  const options = listQuery(query);
+  const filter = { lastMileState: LAST_MILE_STATE.DESTINATION_INWARDED, activeDrsId: { $exists: false }, currentStatus: SHIPMENT_STATUS.RECEIVED };
   if (query.search) filter.$or = ["lrNumber", "receiverName", "receiverMobile"].map((key) => ({ [key]: { $regex: escapeSearch(query.search), $options: "i" } }));
   const [items, total] = await Promise.all([Shipment.find(filter).sort(options.sort).skip(options.skip).limit(options.limit).lean(), Shipment.countDocuments(filter)]);
   return paginated(items.map(dto), total, options);
 }
 
 export async function createDrs(data, req) {
-  let branchId = isAdmin(req.user) && !data.branchId ? null : branchFor(data.branchId, req.user); const session = await mongoose.startSession();
+  const branchId = (await operationsOffice())._id; const session = await mongoose.startSession();
   try {
     let drs;
     await session.withTransaction(async () => {
-      const shipments = await Shipment.find({ _id: { $in: data.shipmentIds }, ...(branchId && { destinationBranchId: branchId }), lastMileState: LAST_MILE_STATE.DESTINATION_INWARDED, currentStatus: SHIPMENT_STATUS.RECEIVED, activeDrsId: { $exists: false } }).session(session);
+      const shipments = await Shipment.find({ _id: { $in: data.shipmentIds }, lastMileState: LAST_MILE_STATE.DESTINATION_INWARDED, currentStatus: SHIPMENT_STATUS.RECEIVED, activeDrsId: { $exists: false } }).session(session);
       if (shipments.length !== data.shipmentIds.length) throw new ConflictError("One or more LRs are not available or already assigned to a DRS", "SHIPMENT_ALREADY_ON_DRS");
-      branchId ||= shipments[0]?.destinationBranchId;
-      if (!branchId || shipments.some((row) => id(row.destinationBranchId) !== id(branchId)))
-        throw new BusinessRuleError("Select LRs from the same destination branch for one DRS", "DRS_BRANCH_MISMATCH");
       if (data.deliveryAgentId) {
         const agent = await User.findOne({ _id: data.deliveryAgentId, role: "EMPLOYEE", status: "ACTIVE", ...(!isAdmin(req.user) && { branchId }) }).session(session);
         if (!agent) throw new BusinessRuleError(isAdmin(req.user) ? "Select an active employee as delivery agent" : "Select an active delivery agent from this branch", "INVALID_DELIVERY_AGENT");

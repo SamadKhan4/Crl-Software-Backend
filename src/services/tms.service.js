@@ -1,4 +1,4 @@
-import { hasFullOperationsAccess } from "../utils/access.js";
+import { hasFullOperationsAccess, hasCrossBranchAccess } from "../utils/access.js";
 import mongoose from "mongoose";
 import { ACTIVE, DOCUMENT_STATUS, LAST_MILE_STATE, SHIPMENT_STATUS, TRACKING_EVENT_STATUS } from "../constants/workflow.js";
 import {
@@ -45,21 +45,21 @@ const summary = (record) => ({
 });
 
 const branchFor = (data, req) => {
-  const branchId = isAdmin(req.user) ? data.branchId : req.user.branchId;
+  const branchId = hasCrossBranchAccess(req.user) ? data.branchId : req.user.branchId;
   if (!branchId) throw new BusinessRuleError("Select an operating branch", "BRANCH_REQUIRED");
-  if (!isAdmin(req.user) && data.branchId && id(data.branchId) !== id(req.user.branchId))
+  if (!hasCrossBranchAccess(req.user) && data.branchId && id(data.branchId) !== id(req.user.branchId))
     throw new AuthorizationError("You can only create records for your assigned branch");
   return branchId;
 };
 
 const assertBranchAccess = (record, user) => {
-  if (!isAdmin(user) && id(record.branchId) !== id(user.branchId))
+  if (!hasCrossBranchAccess(user) && id(record.branchId) !== id(user.branchId))
     throw new AuthorizationError("You can only access records for your assigned branch");
 };
 
 const populate = (query, paths) => paths.reduce((result, path) => result.populate(path), query);
 const scope = (query, user) => {
-  if (!isAdmin(user)) return { branchId: user.branchId };
+  if (!hasCrossBranchAccess(user)) return { branchId: user.branchId };
   return query.branchId ? { branchId: query.branchId } : {};
 };
 const createdRange = (query) => {
@@ -90,13 +90,11 @@ async function get(Model, recordId, user, paths = [], global = false) {
   return dto(record);
 }
 
-const assertShipments = async (shipmentIds, branchId, branchField, allowedStatuses, session) => {
+const assertShipments = async (shipmentIds, _branchId, _branchField, allowedStatuses, session) => {
   const shipments = await Shipment.find({ _id: { $in: shipmentIds } }).session(session);
   if (shipments.length !== shipmentIds.length)
     throw new BusinessRuleError("One or more selected LRs do not exist", "INVALID_SHIPMENT_SELECTION");
   for (const shipment of shipments) {
-    if (id(shipment[branchField]) !== id(branchId))
-      throw new AuthorizationError("All selected LRs must belong to the operating branch");
     if (!allowedStatuses.includes(shipment.currentStatus))
       throw new ConflictError(`LR ${shipment.lrNumber} is not eligible for this operation`, "SHIPMENT_NOT_ELIGIBLE");
   }
@@ -210,13 +208,10 @@ export async function segregationOptions(query, user) {
     .limit(Math.min(Number(query.limit) || 100, 100))
     .lean();
 }
-export async function segregationInventory(query, user) {
+export async function segregationInventory(query, _user) {
   const options = listQuery(query);
-  const branchId = isAdmin(user) ? query.branchId : user.branchId;
-  if (!branchId) return paginated([], 0, options);
-  const assigned = await Segregation.distinct("shipmentIds", { branchId, status: "READY" });
+  const assigned = await Segregation.distinct("shipmentIds", { status: "READY" });
   const filter = {
-    originBranchId: branchId,
     currentStatus: SHIPMENT_STATUS.BOOKED,
     _id: { $nin: assigned },
   };
@@ -852,12 +847,10 @@ export async function createMoneyReceipt(data, req) {
       for (const shipment of shipments) {
         if (id(shipment.customerId) !== id(data.customerId))
           throw new BusinessRuleError("All selected LRs must belong to the receipt customer", "RECEIPT_CUSTOMER_MISMATCH");
-        if (id(shipment.originBranchId) !== id(branchId) && id(shipment.destinationBranchId) !== id(branchId))
-          throw new AuthorizationError("All selected LRs must belong to the operating branch");
       }
       for (const allocation of data.allocations) {
         const invoice = await Invoice.findById(allocation.invoiceId).session(session);
-        if (!invoice || id(invoice.customerId) !== id(data.customerId) || id(invoice.branchId) !== id(branchId))
+        if (!invoice || id(invoice.customerId) !== id(data.customerId))
           throw new BusinessRuleError("Invalid invoice allocation", "INVALID_INVOICE_ALLOCATION");
         if (!["ISSUED", "PART_PAID"].includes(invoice.status) || allocation.amount > invoice.balanceAmount)
           throw new ConflictError("Allocation exceeds invoice outstanding", "ALLOCATION_EXCEEDS_BALANCE");
@@ -937,7 +930,7 @@ export async function updateQuotationStatus(recordId, data, req) {
   const quotation = await Quotation.findById(recordId);
   if (!quotation) throw new NotFoundError("Quotation not found", "QUOTATION_NOT_FOUND");
   if (quotation.branchId) assertBranchAccess(quotation, req.user);
-  if (!quotation.branchId && !isAdmin(req.user)) quotation.branchId = req.user.branchId;
+  if (!quotation.branchId && !hasCrossBranchAccess(req.user)) quotation.branchId = req.user.branchId;
   const before = summary(quotation);
   Object.assign(quotation, data);
   quotation.totalAmount = quotationTotal(quotation.estimatedFreight, quotation.gstRate);

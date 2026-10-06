@@ -1,4 +1,4 @@
-import { hasFullOperationsAccess } from "../utils/access.js";
+import { hasCrossBranchAccess, hasFullOperationsAccess } from "../utils/access.js";
 import { ACTIVE } from "../constants/workflow.js";
 import { Branch } from "../models/index.js";
 import { AuthorizationError, ConflictError, NotFoundError } from "../utils/errors.js";
@@ -27,7 +27,7 @@ export async function createBranch(data, req) {
 }
 export async function listBranches(query, user) {
   const options = listQuery(query);
-  const filter = hasFullOperationsAccess(user) ? {} : { _id: user.branchId };
+  const filter = hasCrossBranchAccess(user) ? {} : { _id: user.branchId };
   if (query.status) filter.status = query.status;
   if (query.search)
     filter.$or = ["branchCode", "name", "city", "pincode", "address"].map((field) => ({
@@ -40,7 +40,7 @@ export async function listBranches(query, user) {
   return paginated(items.map(dto), total, options);
 }
 export async function getBranch(id, user) {
-  if (!hasFullOperationsAccess(user) && user.branchId?.toString() !== id)
+  if (!hasCrossBranchAccess(user) && user.branchId?.toString() !== id)
     throw new AuthorizationError("You can only access your assigned branch");
   return dto(await find(id));
 }

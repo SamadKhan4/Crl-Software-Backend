@@ -2,7 +2,7 @@ import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
 import { ACTIVE, ROLES } from "../constants/workflow.js";
 import { Branch, EmployeeOnboarding, User } from "../models/index.js";
-import { AuthorizationError, ConflictError, NotFoundError } from "../utils/errors.js";
+import { ConflictError, NotFoundError } from "../utils/errors.js";
 import { generateBusinessNumber, generateEmployeeCode } from "../utils/ids.js";
 import { escapeSearch, listQuery, paginated } from "../utils/query.js";
 import { audit } from "./audit.service.js";
@@ -10,11 +10,8 @@ import { storageService } from "./storage.service.js";
 import { userDto } from "./user.service.js";
 
 const dto = (record) => ({ ...(record.toObject?.() ?? record), id: record._id });
-const scope = (user) => user.role === ROLES.MANAGER ? { branchId: user.branchId } : {};
-const assertAccess = (record, user) => {
-  if (user.role === ROLES.MANAGER && String(record.branchId?._id ?? record.branchId) !== String(user.branchId))
-    throw new AuthorizationError("This onboarding record belongs to another branch");
-};
+const scope = () => ({});
+const assertAccess = () => {};
 
 export async function createOnboarding(data, req) {
   if (!(await Branch.exists({ _id: data.branchId, status: ACTIVE.ACTIVE })))

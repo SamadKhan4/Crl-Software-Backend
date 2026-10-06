@@ -48,6 +48,7 @@ export const tripStatus = asyncHandler(async (req, res) =>
 
 export const middleMileHubInward = create("Shipment inwarded at hub", middleMile.hubInward);
 export const middleMileSortingInventory = list("Middle Mile sorting inventory fetched", middleMile.sortingInventory);
+export const listMiddleMileSortings = list("Sorted LR batches fetched", middleMile.listSortings);
 export const createMiddleMileSorting = create("Shipment sorting completed", middleMile.createSorting);
 export const middleMileShipmentHold = asyncHandler(async (req, res) =>
   success(res, 200, `Shipment ${req.body.action.toLowerCase()} completed`, await middleMile.setShipmentHold(req.params.id, req.body, req)),
