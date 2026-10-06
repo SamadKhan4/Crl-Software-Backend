@@ -8,6 +8,8 @@ const purEntrySchema = new Schema(
     pickupRequestId: { ...objectId, ref: "PickupRequest", required: true },
     shipmentId: { ...objectId, ref: "Shipment", required: true },
     lrNumber: { type: String, trim: true },
+    weightKg: { type: Number, min: 0 },
+    packageCount: { type: Number, min: 0 },
     clientName: { type: String, trim: true },
     destination: { type: String, trim: true },
     paymentTerm: { type: String, enum: ["PAID", "PREPAID", "CREDIT", "TO_PAY"], required: true },

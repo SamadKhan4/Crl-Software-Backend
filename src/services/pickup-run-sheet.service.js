@@ -139,7 +139,7 @@ async function attachPickup(sheet, data, req, session) {
   const amount = shipment.lrDetails?.totalAmount ?? data.amount ?? 0;
   sheet.pickupRequestIds.push(pickup._id);
   sheet.shipmentIds.push(pickup.shipmentId);
-  sheet.purEntries.push({ pickupRequestId: pickup._id, shipmentId: pickup.shipmentId, lrNumber: shipment.lrNumber, clientName: shipment.customerId?.companyName || shipment.customerId?.name || shipment.senderName, destination: shipment.lrDetails?.to || pickup.recipient?.city, paymentTerm, amount, addedBy: req.user._id });
+  sheet.purEntries.push({ pickupRequestId: pickup._id, shipmentId: pickup.shipmentId, lrNumber: shipment.lrNumber, weightKg: shipment.weightKg, packageCount: shipment.packageCount, clientName: shipment.customerId?.companyName || shipment.customerId?.name || shipment.senderName, destination: shipment.lrDetails?.to || pickup.recipient?.city, paymentTerm, amount, addedBy: req.user._id });
   sheet.totalBoxes += Number(shipment.packageCount || 0);
   sheet.totalWeightKg += Number(shipment.weightKg || 0);
   sheet.vendorPayableAmount = calculateVendorAmount(sheet);
