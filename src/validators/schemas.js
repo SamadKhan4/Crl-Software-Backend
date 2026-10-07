@@ -549,6 +549,7 @@ export const middleMileSortingSchema = z.object({
 }).strict().refine((value) => value.destination || value.routeId, { message: "Select a destination city", path: ["destination"] });
 
 export const loadingTallySchema = z.object({
+  shipmentIds: shipmentIdList.optional(),
   routeId: objectId.optional(),
   segregationId: objectId,
   loadingBay: z.string().trim().min(1).max(80),

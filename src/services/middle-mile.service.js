@@ -263,7 +263,10 @@ export async function createLoadingTally(data, req) {
       const branchId = from._id;
       const segregation = await Segregation.findOne({ _id: data.segregationId, status: "READY", loadingTallyId: { $exists: false } }).session(session);
       if (!segregation || await LoadingTally.exists({ segregationId: data.segregationId }).session(session)) throw new ConflictError("Select an available sorted LR batch for this destination", "SORTING_NOT_AVAILABLE");
-      const shipmentIds = segregation.shipmentIds;
+      const availableIds = new Set(segregation.shipmentIds.map(id));
+      const shipmentIds = data.shipmentIds || segregation.shipmentIds;
+      if (!shipmentIds.length || new Set(shipmentIds.map(id)).size !== shipmentIds.length || shipmentIds.some((value) => !availableIds.has(id(value))))
+        throw new ConflictError("Select LRs belonging to this sorted batch", "INVALID_SHIPMENT_SELECTION");
       const shipments = await Shipment.find({ _id: { $in: shipmentIds }, movementState: MIDDLE_MILE_STATE.SORTED, currentStatus: { $in: [SHIPMENT_STATUS.BOOKED, SHIPMENT_STATUS.IN_TRANSIT] } }).session(session);
       if (!shipments.length || shipments.length !== shipmentIds.length) throw new ConflictError("Sorted LRs are no longer available for loading", "INVALID_SHIPMENT_SELECTION");
       if (totals(shipments).totalWeightKg > data.vehicleCapacityKg) throw new ConflictError("Sorted LR weight exceeds vehicle capacity", "VEHICLE_CAPACITY_EXCEEDED");
@@ -271,6 +274,24 @@ export async function createLoadingTally(data, req) {
       if (units.some((unit) => ["HOLD", "DAMAGE", "SHORT", "MISROUTE", "CANCELLED"].includes(unit.status))) throw new ConflictError("Resolve blocked packages before loading", "PACKAGE_BLOCKED");
       for (const shipment of shipments) {
         if (units.filter((unit) => id(unit.shipmentId) === id(shipment)).length !== shipment.packageCount) throw new ConflictError("Package count does not match the LR", "PACKAGE_COUNT_MISMATCH");
+      }
+      const selectedIds = new Set(shipmentIds.map(id));
+      const remainingIds = segregation.shipmentIds.filter((value) => !selectedIds.has(id(value)));
+      if (remainingIds.length) {
+        // Each sorting batch has one tally. Preserve unselected LRs in a new
+        // city batch, keeping existing unique indexes and manifest references.
+        const remaining = (await Segregation.create([{
+          segregationNumber: await generateBusinessNumber("segregation", "SEG", session),
+          branchId: segregation.branchId, fromHubId: segregation.fromHubId,
+          nextHubId: segregation.nextHubId, routeId: segregation.routeId,
+          origin: segregation.origin, destination: segregation.destination,
+          destinationPincode: segregation.destinationPincode,
+          shipmentIds: remainingIds, items: segregation.items.filter((item) => !selectedIds.has(id(item.shipmentId))),
+          status: "READY", remarks: segregation.remarks, createdBy: req.user._id,
+        }], { session }))[0];
+        await MovementLeg.updateMany({ segregationId: segregation._id, shipmentId: { $in: remainingIds }, status: MIDDLE_MILE_STATE.SORTED }, { $set: { segregationId: remaining._id } }, { session });
+        segregation.shipmentIds = shipmentIds;
+        segregation.items = segregation.items.filter((item) => selectedIds.has(id(item.shipmentId)));
       }
       tally = (await LoadingTally.create([{
         tallyNumber: await generateBusinessNumber("loading-tally", "LT", session), branchId, fromHubId: from._id, toHubId: to._id,

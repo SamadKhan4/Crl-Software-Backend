@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
-import { Branch, Shipment, Segregation, MovementLeg } from "../src/models/index.js";
-import { createSorting } from "../src/services/middle-mile.service.js";
+import { Branch, Shipment, Segregation, MovementLeg, PackageUnit } from "../src/models/index.js";
+import { createSorting, createLoadingTally, listSortings } from "../src/services/middle-mile.service.js";
 
 const integration = process.env.RUN_MONGO_INTEGRATION === "true" ? describe : describe.skip;
 integration("city sorting with historical LRs", () => {
@@ -36,6 +36,21 @@ integration("city sorting with historical LRs", () => {
     expect(updated.every((lr) => lr.movementState === "SORTED")).toBe(true);
     expect(updated.every((lr) => lr.lrDetails.goods[0].dimensionUnit === "M")).toBe(true);
     expect(await MovementLeg.countDocuments({ segregationId: result._id })).toBe(2);
+    await PackageUnit.create(docs.map((lr) => ({ barcode: `${lr.lrNumber}-01OF1`, shipmentId: lr._id, lrNumber: lr.lrNumber, sequence: 1, totalPackages: 1, createdBy: actor })));
+    const first = await createLoadingTally({ segregationId: String(result._id), shipmentIds: [String(docs[0]._id)], loadingBay: "Bay 1", vehicleType: "Truck", vehicleCapacityKg: 10 }, request);
+    expect(first.totalLrs).toBe(1);
+    expect(first.totalWeightKg).toBe(10);
+    expect(first.shipmentIds.map(String)).toEqual([String(docs[0]._id)]);
+    const remaining = await Segregation.findOne({ _id: { $ne: result._id }, destination: "Yavatmal" });
+    expect(remaining.shipmentIds.map(String)).toEqual([String(docs[1]._id)]);
+    expect((await Shipment.findById(docs[1]._id)).movementState).toBe("SORTED");
+    expect(await MovementLeg.countDocuments({ segregationId: remaining._id, shipmentId: docs[1]._id })).toBe(1);
+    const available = await listSortings({}, request.user);
+    expect(available.items.map((row) => String(row._id))).toContain(String(remaining._id));
+    const second = await createLoadingTally({ segregationId: String(remaining._id), shipmentIds: [String(docs[1]._id)], loadingBay: "Bay 2", vehicleType: "Truck", vehicleCapacityKg: 10 }, request);
+    expect(second.totalLrs).toBe(1);
+    expect(second.shipmentIds.map(String)).toEqual([String(docs[1]._id)]);
+
     await expect(createSorting({ destination: "Yavatmal", shipmentIds: docs.map((lr) => String(lr._id)) }, request)).rejects.toMatchObject({ errorCode: "INVALID_SHIPMENT_SELECTION" });
   }, 60000);
 });
