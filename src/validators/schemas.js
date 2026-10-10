@@ -563,7 +563,6 @@ export const middleMileManifestSchema = z.object({
   eWayUpdates: z.array(z.object({ shipmentId: objectId, eWayBillNo: z.string().trim().min(1).max(120) }).strict()).max(10000).optional(),
   loadingTallyId: objectId,
   verifiedShipmentIds: shipmentIdList,
-  vendorId: objectId.optional(),
   vendorReference: optionalText(120),
   remarks: optionalText(500),
 }).strict();
@@ -641,10 +640,12 @@ export const unloadingTallySchema = z.object({
 export const unloadingTallyCompleteSchema = z.object({
   exceptions: z.array(z.object({
     shipmentId: objectId,
+    receivedPackages: z.coerce.number().int().min(0).max(10000).optional(),
     excessPackages: z.coerce.number().int().min(0).max(10000).default(0),
     damagedPackages: z.coerce.number().int().min(0).max(10000).default(0),
     depsCode: optionalText(80),
     depsRemarks: optionalText(500),
+    receiptRemarks: optionalText(500),
   }).strict()).max(500).default([]),
 }).strict();
 export const lastMileQcSchema = z.object({
@@ -654,7 +655,7 @@ export const lastMileQcSchema = z.object({
   storageLocation: z.string().trim().min(1).max(120),
 }).strict();
 export const lastMileInwardSchema = z.object({ remarks: optionalText(500) }).strict();
-export const lastMileDrsSchema = drsSchema.extend({ deliveryAgentId: objectId.optional() }).strict();
+export const lastMileDrsSchema = drsSchema.extend({ manifestId: objectId, deliveryAgentId: objectId.optional() }).strict();
 export const deliveryAttemptSchema = z.object({
   outcome: z.enum(["DELIVERED", "UNDELIVERED", "REATTEMPT"]),
   failureReason: optionalText(300),

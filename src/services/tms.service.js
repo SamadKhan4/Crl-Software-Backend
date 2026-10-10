@@ -7,6 +7,7 @@ import {
   Invoice,
   Manifest,
   MoneyReceipt,
+  PickupRunSheet,
   Quotation,
   Segregation,
   Shipment,
@@ -365,7 +366,20 @@ export const listManifests = (query, user) =>
     search: ["manifestNumber", "destination", "vendorReference", "coLoaderStatus"],
     populate: ["segregationId", "vendorId", "branchId"],
   });
-export const getManifest = (recordId, user) => get(Manifest, recordId, user, ["segregationId", "vendorId", "branchId", "shipmentIds", "loadingTallyId", "routeId"]);
+export async function getManifest(recordId, user) {
+  const manifest = await Manifest.findById(recordId)
+    .populate("segregationId vendorId branchId shipmentIds loadingTallyId routeId")
+    .populate({ path: "tripId", populate: { path: "vendorId" } });
+  if (!manifest) throw new NotFoundError("Record not found", "RECORD_NOT_FOUND");
+  assertBranchAccess(manifest, user);
+  const result = dto(manifest);
+  if (!result.vendorId) {
+    const prsVendorIds = [...new Set((await PickupRunSheet.find({ shipmentIds: { $in: manifest.shipmentIds.map((value) => value?._id ?? value) }, status: "DISPATCHED", vendorId: { $ne: null } }).select("vendorId").lean()).map((sheet) => id(sheet.vendorId)).filter(Boolean))];
+    if (prsVendorIds.length === 1) result.vendorId = await Vendor.findById(prsVendorIds[0]).select("vendorCode name").lean();
+  }
+  result.vendorId ||= result.tripId?.vendorId;
+  return result;
+}
 export async function updateManifestStatus(recordId, data, req) {
   const session = await mongoose.startSession();
   try {
@@ -604,7 +618,7 @@ export async function uploadDrsPod(recordId, shipmentId, file, req) {
   if (drs.podShipmentIds.some((value) => id(value) === shipmentId))
     throw new ConflictError("POD is already uploaded for this LR", "POD_ALREADY_UPLOADED");
   const shipment = await Shipment.findById(shipmentId).select("receiverName receiverMobile").lean();
-  const receiverName = String(req.body?.receiverName || shipment?.receiverName || "").trim();
+  const receiverName = String(req.body?.receiverName || (drs.workflowStatus === "DRAFT" ? shipment?.receiverName : "") || "").trim();
   if (receiverName.length < 2)
     throw new BusinessRuleError("Enter receiver name for e-POD", "RECEIVER_NAME_REQUIRED");
   const stored = await storageService.saveDocument(shipmentId, "pod", file);

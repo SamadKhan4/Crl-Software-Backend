@@ -88,6 +88,7 @@ export const completeUnloadingTally = asyncHandler(async (req, res) => success(r
 export const updateLastMileQc = asyncHandler(async (req, res) => success(res, 200, "QC and DEPS updated", await lastMile.updateQc(req.params.id, req.params.shipmentId, req.body, req)));
 export const lastMileDestinationInward = asyncHandler(async (req, res) => success(res, 200, "Destination inward completed", await lastMile.destinationInward(req.params.id, req.body, req)));
 export const lastMileDrsInventory = list("DRS inventory fetched", lastMile.drsInventory);
+export const lastMileDrsManifests = list("DRS manifests fetched", lastMile.drsManifests);
 export const createLastMileDrs = create("Last Mile DRS created", lastMile.createDrs);
 export const listLastMileDrs = list("Last Mile DRS fetched", lastMile.listDrs);
 export const getLastMileDrs = get("Last Mile DRS fetched", lastMile.getDrs);

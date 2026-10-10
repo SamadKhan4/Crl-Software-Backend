@@ -11,6 +11,7 @@ import {
   MovementLeg,
   PackageUnit,
   PickupRequest,
+  PickupRunSheet,
   Segregation,
   Shipment,
   ShipmentEvent,
@@ -62,6 +63,31 @@ async function ensureRoute(routeId, session) {
 async function nextLegNumber(shipmentId, session) {
   const latest = await MovementLeg.findOne({ shipmentId }).sort({ legNumber: -1 }).select("legNumber").session(session).lean();
   return Number(latest?.legNumber || 0) + 1;
+}
+
+async function prsVendorForShipments(shipmentIds, session, strict = false) {
+  const sourceShipmentIds = shipmentIds.map((value) => value?._id ?? value);
+  let query = PickupRunSheet.find({ shipmentIds: { $in: sourceShipmentIds }, status: "DISPATCHED" })
+    .select("prsNumber shipmentIds vendorId vendorCode vendorName")
+    .populate("vendorId", "vendorCode name");
+  if (session) query = query.session(session);
+  const sheets = await query.lean();
+  if (!sheets.length) return { sourceVendor: null, sourcePrs: [] };
+
+  const expected = new Set(sourceShipmentIds.map(id));
+  const covered = new Set(sheets.flatMap((sheet) => sheet.shipmentIds.map(id)).filter((shipmentId) => expected.has(shipmentId)));
+  const vendorIds = new Set(sheets.map((sheet) => id(sheet.vendorId)).filter(Boolean));
+  if (strict && covered.size !== expected.size)
+    throw new ConflictError("Every LR in this tally must come from a dispatched PRS", "PRS_SOURCE_MISSING");
+  if (strict && sheets.some((sheet) => !sheet.vendorId))
+    throw new BusinessRuleError("The source PRS uses a market vehicle and has no Vendor Master vendor", "PRS_VENDOR_REQUIRED");
+  if (strict && vendorIds.size > 1)
+    throw new ConflictError("This tally contains LRs from different PRS vendors. Create separate manifests vendor-wise", "PRS_VENDOR_MISMATCH");
+
+  return {
+    sourceVendor: vendorIds.size === 1 ? sheets.find((sheet) => sheet.vendorId)?.vendorId : null,
+    sourcePrs: sheets.map((sheet) => ({ id: sheet._id, prsNumber: sheet.prsNumber, vendorCode: sheet.vendorCode, vendorName: sheet.vendorName })),
+  };
 }
 
 export async function hubInward(data, req) {
@@ -142,7 +168,7 @@ export async function createSorting(data, req) {
       sorting = (await Segregation.create([{
         segregationNumber: await generateBusinessNumber("segregation", "SEG", session),
         branchId: office._id, fromHubId: office._id, nextHubId: office._id, routeId: route?._id,
-        origin: office.city || office.name, destination: data.destination || route?.destination, destinationPincode: data.destinationPincode, shipmentIds: data.shipmentIds, status: "READY",
+        origin: route?.origin || office.city || office.name, destination: data.destination || route?.destination, destinationPincode: data.destinationPincode, shipmentIds: data.shipmentIds, status: "READY",
         items: shipments.map((shipment) => ({ shipmentId: shipment._id, status: "SORTED", sortedAt: new Date(), sortedBy: req.user._id })),
         remarks: data.remarks, createdBy: req.user._id,
       }], { session }))[0];
@@ -153,7 +179,7 @@ export async function createSorting(data, req) {
           status: MIDDLE_MILE_STATE.SORTED, sortedAt: new Date(), operatedBy: req.user._id,
         }], { session }))[0];
         shipment.currentHubId = office._id; shipment.nextHubId = office._id; shipment.routeId = route?._id;
-        shipment.currentLocation = office.city || office.name; shipment.activeMovementLegId = leg._id; shipment.movementState = MIDDLE_MILE_STATE.SORTED;
+        shipment.currentLocation = route?.origin || office.city || office.name; shipment.activeMovementLegId = leg._id; shipment.movementState = MIDDLE_MILE_STATE.SORTED;
         // Sorting changes movement metadata only. Do not revalidate historical
         // invoice/goods fields that were accepted by older LR schemas.
         const result = await Shipment.updateOne({ ...filter, _id: shipment._id }, {
@@ -375,7 +401,6 @@ export async function createManifest(data, req) {
       if (!tally) throw new BusinessRuleError("Select a completed loading tally", "INVALID_LOADING_TALLY");
       assertBranch(tally, req.user);
       if (await Manifest.exists({ loadingTallyId: tally._id, status: { $ne: "CANCELLED" } }).session(session)) throw new ConflictError("Loading tally already has a manifest", "MANIFEST_ALREADY_EXISTS");
-      if (data.vendorId && !(await Vendor.exists({ _id: data.vendorId, status: ACTIVE.ACTIVE }).session(session))) throw new BusinessRuleError("Select an active vendor", "INVALID_VENDOR");
       const [toHub, shipments] = await Promise.all([Branch.findById(tally.toHubId).session(session), Shipment.find({ _id: { $in: tally.shipmentIds } }).session(session)]);
       if (await PackageUnit.exists({ shipmentId: { $in: tally.shipmentIds }, status: { $in: ["HOLD", "DAMAGE", "SHORT", "MISROUTE", "CANCELLED"] } }).session(session)) throw new ConflictError("Resolve blocked packages before confirming loaded LRs", "PACKAGE_BLOCKED");
       const verified = new Set(data.verifiedShipmentIds.map(id));
@@ -395,6 +420,7 @@ export async function createManifest(data, req) {
       }
       const legs = await MovementLeg.find({ _id: { $in: shipments.map((row) => row.activeMovementLegId) }, loadingTallyId: tally._id }).session(session);
       if (legs.length !== shipments.length) throw new ConflictError("LR movement changed; refresh the tally", "SHIPMENT_ALREADY_MANIFESTED");
+      const { sourceVendor } = await prsVendorForShipments(tally.shipmentIds, session, true);
       for (const [shipmentId, eWayBillNo] of eWayUpdates) {
         await Shipment.updateOne({ _id: shipmentId }, { $set: { "lrDetails.eWayBillNo": eWayBillNo } }, { session });
         await audit(session, req, "MANIFEST_EWAY_UPDATED", "Shipment", shipmentId, { eWayBillNo: shipments.find((row) => id(row) === shipmentId)?.lrDetails?.eWayBillNo }, { eWayBillNo });
@@ -402,7 +428,7 @@ export async function createManifest(data, req) {
       manifest = (await Manifest.create([{
         manifestNumber: await generateBusinessNumber("manifest", "MNF", session), branchId: tally.branchId,
         loadingTallyId: tally._id, segregationId: tally.segregationId, fromHubId: tally.fromHubId, toHubId: tally.toHubId, routeId: tally.routeId,
-        shipmentIds: tally.shipmentIds, origin: tally.origin, destination: tally.destination || toHub?.city || toHub?.name || "Destination", vendorId: data.vendorId,
+        shipmentIds: tally.shipmentIds, origin: tally.origin, destination: tally.destination || toHub?.city || toHub?.name || "Destination", vendorId: sourceVendor?._id,
         totalLrs: tally.totalLrs, totalPackages: tally.totalPackages, totalWeightKg: tally.totalWeightKg,
         workflowStatus: "LOCKED", lockedAt: new Date(), lockedBy: req.user._id, status: "OPEN", vendorReference: data.vendorReference, remarks: data.remarks, createdBy: req.user._id,
       }], { session }))[0];
@@ -484,7 +510,11 @@ export async function createTrip(data, req) {
         driverName: data.driverName, driverMobile: data.driverMobile, departureDate: data.departureDate, expectedArrival: data.expectedArrival,
         freightAmount: data.freightAmount, advanceAmount: data.advanceAmount, ...calculated, remarks: data.remarks, createdBy: req.user._id,
       }], { session }))[0];
-      await Manifest.updateMany({ _id: { $in: manifests.map((row) => row._id) } }, { $set: { workflowStatus: "TRIP_ASSIGNED", tripId: trip._id, routeId: route._id } }, { session });
+      await Manifest.updateMany(
+        { _id: { $in: manifests.map((row) => row._id) } },
+        { $set: { workflowStatus: "TRIP_ASSIGNED", tripId: trip._id, routeId: route._id } },
+        { session },
+      );
       await Shipment.updateMany({ _id: { $in: shipmentIds } }, { $set: { movementState: MIDDLE_MILE_STATE.TRIP_ASSIGNED, routeId: route._id } }, { session });
       await MovementLeg.updateMany({ manifestId: { $in: manifests.map((row) => row._id) } }, { $set: { status: MIDDLE_MILE_STATE.TRIP_ASSIGNED, tripId: trip._id, routeId: route._id, vehicleNumber: trip.vehicleNumber, driverName: trip.driverName } }, { session });
       const shipments = await Shipment.find({ _id: { $in: shipmentIds } }).session(session);
@@ -601,8 +631,22 @@ export const getLoadingTally = async (recordId, user) => {
   const record = await LoadingTally.findById(recordId).populate("fromHubId toHubId routeId segregationId items.shipmentId");
   if (!record) throw new NotFoundError("Loading tally not found", "TALLY_NOT_FOUND");
   assertBranch(record, user);
-  const packages = await PackageUnit.find({ shipmentId: { $in: record.items.map((item) => item.shipmentId._id ?? item.shipmentId) } }).select("barcode lrNumber status").sort({ barcode: 1 }).lean();
-  return { ...dto(record), packages };
+  const shipmentIds = record.items.map((item) => item.shipmentId._id ?? item.shipmentId);
+  const [packages, prsSource] = await Promise.all([
+    PackageUnit.find({ shipmentId: { $in: shipmentIds } }).select("barcode lrNumber status").sort({ barcode: 1 }).lean(),
+    prsVendorForShipments(shipmentIds),
+  ]);
+  return { ...dto(record), packages, ...prsSource };
 };
-export const listManifests = (query, user) => listCollection(Manifest, query, user, ["fromHubId", "toHubId", "routeId", "loadingTallyId", "vendorId"]);
+export async function listManifests(query, user) {
+  const result = await listCollection(Manifest, query, user, [
+    "fromHubId", "toHubId", "routeId", "loadingTallyId", "vendorId",
+    { path: "tripId", populate: { path: "vendorId" } },
+  ]);
+  result.items = await Promise.all(result.items.map(async (manifest) => ({
+    ...manifest,
+    vendorId: manifest.vendorId || (await prsVendorForShipments(manifest.shipmentIds)).sourceVendor || manifest.tripId?.vendorId,
+  })));
+  return result;
+}
 export const listTrips = (query, user) => listCollection(Trip, query, user, ["fromHubId", "toHubId", "routeId", "vendorId", "manifestIds", "shipmentIds"]);

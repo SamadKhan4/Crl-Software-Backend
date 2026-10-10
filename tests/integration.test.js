@@ -16,6 +16,7 @@ describeIntegration("CRL API integration workflow", () => {
   let User;
   let Counter;
   let Shipment;
+  let Trip;
   let ShipmentEvent;
   let AuditLog;
   let adminToken;
@@ -82,7 +83,7 @@ describeIntegration("CRL API integration workflow", () => {
     process.env.JWT_ACCESS_SECRET = "integration-test-access-secret-at-least-32-characters";
     process.env.JWT_REFRESH_SECRET = "integration-test-refresh-secret-at-least-32-characters";
     ({ connectDatabase, disconnectDatabase } = await import("../src/config/db.js"));
-    ({ User, Counter, Shipment, ShipmentEvent, AuditLog } = await import("../src/models/index.js"));
+    ({ User, Counter, Shipment, Trip, ShipmentEvent, AuditLog } = await import("../src/models/index.js"));
     const { createApp } = await import("../src/app.js");
     await connectDatabase();
     await Promise.all(
@@ -109,7 +110,7 @@ describeIntegration("CRL API integration workflow", () => {
     await disconnectDatabase();
     await replicaSet.stop();
     await fs.rm(testUploadDir, { recursive: true, force: true });
-  });
+  }, 30000);
 
   test("admin completes the customer-to-closed-shipment workflow", async () => {
     originBranch = (
@@ -693,8 +694,8 @@ describeIntegration("CRL API integration workflow", () => {
     expect(tally.status).toBe(201);
     const manifest = await request(app).post("/api/middle-mile/manifests").set(auth()).send({ loadingTallyId: tally.body.data.id, verifiedShipmentIds: [eligible.id] });
     expect(manifest.status).toBe(201);
-    const trip = { destination: "Wrong City", manifestIds: [manifest.body.data.id], sealNumber: "CITY-SEAL", vehicleSource: "MV", vehicleNumber: "MH31AB2345", driverName: "City Driver", departureDate: new Date().toISOString(), freightAmount: 1000 };
-    expect((await request(app).post("/api/middle-mile/trips").set(auth()).send(trip)).body.errorCode).toBe("DESTINATION_MISMATCH");
+    const trip = { routeId: route.body.data.id, destination: "Wrong City", manifestIds: [manifest.body.data.id], sealNumber: "CITY-SEAL", vehicleSource: "MV", vehicleNumber: "MH31AB2345", driverName: "City Driver", departureDate: new Date().toISOString(), freightAmount: 1000 };
+    expect((await request(app).post("/api/middle-mile/trips").set(auth()).send(trip)).body.errorCode).toBe("ROUTE_DESTINATION_MISMATCH");
     const validTrip = await request(app).post("/api/middle-mile/trips").set(auth()).send({ ...trip, destination: "remote estate" });
     expect(validTrip.status).toBe(201);
     expect((await request(app).post(`/api/middle-mile/trips/${validTrip.body.data.id}/dispatch`).set(operatorAuth).send({})).status).toBe(403);
@@ -805,15 +806,15 @@ describeIntegration("CRL API integration workflow", () => {
       const packages = await request(app).get("/api/package-barcodes").query({ shipmentId }).set(auth());
       const manifest = await request(app).post("/api/middle-mile/manifests").set(auth()).send({ loadingTallyId: tally.body.data.id, verifiedShipmentIds: [shipmentId] });
       if (manifest.status !== 201) throw new Error(JSON.stringify(manifest.body));
-      expect(manifest.body.data.workflowStatus).toBe("LOCKED");
+      expect(manifest.body.data).toMatchObject({ workflowStatus: "LOCKED", vendorId: vendor.body.data.id });
 
       const trip = await request(app).post("/api/middle-mile/trips").set(auth()).send({
         destination, sealNumber: `SEAL-${sequence}`,
         manifestIds: [manifest.body.data.id], vehicleSource: "MV", vehicleNumber: `MH31MM100${sequence}`,
         vehicleType: "Closed Body", vehicleCapacityKg: 1000, driverName: `Driver ${sequence}`,
-        departureDate: new Date().toISOString(), freightAmount: 5000, advanceAmount: 1000,
+        departureDate: new Date().toISOString(), freightAmount: 5000, advanceAmount: 1000, routeId,
       });
-      expect(trip.status).toBe(201);
+      if (trip.status !== 201) throw new Error(JSON.stringify(trip.body));
       expect((await request(app).post(`/api/middle-mile/trips/${trip.body.data.id}/dispatch`).set(auth()).send({})).status).toBe(200);
       expect((await request(app).post(`/api/middle-mile/trips/${trip.body.data.id}/arrive`).set(auth()).send({})).status).toBe(200);
       return { trip: trip.body.data, packages: packages.body.data };
@@ -835,7 +836,8 @@ describeIntegration("CRL API integration workflow", () => {
     for (const unit of finalLeg.packages) {
       expect((await request(app).post(`/api/last-mile/unloading-tallies/${unloading.body.data.id}/scan`).set(auth()).send({ barcode: unit.barcode })).status).toBe(200);
     }
-    expect((await request(app).post(`/api/last-mile/unloading-tallies/${unloading.body.data.id}/complete`).set(auth()).send({ exceptions: [{ shipmentId, damagedPackages: 1, depsCode: "DMG", depsRemarks: "Outer packing damaged" }] })).status).toBe(200);
+    expect((await request(app).post(`/api/last-mile/unloading-tallies/${unloading.body.data.id}/complete`).set(auth()).send({ exceptions: [{ shipmentId, receivedPackages: 2, damagedPackages: 1, receiptRemarks: "Outer packing damaged" }] })).status).toBe(200);
+    expect(await Trip.findById(finalLeg.trip.id).lean()).toMatchObject({ status: "CLOSED", workflowStatus: "CLOSED" });
     expect((await request(app).patch(`/api/last-mile/unloading-tallies/${unloading.body.data.id}/qc/${shipmentId}`).set(auth()).send({ qcStatus: "PASSED", storageLocation: "RACK-A1", depsCode: "DMG-CLEARED", depsRemarks: "Contents verified fit for delivery" })).status).toBe(200);
     expect((await request(app).post(`/api/last-mile/unloading-tallies/${unloading.body.data.id}/inward`).set(auth()).send({ remarks: "All packages received" })).status).toBe(200);
 
@@ -843,9 +845,15 @@ describeIntegration("CRL API integration workflow", () => {
     expect(shipment.movementState).toBe("LAST_MILE_READY");
     expect(shipment.lastMileState).toBe("DESTINATION_INWARDED");
     expect(shipment.currentStatus).toBe("RECEIVED");
-    const drs = await request(app).post("/api/last-mile/drs").set(auth()).send({ branchId: mmDestination._id, vehicleNumber: "MH31LM1001", driverName: "Last Mile Driver", deliveryDate: new Date().toISOString(), route: "Mumbai Local", shipmentIds: [shipmentId], partB: [] });
+    const drsManifestId = finalLeg.trip.manifestIds[0];
+    const availableDrsManifests = await request(app).get("/api/last-mile/drs-manifests").set(auth());
+    expect(availableDrsManifests.status).toBe(200);
+    expect(availableDrsManifests.body.data.map((manifest) => manifest.id)).toContain(drsManifestId);
+    expect(availableDrsManifests.body.data.find((manifest) => manifest.id === drsManifestId).vendorId._id).toBe(vendor.body.data.id);
+    const drs = await request(app).post("/api/last-mile/drs").set(auth()).send({ branchId: mmDestination._id, manifestId: drsManifestId, vehicleNumber: "MH31LM1001", driverName: "Last Mile Driver", deliveryDate: new Date().toISOString(), route: "Mumbai Local", shipmentIds: [shipmentId], partB: [] });
     expect(drs.status).toBe(201);
-    const duplicateDrs = await request(app).post("/api/last-mile/drs").set(auth()).send({ branchId: mmDestination._id, vehicleNumber: "MH31LM1002", driverName: "Duplicate Driver", deliveryDate: new Date().toISOString(), route: "Mumbai Local", shipmentIds: [shipmentId], partB: [] });
+    expect(drs.body.data.vendorId).toBe(vendor.body.data.id);
+    const duplicateDrs = await request(app).post("/api/last-mile/drs").set(auth()).send({ branchId: mmDestination._id, manifestId: drsManifestId, vehicleNumber: "MH31LM1002", driverName: "Duplicate Driver", deliveryDate: new Date().toISOString(), route: "Mumbai Local", shipmentIds: [shipmentId], partB: [] });
     expect(duplicateDrs.status).toBe(409);
     expect((await request(app).post(`/api/last-mile/drs/${drs.body.data.id}/finalize`).set(auth()).send({})).status).toBe(200);
     expect((await request(app).post(`/api/last-mile/drs/${drs.body.data.id}/dispatch`).set(auth()).send({})).status).toBe(200);
@@ -854,7 +862,7 @@ describeIntegration("CRL API integration workflow", () => {
     shipment = await Shipment.findById(shipmentId).lean();
     expect(shipment.lastMileState).toBe("DESTINATION_INWARDED");
 
-    const retryDrs = await request(app).post("/api/last-mile/drs").set(auth()).send({ branchId: mmDestination._id, vehicleNumber: "MH31LM1003", driverName: "Retry Driver", deliveryDate: new Date().toISOString(), route: "Mumbai Local Retry", shipmentIds: [shipmentId], partB: [] });
+    const retryDrs = await request(app).post("/api/last-mile/drs").set(auth()).send({ branchId: mmDestination._id, manifestId: drsManifestId, vehicleNumber: "MH31LM1003", driverName: "Retry Driver", deliveryDate: new Date().toISOString(), route: "Mumbai Local Retry", shipmentIds: [shipmentId], partB: [] });
     expect(retryDrs.status).toBe(201);
     expect((await request(app).post(`/api/last-mile/drs/${retryDrs.body.data.id}/finalize`).set(auth()).send({})).status).toBe(200);
     expect((await request(app).post(`/api/last-mile/drs/${retryDrs.body.data.id}/dispatch`).set(auth()).send({})).status).toBe(200);

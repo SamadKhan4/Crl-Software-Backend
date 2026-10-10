@@ -71,6 +71,7 @@ router.post("/last-mile/unloading-tallies/:id/complete", permit("DELIVERY", "ADD
 router.patch("/last-mile/unloading-tallies/:id/qc/:shipmentId", permit("DELIVERY", "ADD", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.drsPodParams, "params"), validate(v.lastMileQcSchema), c.updateLastMileQc);
 router.post("/last-mile/unloading-tallies/:id/inward", permit("DELIVERY", "ADD", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.ids, "params"), validate(v.lastMileInwardSchema), c.lastMileDestinationInward);
 router.get("/last-mile/drs-inventory", permit("DELIVERY", "VIEW", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.businessListSchema, "query"), c.lastMileDrsInventory);
+router.get("/last-mile/drs-manifests", permit("DELIVERY", "VIEW", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.businessListSchema, "query"), c.lastMileDrsManifests);
 router.post("/last-mile/drs", permit("DELIVERY", "ADD", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.lastMileDrsSchema), c.createLastMileDrs);
 router.get("/last-mile/drs", permit("DELIVERY", "VIEW", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.businessListSchema, "query"), c.listLastMileDrs);
 router.get("/last-mile/drs/:id", permit("DELIVERY", "VIEW", ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), validate(v.ids, "params"), c.getLastMileDrs);

@@ -13,6 +13,7 @@ const unloadingItemSchema = new Schema({
   qcStatus: { type: String, enum: ["PENDING", "PASSED", "HOLD"], default: "PENDING", index: true },
   depsCode: { type: String, trim: true, maxlength: 80 },
   depsRemarks: { type: String, trim: true, maxlength: 500 },
+  receiptRemarks: { type: String, trim: true, maxlength: 500 },
   storageLocation: { type: String, trim: true, maxlength: 120 },
   checkedAt: Date,
   checkedBy: { ...objectId, ref: "User" },

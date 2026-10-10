@@ -127,7 +127,7 @@ describe("TMS request validation", () => {
     expect(unloadingTallySchema.safeParse({ tripId: id, unloadingBay: "BAY-LM-1" }).success).toBe(true);
     expect(unloadingTallyCompleteSchema.safeParse({ exceptions: [{ shipmentId: otherId, damagedPackages: 1, depsCode: "DMG" }] }).success).toBe(true);
     expect(lastMileQcSchema.safeParse({ qcStatus: "PASSED", storageLocation: "RACK-A1" }).success).toBe(true);
-    expect(lastMileDrsSchema.safeParse({ vehicleNumber: "MH31AB1234", driverName: "Driver Name", deliveryDate: "2026-09-28", route: "Local", shipmentIds: [otherId], partB: [] }).success).toBe(true);
+    expect(lastMileDrsSchema.safeParse({ manifestId: id, vehicleNumber: "MH31AB1234", driverName: "Driver Name", deliveryDate: "2026-09-28", route: "Local", shipmentIds: [otherId], partB: [] }).success).toBe(true);
     expect(deliveryAttemptSchema.safeParse({ outcome: "REATTEMPT", failureReason: "Customer unavailable", reattemptDate: "2026-09-29" }).success).toBe(true);
     expect(deliveryAttemptSchema.safeParse({ outcome: "UNKNOWN" }).success).toBe(false);
   });
