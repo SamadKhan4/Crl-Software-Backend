@@ -1,7 +1,7 @@
 import { operationsOffice } from "../services/operations-office.service.js";
 import { AppError } from "../utils/errors.js";
 export const validate =
-  (schema, source = "body") =>
+  (schema, source = "body", { preserveBranchFilters = false, preserveBranchAssignment = false } = {}) =>
   async (req, _res, next) => {
     try {
       let objectSchema = schema;
@@ -11,16 +11,16 @@ export const validate =
       if (source === "body" && req.user && !["PUT", "PATCH"].includes(req.method)) {
         const keys = ["branchId", "originBranchId", "destinationBranchId", "receivingBranchId"].filter((key) => fields[key]);
         if (keys.length) {
-          const office = await operationsOffice();
+          const office = await operationsOffice(req.user);
           req.body = { ...req.body };
           for (const key of keys) req.body[key] = String(office._id);
         }
       }
-      if (source === "body" && req.user && ["PUT", "PATCH"].includes(req.method)) {
+      if (source === "body" && req.user && ["PUT", "PATCH"].includes(req.method) && !preserveBranchAssignment) {
         req.body = { ...req.body };
         for (const key of ["branchId", "originBranchId", "destinationBranchId", "receivingBranchId"]) delete req.body[key];
       }
-      if (source === "query") {
+      if (source === "query" && !preserveBranchFilters) {
         req[source] = { ...req[source] };
         delete req[source].branchId;
         delete req[source].branch;

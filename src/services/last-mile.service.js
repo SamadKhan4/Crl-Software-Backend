@@ -205,7 +205,7 @@ export async function destinationInward(recordId, data, req) {
 
 export async function drsInventory(query, _user) {
   const options = listQuery(query);
-  const filter = { lastMileState: LAST_MILE_STATE.DESTINATION_INWARDED, activeDrsId: { $exists: false }, currentStatus: SHIPMENT_STATUS.RECEIVED };
+  const filter = { ...(!isAdmin(_user) && { currentHubId: _user.branchId }), lastMileState: LAST_MILE_STATE.DESTINATION_INWARDED, activeDrsId: { $exists: false }, currentStatus: SHIPMENT_STATUS.RECEIVED };
   if (query.search) filter.$or = ["lrNumber", "receiverName", "receiverMobile"].map((key) => ({ [key]: { $regex: escapeSearch(query.search), $options: "i" } }));
   const [items, total] = await Promise.all([Shipment.find(filter).sort(options.sort).skip(options.skip).limit(options.limit).lean(), Shipment.countDocuments(filter)]);
   return paginated(items.map(dto), total, options);
@@ -213,7 +213,7 @@ export async function drsInventory(query, _user) {
 
 export async function drsManifests(query, _user) {
   const options = listQuery(query);
-  const inventoryFilter = { lastMileState: LAST_MILE_STATE.DESTINATION_INWARDED, activeDrsId: { $exists: false }, currentStatus: SHIPMENT_STATUS.RECEIVED };
+  const inventoryFilter = { ...(!isAdmin(_user) && { currentHubId: _user.branchId }), lastMileState: LAST_MILE_STATE.DESTINATION_INWARDED, activeDrsId: { $exists: false }, currentStatus: SHIPMENT_STATUS.RECEIVED };
   const eligibleIds = await Shipment.distinct("_id", inventoryFilter);
   if (!eligibleIds.length) return paginated([], 0, options);
   const filter = { shipmentIds: { $in: eligibleIds }, status: { $ne: "CANCELLED" } };
@@ -239,13 +239,13 @@ export async function drsManifests(query, _user) {
 }
 
 export async function createDrs(data, req) {
-  const branchId = (await operationsOffice())._id; const session = await mongoose.startSession();
+  const branchId = (await operationsOffice(req.user))._id; const session = await mongoose.startSession();
   try {
     let drs;
     await session.withTransaction(async () => {
       const manifest = await Manifest.findById(data.manifestId).session(session);
       if (!manifest || manifest.status === "CANCELLED") throw new NotFoundError("Delivery manifest not found", "MANIFEST_NOT_FOUND");
-      const shipments = await Shipment.find({ _id: { $in: manifest.shipmentIds }, lastMileState: LAST_MILE_STATE.DESTINATION_INWARDED, currentStatus: SHIPMENT_STATUS.RECEIVED, activeDrsId: { $exists: false } }).session(session);
+      const shipments = await Shipment.find({ ...(!isAdmin(req.user) && { currentHubId: branchId }), _id: { $in: manifest.shipmentIds }, lastMileState: LAST_MILE_STATE.DESTINATION_INWARDED, currentStatus: SHIPMENT_STATUS.RECEIVED, activeDrsId: { $exists: false } }).session(session);
       const requestedIds = new Set(data.shipmentIds.map(id));
       if (!shipments.length || shipments.length !== requestedIds.size || shipments.some((shipment) => !requestedIds.has(id(shipment))))
         throw new ConflictError("Manifest LRs are no longer available. Refresh the manifest and try again", "MANIFEST_INVENTORY_CHANGED");
@@ -257,10 +257,12 @@ export async function createDrs(data, req) {
         const agent = await User.findOne({ _id: data.deliveryAgentId, role: "EMPLOYEE", status: "ACTIVE", ...(!isAdmin(req.user) && { branchId }) }).session(session);
         if (!agent) throw new BusinessRuleError(isAdmin(req.user) ? "Select an active employee as delivery agent" : "Select an active delivery agent from this branch", "INVALID_DELIVERY_AGENT");
       }
-      drs = (await DeliveryRunSheet.create([{ ...data, vendorId: vendor._id, branchId, drsNumber: await generateBusinessNumber("drs", "DRS", session), items: shipments.map((row) => ({ shipmentId: row._id })), workflowStatus: "DRAFT", createdBy: req.user._id }], { session }))[0];
-      const claim = await Shipment.updateMany({ _id: { $in: data.shipmentIds }, activeDrsId: { $exists: false }, lastMileState: LAST_MILE_STATE.DESTINATION_INWARDED }, { $set: { activeDrsId: drs._id, lastMileState: LAST_MILE_STATE.DRS_ASSIGNED } }, { session });
+      drs = (await DeliveryRunSheet.create([{ ...data, vendorId: vendor._id, branchId, drsNumber: await generateBusinessNumber("drs", "DRS", session), items: shipments.map((row) => ({ shipmentId: row._id })), workflowStatus: "DISPATCHED", dispatchedAt: new Date(), dispatchedBy: req.user._id, createdBy: req.user._id }], { session }))[0];
+      const claim = await Shipment.updateMany({ _id: { $in: data.shipmentIds }, activeDrsId: { $exists: false }, lastMileState: LAST_MILE_STATE.DESTINATION_INWARDED }, { $set: { activeDrsId: drs._id, lastMileState: LAST_MILE_STATE.OUT_FOR_DELIVERY, currentLocation: `Out for delivery - ${drs.route}` } }, { session });
       if (claim.modifiedCount !== shipments.length) throw new ConflictError("Another user assigned an LR to a DRS", "DRS_ASSIGNMENT_RACE");
       await ShipmentEvent.create(eventRows(shipments, TRACKING_EVENT_STATUS.DRS_ASSIGNED, branchId, req.user, `Assigned to ${drs.drsNumber}`, { drsId: drs._id }), { session, ordered: true });
+      await PackageUnit.updateMany({ shipmentId: { $in: drs.shipmentIds } }, { $set: { status: "OUT_FOR_DELIVERY", currentCustodianType: drs.deliveryAgentId ? "EMPLOYEE" : "VEHICLE", currentCustodianId: id(drs.deliveryAgentId || drs._id) } }, { session });
+      await ShipmentEvent.create(eventRows(shipments, TRACKING_EVENT_STATUS.OUT_FOR_DELIVERY, branchId, req.user, `Delivery run created under ${drs.drsNumber}`, { drsId: drs._id }), { session, ordered: true });
       await audit(session, req, "LAST_MILE_DRS_CREATED", "DeliveryRunSheet", drs._id, null, { number: drs.drsNumber, manifestId: manifest._id, shipmentCount: shipments.length });
     }); return dto(drs);
   } finally { await session.endSession(); }
@@ -309,7 +311,7 @@ export async function recordDeliveryAttempt(recordId, shipmentId, data, req) {
     let drs;
     await session.withTransaction(async () => {
       drs = await DeliveryRunSheet.findById(recordId).session(session); if (!drs) throw new NotFoundError("DRS not found", "DRS_NOT_FOUND"); assertBranch(drs, req.user);
-      if (drs.workflowStatus !== "DISPATCHED") throw new ConflictError("DRS is not dispatched", "DRS_NOT_DISPATCHED");
+      if (drs.status !== "OPEN" || !["DRAFT", "READY_FOR_DISPATCH", "DISPATCHED"].includes(drs.workflowStatus)) throw new ConflictError("DRS is not open for delivery outcomes", "DRS_NOT_OPEN");
       const item = drs.items.find((row) => id(row.shipmentId) === shipmentId); if (!item) throw new NotFoundError("LR not found on DRS", "DRS_SHIPMENT_NOT_FOUND");
       if (item.attemptStatus !== "PENDING") throw new ConflictError("Delivery attempt is already recorded", "ATTEMPT_ALREADY_RECORDED");
       if (data.outcome !== "DELIVERED" && !data.failureReason) throw new BusinessRuleError("Failure reason is required", "FAILURE_REASON_REQUIRED");
@@ -331,7 +333,7 @@ export async function closeDrs(recordId, req) {
     let drs;
     await session.withTransaction(async () => {
       drs = await DeliveryRunSheet.findById(recordId).session(session); if (!drs) throw new NotFoundError("DRS not found", "DRS_NOT_FOUND"); assertBranch(drs, req.user);
-      if (!["DISPATCHED", "CLOSURE_PENDING"].includes(drs.workflowStatus)) throw new ConflictError("DRS is not ready for closure", "DRS_NOT_READY_TO_CLOSE");
+      if (drs.status !== "OPEN" || !["DRAFT", "READY_FOR_DISPATCH", "DISPATCHED", "CLOSURE_PENDING"].includes(drs.workflowStatus)) throw new ConflictError("DRS is not ready for closure", "DRS_NOT_READY_TO_CLOSE");
       if (drs.items.some((row) => row.attemptStatus === "PENDING")) throw new ConflictError("Record an outcome for every LR", "ATTEMPT_INCOMPLETE");
       const deliveredIds = drs.items.filter((row) => row.attemptStatus === "DELIVERED").map((row) => id(row.shipmentId));
       const podIds = new Set(drs.podShipmentIds.map(id)); if (deliveredIds.some((shipmentId) => !podIds.has(shipmentId))) throw new ConflictError("POD is required for every delivered LR", "POD_INCOMPLETE");

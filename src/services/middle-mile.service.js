@@ -141,7 +141,7 @@ export async function hubInward(data, req) {
 
 export async function sortingInventory(query, _user) {
   const options = listQuery(query);
-  const branchId = null;
+  const branchId = isAdmin(_user) ? null : _user.branchId;
   const filter = await routeInventoryFilter(query.routeId, branchId);
   if (query.destination) filter.$and = [...(filter.$and || []), { "lrDetails.to": cityPattern(query.destination) }];
   if (query.destinationPincode) filter["lrDetails.consigneePincode"] = query.destinationPincode;
@@ -154,13 +154,13 @@ export async function sortingInventory(query, _user) {
 }
 
 export async function createSorting(data, req) {
-  const office = await operationsOffice();
+  const office = await operationsOffice(req.user);
   const session = await mongoose.startSession();
   try {
     let sorting;
     await session.withTransaction(async () => {
       const route = await ensureRoute(data.routeId, session);
-      const filter = await routeInventoryFilter(data.routeId, null, session);
+      const filter = await routeInventoryFilter(data.routeId, isAdmin(req.user) ? null : req.user.branchId, session);
       if (data.destination) filter.$and = [...(filter.$and || []), { "lrDetails.to": cityPattern(data.destination) }];
       if (data.destinationPincode) filter["lrDetails.consigneePincode"] = data.destinationPincode;
       const shipments = await Shipment.find({ ...filter, _id: { $in: data.shipmentIds } }).session(session);
@@ -203,7 +203,7 @@ export async function createSorting(data, req) {
 
 export async function listSortings(query, _user) {
   const options = listQuery(query);
-  const filter = { status: "READY", loadingTallyId: { $exists: false } };
+  const filter = { status: "READY", loadingTallyId: { $exists: false }, ...(!isAdmin(_user) && { branchId: _user.branchId }) };
   if (query.routeId) filter.routeId = query.routeId;
   if (query.destination) filter.destination = cityPattern(query.destination);
   if (query.destinationPincode) filter.destinationPincode = query.destinationPincode;
@@ -276,6 +276,7 @@ async function routeInventoryFilter(routeId, _branchId, session = null) {
       { $or: [{ "lrDetails.to": { $in: destinationPatterns } }, { "lrDetails.to": { $in: [null, ""] }, destinationBranchId: { $in: destinationBranches.map((branch) => branch._id) } }] },
     ];
   }
+  if (_branchId) filter.$and = [...(filter.$and || []), { $or: [{ currentHubId: _branchId }, { currentHubId: null, originBranchId: _branchId }] }];
   return filter;
 }
 
@@ -284,11 +285,12 @@ export async function createLoadingTally(data, req) {
   try {
     let tally;
     await session.withTransaction(async () => {
-      const from = await operationsOffice();
+      const from = await operationsOffice(req.user);
       const to = from;
       const branchId = from._id;
       const segregation = await Segregation.findOne({ _id: data.segregationId, status: "READY", loadingTallyId: { $exists: false } }).session(session);
       if (!segregation || await LoadingTally.exists({ segregationId: data.segregationId }).session(session)) throw new ConflictError("Select an available sorted LR batch for this destination", "SORTING_NOT_AVAILABLE");
+      assertBranch(segregation, req.user);
       const availableIds = new Set(segregation.shipmentIds.map(id));
       const shipmentIds = data.shipmentIds || segregation.shipmentIds;
       if (!shipmentIds.length || new Set(shipmentIds.map(id)).size !== shipmentIds.length || shipmentIds.some((value) => !availableIds.has(id(value))))

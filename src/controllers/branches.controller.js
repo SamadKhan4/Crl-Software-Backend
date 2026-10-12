@@ -1,3 +1,4 @@
+import { isBranchScopedEmployee } from "../utils/access.js";
 import { Branch } from "../models/branch.model.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { success, successPaginated } from "../utils/response.js";
@@ -24,11 +25,11 @@ export const updateBranchStatus = asyncHandler(async (req, res) =>
   success(res, 200, "Branch status updated", await branches.setBranchStatus(req.params.id, req.body.status, req)),
 );
 
-export const branchOptions = asyncHandler(async (_req, res) =>
+export const branchOptions = asyncHandler(async (req, res) =>
   success(
     res,
     200,
     "Active branch options fetched",
-    await Branch.find({ status: "ACTIVE" }).select("branchCode name city pincode address").sort({ name: 1 }).lean(),
+    await Branch.find({ status: "ACTIVE", ...(isBranchScopedEmployee(req.user) && { _id: req.user.branchId }) }).select("branchCode name city pincode address").sort({ name: 1 }).lean(),
   ),
 );

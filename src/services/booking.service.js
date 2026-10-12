@@ -37,6 +37,8 @@ export async function linkLr(id, data, req) {
     throw new NotFoundError("Booking not found", "BOOKING_NOT_FOUND");
   const shipment = await Shipment.findById(data.shipmentId).select("lrNumber customerId originBranchId");
   if (!shipment) throw new NotFoundError("Shipment not found", "SHIPMENT_NOT_FOUND");
+  if (!hasFullOperationsAccess(req.user) && String(shipment.originBranchId) !== String(req.user.branchId))
+    throw new NotFoundError("Shipment not found", "SHIPMENT_NOT_FOUND");
   if (booking.customerId && String(booking.customerId) !== String(shipment.customerId))
     throw new ConflictError("LR customer does not match the booking customer", "BOOKING_CUSTOMER_MISMATCH");
   if (booking.shipmentId && String(booking.shipmentId) !== String(shipment._id))

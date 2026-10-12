@@ -12,6 +12,8 @@ const userSchema = new Schema(
     mobile: { type: String, trim: true },
     passwordHash: { type: String, required: true, select: false },
     role: { type: String, enum: Object.values(ROLES), default: ROLES.EMPLOYEE },
+    employeeType: { type: String, enum: ["FIELD_EXECUTIVE", "HUB_EMPLOYEE", "OTHER_EMPLOYEE"], default: "OTHER_EMPLOYEE" },
+    operationStages: { type: [{ type: String, enum: ["FM", "MM", "LM"] }], default: undefined },
     branchId: { ...objectId, ref: "Branch", index: true },
     vendorId: { ...objectId, ref: "Vendor", index: true },
     permissions: [{

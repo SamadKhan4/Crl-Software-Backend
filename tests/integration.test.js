@@ -112,6 +112,41 @@ describeIntegration("CRL API integration workflow", () => {
     await fs.rm(testUploadDir, { recursive: true, force: true });
   }, 30000);
 
+  test("employee operation assignments enforce stages and the assigned branch immediately", async () => {
+    const { Branch, PackageUnit } = await import("../src/models/index.js");
+    const a = await Branch.create({ branchCode: "SCOPE-A", name: "Scope A", city: "Pune", state: "Maharashtra" });
+    const b = await Branch.create({ branchCode: "SCOPE-B", name: "Scope B", city: "Mumbai", state: "Maharashtra" });
+    const employee = await User.create({ employeeCode: "SCOPE-EMP", name: "Scoped Employee", email: "scope@example.test", passwordHash: "unused", role: "EMPLOYEE", branchId: b._id, employeeType: "FIELD_EXECUTIVE" });
+    const employeeAuth = { Authorization: `Bearer ${jwt.sign({ userId: String(employee._id) }, process.env.JWT_ACCESS_SECRET, { expiresIn: "5m" })}` };
+    const endpoint = `/api/users/${employee._id}/operation-access`;
+    await request(app).patch(endpoint).set(employeeAuth).send({ branchId: a.id, operationStages: ["FM"] }).expect(403);
+    const assigned = await request(app).patch(endpoint).set(auth()).send({ branchId: a.id, operationStages: ["FM"] }).expect(200);
+    expect(String(assigned.body.data.branchId)).toBe(a.id);
+    expect(assigned.body.data.employeeType).toBe("FIELD_EXECUTIVE");
+    await request(app).get("/api/middle-mile/sorting/inventory").set(employeeAuth).expect(403);
+    await request(app).get("/api/last-mile/drs").set(employeeAuth).expect(403);
+    const options = await request(app).get("/api/branches/options").set(employeeAuth).expect(200);
+    expect(options.body.data.map((row) => row._id)).toEqual([a.id]);
+    const own = await Shipment.collection.insertOne({ lrNumber: "SCOPE-LR-A", originBranchId: a._id, destinationBranchId: a._id, currentHubId: a._id, currentStatus: "RECEIVED", lastMileState: "DESTINATION_INWARDED" });
+    const foreign = await Shipment.collection.insertOne({ lrNumber: "SCOPE-LR-B", originBranchId: b._id, destinationBranchId: b._id, currentHubId: b._id, currentStatus: "RECEIVED", lastMileState: "DESTINATION_INWARDED" });
+    const listing = await request(app).get("/api/shipments?search=SCOPE-LR").set(employeeAuth).expect(200);
+    expect(listing.body.data.map((row) => row.lrNumber)).toEqual(["SCOPE-LR-A"]);
+    await request(app).get(`/api/shipments/${foreign.insertedId}`).set(employeeAuth).expect(403);
+    await request(app).get(`/api/shipments/${foreign.insertedId}/history`).set(employeeAuth).expect(403);
+    await request(app).patch(endpoint).set(auth()).send({ branchId: a.id, operationStages: ["LM"] }).expect(200);
+    await request(app).get("/api/pickup-requests").set(employeeAuth).expect(403);
+    const inventory = await request(app).get("/api/last-mile/drs-inventory").set(employeeAuth).expect(200);
+    expect(inventory.body.data.map((row) => row.lrNumber)).toEqual(["SCOPE-LR-A"]);
+    const packages = await request(app).get(`/api/package-barcodes?shipmentId=${foreign.insertedId}`).set(employeeAuth).expect(200);
+    expect(packages.body.data).toEqual([]);
+    await request(app).patch(endpoint).set(auth()).send({ branchId: a.id, operationStages: [] }).expect(200);
+    await request(app).get("/api/shipments").set(employeeAuth).expect(403);
+    await Shipment.deleteMany({ _id: { $in: [own.insertedId, foreign.insertedId] } });
+    await PackageUnit.deleteMany({ shipmentId: { $in: [own.insertedId, foreign.insertedId] } });
+    await User.deleteOne({ _id: employee._id });
+    await Branch.deleteMany({ _id: { $in: [a._id, b._id] } });
+  });
+
   test("admin completes the customer-to-closed-shipment workflow", async () => {
     originBranch = (
       await request(app)
@@ -416,6 +451,8 @@ describeIntegration("CRL API integration workflow", () => {
       (await request(app).post("/api/auth/refresh").set("Cookie", refreshCookie).send({})).body.data.user.role,
     ).toBe("MANAGER");
     expect((await request(app).get("/api/managers").set(managerAuth)).status).toBe(403);
+    const { adminOverride } = await import("../src/services/shipment.service.js");
+    await expect(adminOverride(manager.id, {}, { user: { role: "MANAGER" } })).rejects.toMatchObject({ statusCode: 403 });
     expect((await request(app).post("/api/branches").set(managerAuth).send({})).status).toBe(422);
     const staffPayload = {
       name: "Managed Employee",
@@ -426,6 +463,13 @@ describeIntegration("CRL API integration workflow", () => {
     const employeeResponse = await request(app).post("/api/users").set(managerAuth).send(staffPayload);
     expect(employeeResponse.status).toBe(201);
     const employeeId = employeeResponse.body.data.id;
+    await request(app).patch(`/api/users/${employeeId}/operation-access`).set(managerAuth).send({ branchId: originBranch.id, operationStages: ["FM"], permissions: [{ module: "LR", actions: ["VIEW"] }] }).expect(200);
+    await request(app).post("/api/managers").set(managerAuth).send(staffPayload).expect(403);
+    await request(app).patch(`/api/managers/${manager.id}`).set(managerAuth).send({ name: "Unauthorized" }).expect(403);
+    await request(app).delete(`/api/managers/${manager.id}`).set(managerAuth).expect(403);
+    const hrCreated = await request(app).post("/api/hr-users").set(managerAuth).send({ ...staffPayload, email: "manager-created-hr@example.test" }).expect(201);
+    expect(hrCreated.body.data.role).toBe("HR");
+
     expect(
       (
         await request(app)
@@ -853,10 +897,10 @@ describeIntegration("CRL API integration workflow", () => {
     const drs = await request(app).post("/api/last-mile/drs").set(auth()).send({ branchId: mmDestination._id, manifestId: drsManifestId, vehicleNumber: "MH31LM1001", driverName: "Last Mile Driver", deliveryDate: new Date().toISOString(), route: "Mumbai Local", shipmentIds: [shipmentId], partB: [] });
     expect(drs.status).toBe(201);
     expect(drs.body.data.vendorId).toBe(vendor.body.data.id);
+    expect(drs.body.data.workflowStatus).toBe("DISPATCHED");
+    expect(drs.body.data.partB).toEqual([]);
     const duplicateDrs = await request(app).post("/api/last-mile/drs").set(auth()).send({ branchId: mmDestination._id, manifestId: drsManifestId, vehicleNumber: "MH31LM1002", driverName: "Duplicate Driver", deliveryDate: new Date().toISOString(), route: "Mumbai Local", shipmentIds: [shipmentId], partB: [] });
     expect(duplicateDrs.status).toBe(409);
-    expect((await request(app).post(`/api/last-mile/drs/${drs.body.data.id}/finalize`).set(auth()).send({})).status).toBe(200);
-    expect((await request(app).post(`/api/last-mile/drs/${drs.body.data.id}/dispatch`).set(auth()).send({})).status).toBe(200);
     expect((await request(app).post(`/api/last-mile/drs/${drs.body.data.id}/attempt/${shipmentId}`).set(auth()).send({ outcome: "REATTEMPT", failureReason: "Customer unavailable", nextAction: "Retry tomorrow" })).status).toBe(200);
     expect((await request(app).post(`/api/last-mile/drs/${drs.body.data.id}/close`).set(auth()).send({})).status).toBe(200);
     shipment = await Shipment.findById(shipmentId).lean();
@@ -864,9 +908,8 @@ describeIntegration("CRL API integration workflow", () => {
 
     const retryDrs = await request(app).post("/api/last-mile/drs").set(auth()).send({ branchId: mmDestination._id, manifestId: drsManifestId, vehicleNumber: "MH31LM1003", driverName: "Retry Driver", deliveryDate: new Date().toISOString(), route: "Mumbai Local Retry", shipmentIds: [shipmentId], partB: [] });
     expect(retryDrs.status).toBe(201);
-    expect((await request(app).post(`/api/last-mile/drs/${retryDrs.body.data.id}/finalize`).set(auth()).send({})).status).toBe(200);
-    expect((await request(app).post(`/api/last-mile/drs/${retryDrs.body.data.id}/dispatch`).set(auth()).send({})).status).toBe(200);
     expect((await request(app).post(`/api/last-mile/drs/${retryDrs.body.data.id}/attempt/${shipmentId}`).set(auth()).send({ outcome: "DELIVERED" })).status).toBe(200);
+    expect((await request(app).post(`/api/last-mile/drs/${retryDrs.body.data.id}/close`).set(auth()).send({})).status).toBe(409);
     const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64");
     const pod = await request(app).post(`/api/last-mile/drs/${retryDrs.body.data.id}/pod/${shipmentId}`).set(auth()).field("receiverName", "Middle Mile Receiver").attach("pod", png, { filename: "pod.png", contentType: "image/png" });
     expect(pod.status).toBe(201);

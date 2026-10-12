@@ -62,6 +62,7 @@ export const userSchema = z
     mobile: mobile.optional(),
     branchId: objectId,
     vendorId: objectId.optional(),
+    employeeType: z.enum(["FIELD_EXECUTIVE", "HUB_EMPLOYEE", "OTHER_EMPLOYEE"]).optional(),
     permissions: z.array(z.object({ module: z.string().trim().min(2).max(60).transform((value) => value.toUpperCase()), actions: z.array(z.enum(["VIEW", "ADD", "EDIT", "DELETE", "APPROVE", "PRINT", "EXPORT"])).max(7) }).strict()).max(100).optional(),
     password: z.string().min(12).max(128),
   })
@@ -903,3 +904,9 @@ export const employeeDocumentParams = z.object({
   documentType: z.enum(["ID_PROOF", "ADDRESS_PROOF", "PHOTO", "EDUCATION", "OTHER"]),
 }).strict();
 export const employeeDocumentFileParams = z.object({ id: objectId, documentId: objectId }).strict();
+
+export const employeeOperationAccessSchema = z.object({
+  branchId: objectId,
+  operationStages: z.array(z.enum(["FM", "MM", "LM"])).max(3).refine((values) => new Set(values).size === values.length, "Duplicate operation stages"),
+  permissions: userSchema.shape.permissions,
+}).strict();

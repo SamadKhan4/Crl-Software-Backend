@@ -40,6 +40,7 @@ const packageUnitSchema = new Schema(
 );
 
 packageUnitSchema.index({ shipmentId: 1, sequence: 1 }, { unique: true });
+packageUnitSchema.index({ currentCustodianType: 1, status: 1, currentCustodianId: 1, shipmentId: 1 });
 packageUnitSchema.index({ status: 1, updatedAt: -1 });
 
 export const PackageUnit = model("PackageUnit", packageUnitSchema);

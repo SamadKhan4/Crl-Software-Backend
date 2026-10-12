@@ -14,6 +14,8 @@ export const userDto = (user) => ({
   email: user.email,
   mobile: user.mobile,
   role: user.role,
+  employeeType: user.employeeType || "OTHER_EMPLOYEE",
+  operationStages: user.operationStages,
   branchId: user.branchId,
   vendorId: user.vendorId,
   permissions: user.permissions || [],
@@ -42,10 +44,10 @@ const assertManagement = (req, target) => {
   }
   if (
     req.user.role !== ROLES.MANAGER ||
-    managedRole(req) !== ROLES.EMPLOYEE ||
-    (target && target.role !== ROLES.EMPLOYEE)
+    ![ROLES.EMPLOYEE, ROLES.HR, ROLES.VENDOR].includes(managedRole(req)) ||
+    (target && target.role !== managedRole(req))
   )
-    throw new AuthorizationError("Managers can manage employee accounts only");
+    throw new AuthorizationError("Managers can manage employee, HR and vendor accounts only");
 };
 const findUser = async (id, req, session = null) => {
   const user = await User.findById(id).session(session);
@@ -120,6 +122,7 @@ export async function getEmployee(id, req) {
 }
 
 export async function updateEmployee(id, data, req) {
+  if (data.operationStages !== undefined && ![ROLES.ADMIN, ROLES.MANAGER].includes(req.user.role)) throw new AuthorizationError("Only administrators and managers can assign operation access");
   const session = await mongoose.startSession();
   try {
     let updated;

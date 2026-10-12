@@ -444,7 +444,7 @@ export async function updateShipment(id, data, req) {
 }
 
 export async function adminOverride(id, data, req) {
-  if (!isAdmin(req.user)) throw new AuthorizationError();
+  if (req.user.role !== ROLES.ADMIN) throw new AuthorizationError();
   const session = await mongoose.startSession();
   try {
     let shipment;

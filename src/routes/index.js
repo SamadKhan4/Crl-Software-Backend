@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { operationAccess } from "../middlewares/operation-access.js";
 import { allow, authenticate, internalRoles } from "../middlewares/auth.js";
 import { ROLES } from "../constants/workflow.js";
 import { internalLimiter } from "./limits.js";
@@ -20,7 +21,7 @@ import pickupRequestRoutes from "./pickup-request.routes.js";
 import pickupRunSheetRoutes from "./pickup-run-sheet.routes.js";
 const router = Router();
 router.use(authRoutes, publicRoutes);
-router.use(authenticate, internalRoles, internalLimiter);
+router.use(authenticate, internalRoles, internalLimiter, operationAccess);
 router.use(usersRoutes, payslipsRoutes, onboardingRoutes, branchesRoutes, vendorPortalRoutes);
 router.use(allow(ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE));
 router.use(analyticsRoutes, customersRoutes, shipmentsRoutes, tmsRoutes, expansionRoutes, bookingRoutes, pickupRequestRoutes, pickupRunSheetRoutes, notificationRoutes);

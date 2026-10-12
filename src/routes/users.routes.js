@@ -6,8 +6,16 @@ import { ROLES } from "../constants/workflow.js";
 import { allow } from "../middlewares/auth.js";
 import { addResourceMutations } from "./resource-mutations.js";
 
+import { AuthorizationError } from "../utils/errors.js";
+import { asyncHandler } from "../utils/asyncHandler.js";
+import { success } from "../utils/response.js";
+import { updateEmployee } from "../services/user.service.js";
 const router = Router();
-router.use("/managers", allow(ROLES.ADMIN), (req, _res, next) => {
+router.patch("/users/:id/operation-access", allow(ROLES.ADMIN), validate(v.ids, "params"), validate(v.employeeOperationAccessSchema, "body", { preserveBranchAssignment: true }), asyncHandler(async (req, res) => {
+  success(res, 200, "Employee operation access updated", await updateEmployee(req.params.id, req.body, req));
+}));
+router.use("/managers", (req, _res, next) => {
+  if (req.user.role !== ROLES.ADMIN) return next(new AuthorizationError("Manager Master is available only to administrators"));
   req.managementRole = ROLES.MANAGER;
   next();
 });

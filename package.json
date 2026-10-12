@@ -11,7 +11,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "set NODE_ENV=test&& set NODE_OPTIONS=--experimental-vm-modules&& jest --runInBand",
-    "test:integration": "set NODE_ENV=test&& set RUN_MONGO_INTEGRATION=true&& set NODE_OPTIONS=--experimental-vm-modules&& jest tests/integration.test.js --runInBand",
+    "test:integration": "set NODE_ENV=test&& set RUN_MONGO_INTEGRATION=true&& set NODE_OPTIONS=--experimental-vm-modules&& jest tests/integration.test.js tests/city-sorting.integration.test.js tests/mis-reports.integration.test.js --runInBand",
     "test:stress": "set NODE_ENV=test&& set RUN_MONGO_INTEGRATION=true&& set RUN_STRESS=true&& set NODE_OPTIONS=--experimental-vm-modules&& jest tests/integration.test.js --runInBand",
     "test:watch": "set NODE_ENV=test&& set NODE_OPTIONS=--experimental-vm-modules&& jest --watch",
     "test:coverage": "set NODE_ENV=test&& set NODE_OPTIONS=--experimental-vm-modules&& jest --coverage",

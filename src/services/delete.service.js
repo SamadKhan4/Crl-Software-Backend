@@ -17,6 +17,7 @@ import { hasFullOperationsAccess } from "../utils/access.js";
 const resources = { branches: Branch, customers: Customer, users: User, managers: User, shipments: Shipment };
 
 export async function deleteResource(resource, id, req) {
+  if (resource === "managers" && req.user.role !== ROLES.ADMIN) throw new AuthorizationError("Only administrators can delete manager accounts");
   if (!hasFullOperationsAccess(req.user)) throw new AuthorizationError();
   const Model = resources[resource];
   const session = await mongoose.startSession();

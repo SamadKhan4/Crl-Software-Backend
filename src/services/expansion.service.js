@@ -208,7 +208,7 @@ export async function listPackages(query, user) {
   const shipmentScope = hasFullOperationsAccess(user) || !user.branchId ? {} : { $or: [{ originBranchId: user.branchId }, { destinationBranchId: user.branchId }] };
   const accessible = await Shipment.find(shipmentScope).distinct("_id");
   const filter = { shipmentId: { $in: accessible } };
-  if (query.shipmentId) filter.shipmentId = query.shipmentId;
+  if (query.shipmentId) filter.shipmentId = { $in: accessible.filter((value) => String(value) === String(query.shipmentId)) };
   if (query.lrNumber) filter.lrNumber = query.lrNumber.toUpperCase();
   if (query.status) filter.status = query.status;
   if (query.search) filter.$or = ["barcode", "lrNumber", "currentLocation"].map((field) => ({ [field]: { $regex: escapeSearch(query.search), $options: "i" } }));
@@ -226,6 +226,7 @@ export async function packageByBarcode(barcode, user) {
 }
 
 export async function scanPackage(barcode, data, req) {
+  await packageByBarcode(barcode, req.user);
   const unit = await PackageUnit.findOne({ barcode: barcode.toUpperCase() });
   if (!unit) throw new NotFoundError("Package barcode not found", "PACKAGE_NOT_FOUND");
   if (unit.status === "CANCELLED") throw new ConflictError("Cancelled package cannot be scanned", "PACKAGE_CANCELLED");

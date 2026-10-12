@@ -165,6 +165,9 @@ const stationeryTransactionSchema = new Schema(
 for (const schema of [invoiceSchema, moneyReceiptSchema, quotationSchema, stationeryTransactionSchema]) {
   schema.index({ createdAt: -1, _id: -1 });
 }
+invoiceSchema.index({ shipmentIds: 1, status: 1 });
+invoiceSchema.index({ status: 1, issueDate: -1, branchId: 1 });
+moneyReceiptSchema.index({ "allocations.invoiceId": 1, status: 1 });
 invoiceSchema.index({ customerId: 1, status: 1, dueDate: 1 });
 moneyReceiptSchema.index({ customerId: 1, receiptDate: -1 });
 stationeryTransactionSchema.index({ branchId: 1, itemType: 1, transactionDate: -1 });

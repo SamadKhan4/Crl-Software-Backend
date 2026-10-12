@@ -1,7 +1,14 @@
 import { Branch } from "../models/branch.model.js";
+import { isBranchScopedEmployee } from "../utils/access.js";
+import { AuthorizationError } from "../utils/errors.js";
 
 // Keep required legacy references internal; route cities never come from this record.
-export async function operationsOffice() {
+export async function operationsOffice(user) {
+  if (isBranchScopedEmployee(user)) {
+    const branch = user.branchId && await Branch.findOne({ _id: user.branchId, status: "ACTIVE" });
+    if (!branch) throw new AuthorizationError("An active assigned branch is required");
+    return branch;
+  }
   const existing = await Branch.findOne({ branchCode: "NGP" });
   if (existing) return existing;
   try {
