@@ -444,6 +444,8 @@ export const vendorSchema = z
     documents: z.array(z.object({ type: z.string().trim().min(2).max(60), number: optionalText(120), fileUrl: z.string().url().max(1000).optional(), expiresAt: z.coerce.date().optional(), verified: z.boolean().default(false) }).strict()).max(50).default([]),
     commercial: commercialSchema,
     vehicles: z.array(vehicleSchema).max(100).default([]),
+    hasMarketVehicles: z.boolean().default(false),
+    marketVehicles: z.array(vehicleSchema).max(100).default([]),
   })
   .strict();
 export const vendorUpdateSchema = nonEmptyUpdate(vendorSchema);

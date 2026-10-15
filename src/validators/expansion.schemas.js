@@ -147,8 +147,6 @@ export const pickupAgentAssignmentSchema = z.object({
 }).strict().superRefine((value, ctx) => {
   if (value.sourceType === "VENDOR" && !value.vendorId)
     ctx.addIssue({ code: "custom", path: ["vendorId"], message: "Select a vendor" });
-  if (value.sourceType === "MARKET" && value.vendorId)
-    ctx.addIssue({ code: "custom", path: ["vendorId"], message: "Vendor is not used for a market vehicle" });
 });
 
 export const pickupRunSheetSchema = z.object({

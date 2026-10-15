@@ -91,7 +91,7 @@ describe("Pickup request validation", () => {
     ).toBe(true);
     expect(
       pickupAgentAssignmentSchema.safeParse({ ...assignment, sourceType: "MARKET" }).success,
-    ).toBe(false);
+    ).toBe(true);
     expect(
       pickupAgentAssignmentSchema.safeParse({ ...assignment, driverMobile: "123" }).success,
     ).toBe(false);

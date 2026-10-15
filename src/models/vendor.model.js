@@ -77,6 +77,8 @@ const vendorSchema = new Schema(
       gstRate: { type: Number, min: 0, max: 100, default: 0 },
     },
     vehicles: { type: [vehicleSchema], default: [] },
+    hasMarketVehicles: { type: Boolean, default: false },
+    marketVehicles: { type: [vehicleSchema], default: [] },
     status: { type: String, enum: Object.values(ACTIVE), default: ACTIVE.ACTIVE, index: true },
     createdBy: { ...objectId, ref: "User", required: true },
   },

@@ -149,12 +149,12 @@ export async function getPickupRequest(id, user) {
 }
 
 export async function assignPickupAgent(id, data, req) {
-  const vendor = data.sourceType === "VENDOR"
+  const vendor = data.vendorId
     ? await Vendor.findOne({ _id: data.vendorId, status: ACTIVE.ACTIVE }).select(
         "vendorCode name contactPerson mobile vehicles",
       )
     : null;
-  if (data.sourceType === "VENDOR" && !vendor)
+  if ((data.sourceType === "VENDOR" || data.vendorId) && !vendor)
     throw new ConflictError("Select an active vendor or pickup agent", "INVALID_PICKUP_AGENT");
   const session = await mongoose.startSession();
   try {
