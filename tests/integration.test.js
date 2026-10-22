@@ -744,7 +744,7 @@ describeIntegration("CRL API integration workflow", () => {
     expect(validTrip.status).toBe(201);
     expect((await request(app).post(`/api/middle-mile/trips/${validTrip.body.data.id}/dispatch`).set(operatorAuth).send({})).status).toBe(403);
 
-    expect((await request(app).post(`/api/middle-mile/trips/${validTrip.body.data.id}/dispatch`).set(auth()).send({})).status).toBe(200);
+    expect(validTrip.body.data).toMatchObject({ status: "DISPATCHED", workflowStatus: "IN_TRANSIT" });
     expect((await request(app).post(`/api/middle-mile/trips/${validTrip.body.data.id}/arrive`).set(auth()).send({})).status).toBe(200);
     expect(await Shipment.findById(eligible.id).lean()).toMatchObject({ lastMileState: "ARRIVED", currentLocation: "Remote Estate" });
   });
@@ -859,7 +859,7 @@ describeIntegration("CRL API integration workflow", () => {
         departureDate: new Date().toISOString(), freightAmount: 5000, advanceAmount: 1000, routeId,
       });
       if (trip.status !== 201) throw new Error(JSON.stringify(trip.body));
-      expect((await request(app).post(`/api/middle-mile/trips/${trip.body.data.id}/dispatch`).set(auth()).send({})).status).toBe(200);
+      expect(trip.body.data).toMatchObject({ status: "DISPATCHED", workflowStatus: "IN_TRANSIT" });
       expect((await request(app).post(`/api/middle-mile/trips/${trip.body.data.id}/arrive`).set(auth()).send({})).status).toBe(200);
       return { trip: trip.body.data, packages: packages.body.data };
     };

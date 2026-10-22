@@ -26,3 +26,5 @@ export { MovementLeg, LoadingTally } from "./middle-mile.model.js";
 export { UnloadingTally } from "./last-mile.model.js";
 
 export { LetterAuthorization } from "./authorization.model.js";
+
+export { Attendance, Holiday } from "./attendance.model.js";

@@ -1,5 +1,7 @@
-import { ACTIVE, ROLES } from "../constants/workflow.js";
-import { Payslip, User } from "../models/index.js";
+import { attendanceSummary } from "./attendance.service.js";
+import { leaveDeduction } from "../utils/attendance.js";
+import { resolveHrEmployee } from "./hr-employee.service.js";
+import { Payslip } from "../models/index.js";
 import { ConflictError, NotFoundError } from "../utils/errors.js";
 import { generateBusinessNumber } from "../utils/ids.js";
 import { escapeSearch, listQuery, paginated } from "../utils/query.js";
@@ -9,22 +11,22 @@ const amount = (value) => Math.round((Number(value || 0) + Number.EPSILON) * 100
 const total = (parts) => amount(Object.values(parts || {}).reduce((sum, value) => sum + Number(value || 0), 0));
 const dto = (record) => ({ ...(record.toObject?.() ?? record), id: record._id });
 
-const findEmployee = async (employeeId) => {
-  const employee = await User.findOne({ _id: employeeId, role: ROLES.EMPLOYEE, status: ACTIVE.ACTIVE });
-  if (!employee) throw new NotFoundError("Active employee not found", "EMPLOYEE_NOT_FOUND");
-  return employee;
-};
-
 export async function createPayslip(data, req) {
-  const employee = await findEmployee(data.employeeId);
+  const { employee, employeeModel } = await resolveHrEmployee(data.employeeId);
+  data = { ...data, employeeId: employee._id };
   const grossEarnings = total(data.earnings);
-  const totalDeductions = total(data.deductions);
+  const summary = await attendanceSummary(data.employeeId, data.salaryMonth);
+  if (summary.missingDays) throw new ConflictError(`Complete attendance for ${summary.missingDays} working days before creating this payslip`, "ATTENDANCE_INCOMPLETE");
+  const deductions = { ...data.deductions, leave: leaveDeduction(grossEarnings, summary) };
+  const totalDeductions = total(deductions);
   if (totalDeductions > grossEarnings)
     throw new ConflictError("Deductions cannot exceed gross earnings", "INVALID_DEDUCTIONS");
   try {
     const payslip = await Payslip.create({
       ...data,
-      branchId: employee.branchId,
+      branchId: employee.branchId, employeeModel,
+      paidDays: summary.paidDays, deductions,
+      attendanceSummary: { workingDays: summary.workingDays, eligibleDays: summary.eligibleDays, unpaidDays: summary.unpaidDays, paidLeaveDays: summary.paidLeaveDays, paidDays: summary.paidDays },
       payslipNumber: await generateBusinessNumber("payslip", "PAY"),
       grossEarnings,
       totalDeductions,

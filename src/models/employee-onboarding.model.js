@@ -14,6 +14,7 @@ const documentSchema = new Schema({
 });
 
 const employeeOnboardingSchema = new Schema({
+  employeeCode: { type: String, unique: true, sparse: true, index: true },
   onboardingNumber: { type: String, required: true, unique: true, index: true },
   name: { type: String, required: true, trim: true, maxlength: 100 },
   email: { type: String, required: true, lowercase: true, trim: true, index: true },

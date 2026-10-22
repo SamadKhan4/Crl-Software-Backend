@@ -2,7 +2,7 @@ import { operationsOffice } from "./operations-office.service.js";
 import { locationKey, sameLocation, shipmentDestination } from "../utils/locations.js";
 import { hasCrossBranchAccess as hasFullOperationsAccess } from "../utils/access.js";
 import mongoose from "mongoose";
-import { ACTIVE, LAST_MILE_STATE, MIDDLE_MILE_STATE, SHIPMENT_STATUS, TRACKING_EVENT_STATUS } from "../constants/workflow.js";
+import { ACTIVE, MIDDLE_MILE_STATE, SHIPMENT_STATUS, TRACKING_EVENT_STATUS } from "../constants/workflow.js";
 import {
   Branch,
   BusinessMaster,
@@ -11,7 +11,6 @@ import {
   MovementLeg,
   PackageUnit,
   PickupRequest,
-  PickupRunSheet,
   Segregation,
   Shipment,
   ShipmentEvent,
@@ -65,31 +64,6 @@ async function nextLegNumber(shipmentId, session) {
   return Number(latest?.legNumber || 0) + 1;
 }
 
-async function prsVendorForShipments(shipmentIds, session, strict = false) {
-  const sourceShipmentIds = shipmentIds.map((value) => value?._id ?? value);
-  let query = PickupRunSheet.find({ shipmentIds: { $in: sourceShipmentIds }, status: "DISPATCHED" })
-    .select("prsNumber shipmentIds vendorId vendorCode vendorName")
-    .populate("vendorId", "vendorCode name");
-  if (session) query = query.session(session);
-  const sheets = await query.lean();
-  if (!sheets.length) return { sourceVendor: null, sourcePrs: [] };
-
-  const expected = new Set(sourceShipmentIds.map(id));
-  const covered = new Set(sheets.flatMap((sheet) => sheet.shipmentIds.map(id)).filter((shipmentId) => expected.has(shipmentId)));
-  const vendorIds = new Set(sheets.map((sheet) => id(sheet.vendorId)).filter(Boolean));
-  if (strict && covered.size !== expected.size)
-    throw new ConflictError("Every LR in this tally must come from a dispatched PRS", "PRS_SOURCE_MISSING");
-  if (strict && sheets.some((sheet) => !sheet.vendorId))
-    throw new BusinessRuleError("The source PRS uses a market vehicle and has no Vendor Master vendor", "PRS_VENDOR_REQUIRED");
-  if (strict && vendorIds.size > 1)
-    throw new ConflictError("This tally contains LRs from different PRS vendors. Create separate manifests vendor-wise", "PRS_VENDOR_MISMATCH");
-
-  return {
-    sourceVendor: vendorIds.size === 1 ? sheets.find((sheet) => sheet.vendorId)?.vendorId : null,
-    sourcePrs: sheets.map((sheet) => ({ id: sheet._id, prsNumber: sheet.prsNumber, vendorCode: sheet.vendorCode, vendorName: sheet.vendorName })),
-  };
-}
-
 export async function hubInward(data, req) {
   const branchId = operatingBranch(data.branchId, req.user);
   const session = await mongoose.startSession();
@@ -104,10 +78,6 @@ export async function hubInward(data, req) {
       if (!isAdmin(req.user) && shipment.movementState === MIDDLE_MILE_STATE.DESTINATION_HUB_INWARDED && id(shipment.currentHubId) !== id(branchId)) throw new AuthorizationError("LR is not available at this hub");
       if (id(branchId) === id(data.nextHubId)) throw new BusinessRuleError("Next hub must differ from current hub", "INVALID_NEXT_HUB");
       const [hub, nextHub] = await Promise.all([ensureHub(branchId, session), ensureHub(data.nextHubId, session), ensureRoute(data.routeId, session)]);
-      if (shipment.pickupRequestId) {
-        const pickup = await PickupRequest.findById(shipment.pickupRequestId).select("status").session(session);
-        if (!pickup || pickup.status !== "DISPATCHED") throw new ConflictError("First Mile pickup must be dispatched before hub inward", "FIRST_MILE_NOT_COMPLETED");
-      }
       const packages = await PackageUnit.find({ shipmentId: shipment._id }).session(session);
       if (packages.length !== shipment.packageCount) throw new ConflictError("Package count does not match the LR", "PACKAGE_COUNT_MISMATCH");
       const leg = (await MovementLeg.create([{
@@ -143,14 +113,14 @@ export async function sortingInventory(query, _user) {
   const options = listQuery(query);
   const branchId = isAdmin(_user) ? null : _user.branchId;
   const filter = await routeInventoryFilter(query.routeId, branchId);
-  if (query.destination) filter.$and = [...(filter.$and || []), { "lrDetails.to": cityPattern(query.destination) }];
+  if (query.destination) filter.$and = [...(filter.$and || []), await sortingDestinationFilter(query.destination)];
   if (query.destinationPincode) filter["lrDetails.consigneePincode"] = query.destinationPincode;
   if (query.search) filter.$or = ["lrNumber", "senderName", "receiverName"].map((field) => ({ [field]: { $regex: escapeSearch(query.search), $options: "i" } }));
   const [items, total] = await Promise.all([
-    Shipment.find(filter).populate("customerId originBranchId destinationBranchId currentHubId nextHubId routeId").sort(options.sort).skip(options.skip).limit(options.limit).lean(),
+    Shipment.find(filter).populate("customerId originBranchId destinationBranchId currentHubId nextHubId routeId").populate("pickupRequestId", "recipient.city").sort(options.sort).skip(options.skip).limit(options.limit).lean(),
     Shipment.countDocuments(filter),
   ]);
-  return paginated(items.map(dto), total, options);
+  return paginated(items.map((item) => ({ ...dto(item), sortingDestination: item.pickupRequestId?.recipient?.city?.trim() || item.lrDetails?.to?.trim() || item.destinationBranchId?.city || item.destinationBranchId?.name || "" })), total, options);
 }
 
 export async function createSorting(data, req) {
@@ -161,7 +131,7 @@ export async function createSorting(data, req) {
     await session.withTransaction(async () => {
       const route = await ensureRoute(data.routeId, session);
       const filter = await routeInventoryFilter(data.routeId, isAdmin(req.user) ? null : req.user.branchId, session);
-      if (data.destination) filter.$and = [...(filter.$and || []), { "lrDetails.to": cityPattern(data.destination) }];
+      if (data.destination) filter.$and = [...(filter.$and || []), await sortingDestinationFilter(data.destination, session)];
       if (data.destinationPincode) filter["lrDetails.consigneePincode"] = data.destinationPincode;
       const shipments = await Shipment.find({ ...filter, _id: { $in: data.shipmentIds } }).session(session);
       if (shipments.length !== data.shipmentIds.length) throw new ConflictError("Select available LRs matching this destination city and PIN code", "INVALID_SHIPMENT_SELECTION");
@@ -248,9 +218,25 @@ export async function setShipmentHold(recordId, data, req) {
 const availableStates = [null, MIDDLE_MILE_STATE.HUB_INWARDED, MIDDLE_MILE_STATE.SORTING_PENDING, MIDDLE_MILE_STATE.DESTINATION_HUB_INWARDED];
 
 const cityPattern = (value) => new RegExp(`^${escapeSearch(String(value || "").trim()).replace(/\s+/g, "\\s+")}$`, "i");
+// The receiver city is authoritative for pickup-linked LRs. PRS creation or
+// pickup workflow status never determines whether an LR can be sorted.
+async function sortingDestinationFilter(destination, session = null) {
+  const pattern = cityPattern(destination);
+  const branches = await Branch.find({ $or: [{ city: pattern }, { city: { $in: [null, ""] }, name: pattern }] }).session(session);
+  const pickups = await PickupRequest.find({ "recipient.city": { $nin: [null, ""] } }).select("recipient.city").session(session);
+  const withReceiverCity = pickups.map((pickup) => pickup._id);
+  const matchingPickups = pickups.filter((pickup) => pattern.test(pickup.recipient?.city?.trim() || "")).map((pickup) => pickup._id);
+  return { $or: [
+    { pickupRequestId: { $in: matchingPickups } },
+    { pickupRequestId: { $nin: withReceiverCity }, $or: [
+      { "lrDetails.to": pattern },
+      { "lrDetails.to": { $in: [null, ""] }, destinationBranchId: { $in: branches.map((branch) => branch._id) } },
+    ] },
+  ] };
+}
+
 async function routeInventoryFilter(routeId, _branchId, session = null) {
-  const pendingPickupIds = await PickupRequest.distinct("_id", { status: { $ne: "DISPATCHED" } }).session(session);
-  const filter = { movementState: { $in: availableStates }, currentStatus: { $in: [SHIPMENT_STATUS.BOOKED, SHIPMENT_STATUS.IN_TRANSIT] }, pickupRequestId: { $nin: pendingPickupIds } };
+  const filter = { movementState: { $in: availableStates }, currentStatus: { $in: [SHIPMENT_STATUS.BOOKED, SHIPMENT_STATUS.IN_TRANSIT] } };
   if (routeId) {
     const route = await ensureRoute(routeId, session);
     const routes = await BusinessMaster.find({ type: "ROUTE", status: "ACTIVE" }).session(session);
@@ -422,7 +408,6 @@ export async function createManifest(data, req) {
       }
       const legs = await MovementLeg.find({ _id: { $in: shipments.map((row) => row.activeMovementLegId) }, loadingTallyId: tally._id }).session(session);
       if (legs.length !== shipments.length) throw new ConflictError("LR movement changed; refresh the tally", "SHIPMENT_ALREADY_MANIFESTED");
-      const { sourceVendor } = await prsVendorForShipments(tally.shipmentIds, session, true);
       for (const [shipmentId, eWayBillNo] of eWayUpdates) {
         await Shipment.updateOne({ _id: shipmentId }, { $set: { "lrDetails.eWayBillNo": eWayBillNo } }, { session });
         await audit(session, req, "MANIFEST_EWAY_UPDATED", "Shipment", shipmentId, { eWayBillNo: shipments.find((row) => id(row) === shipmentId)?.lrDetails?.eWayBillNo }, { eWayBillNo });
@@ -430,7 +415,7 @@ export async function createManifest(data, req) {
       manifest = (await Manifest.create([{
         manifestNumber: await generateBusinessNumber("manifest", "MNF", session), branchId: tally.branchId,
         loadingTallyId: tally._id, segregationId: tally.segregationId, fromHubId: tally.fromHubId, toHubId: tally.toHubId, routeId: tally.routeId,
-        shipmentIds: tally.shipmentIds, origin: tally.origin, destination: tally.destination || toHub?.city || toHub?.name || "Destination", vendorId: sourceVendor?._id,
+        shipmentIds: tally.shipmentIds, origin: tally.origin, destination: tally.destination || toHub?.city || toHub?.name || "Destination",
         totalLrs: tally.totalLrs, totalPackages: tally.totalPackages, totalWeightKg: tally.totalWeightKg,
         workflowStatus: "LOCKED", lockedAt: new Date(), lockedBy: req.user._id, status: "OPEN", vendorReference: data.vendorReference, remarks: data.remarks, createdBy: req.user._id,
       }], { session }))[0];
@@ -522,9 +507,26 @@ export async function createTrip(data, req) {
       const shipments = await Shipment.find({ _id: { $in: shipmentIds } }).session(session);
       await ShipmentEvent.create(eventRows(shipments, TRACKING_EVENT_STATUS.TRIP_ASSIGNED, trip.branchId, req.user, `Assigned to trip ${trip.tripNumber}`, { tripId: trip._id }), { session, ordered: true });
       await audit(session, req, "MIDDLE_MILE_TRIP_CREATED", "Trip", trip._id, null, { number: trip.tripNumber, manifestCount: manifests.length, shipmentCount: shipmentIds.length });
+      await dispatchCreatedTrip(trip, req, session);
     });
     return dto(trip);
   } finally { await session.endSession(); }
+}
+
+async function dispatchCreatedTrip(trip, req, session) {
+  const manifests = await Manifest.find({ _id: { $in: trip.manifestIds }, workflowStatus: "TRIP_ASSIGNED", tripId: trip._id }).session(session);
+  if (manifests.length !== trip.manifestIds.length) throw new ConflictError("Trip manifests are no longer dispatchable", "MANIFEST_NOT_READY");
+  if (trip.vendorId) {
+    const vendor = await Vendor.findOne({ _id: trip.vendorId, status: ACTIVE.ACTIVE }).session(session);
+    if (!vendor || vendor.documents.some((document) => document.expiresAt && document.expiresAt < new Date())) throw new ConflictError("Vendor compliance is invalid or expired", "COMPLIANCE_EXPIRED");
+  }
+  trip.status = "DISPATCHED"; trip.workflowStatus = "IN_TRANSIT"; trip.dispatchedAt = new Date(); await trip.save({ session });
+  await Manifest.updateMany({ _id: { $in: trip.manifestIds } }, { $set: { workflowStatus: "DISPATCHED" } }, { session });
+  await Shipment.updateMany({ _id: { $in: trip.shipmentIds }, movementState: MIDDLE_MILE_STATE.TRIP_ASSIGNED }, { $set: { currentStatus: SHIPMENT_STATUS.IN_TRANSIT, movementState: MIDDLE_MILE_STATE.IN_TRANSIT, currentLocation: `In transit: ${trip.origin} to ${trip.destination}` } }, { session });
+  await MovementLeg.updateMany({ tripId: trip._id }, { $set: { status: MIDDLE_MILE_STATE.IN_TRANSIT, dispatchedAt: trip.dispatchedAt } }, { session });
+  const shipments = await Shipment.find({ _id: { $in: trip.shipmentIds } }).session(session);
+  await ShipmentEvent.create(eventRows(shipments, SHIPMENT_STATUS.IN_TRANSIT, trip.fromHubId, req.user, `Dispatched under trip ${trip.tripNumber}`, { tripId: trip._id }), { session, ordered: true });
+  await audit(session, req, "MIDDLE_MILE_TRIP_DISPATCHED", "Trip", trip._id, { status: "PLANNED" }, { number: trip.tripNumber, status: "DISPATCHED" });
 }
 
 export async function dispatchTrip(recordId, req) {
@@ -535,19 +537,7 @@ export async function dispatchTrip(recordId, req) {
       trip = await Trip.findOne({ _id: recordId, tripType: "MIDDLE_MILE" }).session(session);
       if (!trip) throw new NotFoundError("Middle Mile trip not found", "TRIP_NOT_FOUND"); assertBranch(trip, req.user);
       if (trip.status !== "PLANNED" || trip.workflowStatus !== "READY_FOR_DISPATCH") throw new ConflictError("Trip is not ready for dispatch", "TRIP_NOT_READY");
-      const manifests = await Manifest.find({ _id: { $in: trip.manifestIds }, workflowStatus: "TRIP_ASSIGNED", tripId: trip._id }).session(session);
-      if (manifests.length !== trip.manifestIds.length) throw new ConflictError("Trip manifests are no longer dispatchable", "MANIFEST_NOT_READY");
-      if (trip.vendorId) {
-        const vendor = await Vendor.findOne({ _id: trip.vendorId, status: ACTIVE.ACTIVE }).session(session);
-        if (!vendor || vendor.documents.some((document) => document.expiresAt && document.expiresAt < new Date())) throw new ConflictError("Vendor compliance is invalid or expired", "COMPLIANCE_EXPIRED");
-      }
-      trip.status = "DISPATCHED"; trip.workflowStatus = "IN_TRANSIT"; trip.dispatchedAt = new Date(); await trip.save({ session });
-      await Manifest.updateMany({ _id: { $in: trip.manifestIds } }, { $set: { workflowStatus: "DISPATCHED" } }, { session });
-      await Shipment.updateMany({ _id: { $in: trip.shipmentIds }, movementState: MIDDLE_MILE_STATE.TRIP_ASSIGNED }, { $set: { currentStatus: SHIPMENT_STATUS.IN_TRANSIT, movementState: MIDDLE_MILE_STATE.IN_TRANSIT, currentLocation: `In transit: ${trip.origin} to ${trip.destination}` } }, { session });
-      await MovementLeg.updateMany({ tripId: trip._id }, { $set: { status: MIDDLE_MILE_STATE.IN_TRANSIT, dispatchedAt: trip.dispatchedAt } }, { session });
-      const shipments = await Shipment.find({ _id: { $in: trip.shipmentIds } }).session(session);
-      await ShipmentEvent.create(eventRows(shipments, SHIPMENT_STATUS.IN_TRANSIT, trip.fromHubId, req.user, `Dispatched under trip ${trip.tripNumber}`, { tripId: trip._id }), { session, ordered: true });
-      await audit(session, req, "MIDDLE_MILE_TRIP_DISPATCHED", "Trip", trip._id, { status: "PLANNED" }, { number: trip.tripNumber, status: "DISPATCHED" });
+      await dispatchCreatedTrip(trip, req, session);
     });
     return dto(trip);
   } finally { await session.endSession(); }
@@ -570,7 +560,7 @@ export async function arriveTrip(recordId, req) {
       const final = arriving.filter((shipment) => sameLocation(shipmentDestination(shipment), destination));
       const onward = arriving.filter((shipment) => !sameLocation(shipmentDestination(shipment), destination));
       if (arriving.some((shipment) => !shipmentDestination(shipment))) throw new ConflictError("Set the LR destination before arrival", "LR_DESTINATION_REQUIRED");
-      await Shipment.updateMany({ _id: { $in: final.map((shipment) => shipment._id) } }, { $set: { lastMileState: LAST_MILE_STATE.ARRIVED, currentLocation: destination } }, { session });
+      await Shipment.updateMany({ _id: { $in: final.map((shipment) => shipment._id) } }, { $set: { currentLocation: destination } }, { session });
       for (const shipment of onward) {
         shipment.currentHubId = trip.toHubId; shipment.nextHubId = undefined; shipment.routeId = undefined;
         shipment.currentLocation = trip.destination; shipment.movementState = MIDDLE_MILE_STATE.SORTING_PENDING;
@@ -597,8 +587,6 @@ export async function destinationInward(recordId, data, req) {
       const expected = new Set(trip.shipmentIds.map(id)); const received = new Set(data.receivedShipmentIds.map(id));
       if (expected.size !== received.size || [...expected].some((shipmentId) => !received.has(shipmentId))) throw new ConflictError("Received LR count does not match the trip manifest", "INWARD_SHIPMENT_MISMATCH");
       const [hub, shipments] = await Promise.all([Branch.findById(trip.toHubId).session(session), Shipment.find({ _id: { $in: trip.shipmentIds } }).session(session)]);
-      if (shipments.some((shipment) => id(shipment.destinationBranchId) === id(trip.toHubId)))
-        throw new ConflictError("Final-destination LRs must complete Last Mile unloading and QC before inward", "LAST_MILE_UNLOADING_REQUIRED");
       for (const shipment of shipments) {
         shipment.currentHubId = trip.toHubId; shipment.nextHubId = undefined; shipment.routeId = undefined;
         shipment.currentLocation = hub?.name || trip.destination;
@@ -634,11 +622,8 @@ export const getLoadingTally = async (recordId, user) => {
   if (!record) throw new NotFoundError("Loading tally not found", "TALLY_NOT_FOUND");
   assertBranch(record, user);
   const shipmentIds = record.items.map((item) => item.shipmentId._id ?? item.shipmentId);
-  const [packages, prsSource] = await Promise.all([
-    PackageUnit.find({ shipmentId: { $in: shipmentIds } }).select("barcode lrNumber status").sort({ barcode: 1 }).lean(),
-    prsVendorForShipments(shipmentIds),
-  ]);
-  return { ...dto(record), packages, ...prsSource };
+  const packages = await PackageUnit.find({ shipmentId: { $in: shipmentIds } }).select("barcode lrNumber status").sort({ barcode: 1 }).lean();
+  return { ...dto(record), packages };
 };
 export async function listManifests(query, user) {
   const result = await listCollection(Manifest, query, user, [
@@ -647,7 +632,7 @@ export async function listManifests(query, user) {
   ]);
   result.items = await Promise.all(result.items.map(async (manifest) => ({
     ...manifest,
-    vendorId: manifest.vendorId || (await prsVendorForShipments(manifest.shipmentIds)).sourceVendor || manifest.tripId?.vendorId,
+    vendorId: manifest.vendorId || manifest.tripId?.vendorId,
   })));
   return result;
 }

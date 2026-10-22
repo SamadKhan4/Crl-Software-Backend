@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
 import { ACTIVE, ROLES } from "../constants/workflow.js";
-import { Branch, EmployeeOnboarding, User } from "../models/index.js";
+import { Attendance, Payslip, Branch, EmployeeOnboarding, User } from "../models/index.js";
 import { ConflictError, NotFoundError } from "../utils/errors.js";
 import { generateBusinessNumber, generateEmployeeCode } from "../utils/ids.js";
 import { escapeSearch, listQuery, paginated } from "../utils/query.js";
@@ -22,6 +22,7 @@ export async function createOnboarding(data, req) {
     throw new ConflictError("This employee already has a pending onboarding request", "ONBOARDING_EXISTS");
   const record = await EmployeeOnboarding.create({
     ...data,
+    employeeCode: await generateEmployeeCode(),
     onboardingNumber: await generateBusinessNumber("employee-onboarding", "ONB"),
     createdBy: req.user._id,
   });
@@ -34,7 +35,7 @@ export async function createOnboarding(data, req) {
 export async function listOnboarding(query, user) {
   const options = listQuery(query);
   const filter = { ...scope(user), ...(query.status && { status: query.status }), ...(query.branchId && user.role !== ROLES.MANAGER && { branchId: query.branchId }) };
-  if (query.search) filter.$or = ["onboardingNumber", "name", "email", "mobile", "designation", "department"].map((field) => ({ [field]: { $regex: escapeSearch(query.search), $options: "i" } }));
+  if (query.search) filter.$or = ["employeeCode", "onboardingNumber", "name", "email", "mobile", "designation", "department"].map((field) => ({ [field]: { $regex: escapeSearch(query.search), $options: "i" } }));
   const [items, count] = await Promise.all([
     EmployeeOnboarding.find(filter).populate("branchId", "branchCode name city").populate("userId", "employeeCode name email").sort(options.sort).skip(options.skip).limit(options.limit).lean(),
     EmployeeOnboarding.countDocuments(filter),
@@ -97,12 +98,16 @@ export async function reviewOnboarding(id, data, req) {
         if (await User.exists({ email: record.email }).session(session))
           throw new ConflictError("An employee login already uses this email", "USER_EMAIL_EXISTS");
         const user = (await User.create([{
-          employeeCode: await generateEmployeeCode(session), name: record.name, email: record.email,
+          employeeCode: record.employeeCode || await generateEmployeeCode(session), name: record.name, email: record.email,
           mobile: record.mobile, branchId: record.branchId, role: ROLES.EMPLOYEE,
           passwordHash: await bcrypt.hash(data.password, 12), status: ACTIVE.ACTIVE,
         }], { session }))[0];
+        record.employeeCode = user.employeeCode;
         record.status = "APPROVED";
         record.userId = user._id;
+        // Preserve HR history when the employee receives a login.
+        await Attendance.updateMany({ employeeId: record._id }, { $set: { employeeId: user._id } }, { session });
+        await Payslip.updateMany({ employeeId: record._id }, { $set: { employeeId: user._id, employeeModel: "User" } }, { session });
         result = userDto(user);
       }
       record.reviewedBy = req.user._id;

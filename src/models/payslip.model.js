@@ -12,6 +12,7 @@ const salaryParts = {
   _id: false,
 };
 const deductionParts = {
+  leave: { type: Number, min: 0, default: 0 },
   pf: { type: Number, min: 0, default: 0 },
   esi: { type: Number, min: 0, default: 0 },
   professionalTax: { type: Number, min: 0, default: 0 },
@@ -24,11 +25,13 @@ const deductionParts = {
 const payslipSchema = new Schema(
   {
     payslipNumber: { type: String, required: true, unique: true, index: true },
-    employeeId: { ...objectId, ref: "User", required: true, index: true },
+    employeeId: { ...objectId, ref: function () { return this.employeeModel || "User"; }, required: true, index: true },
+    employeeModel: { type: String, enum: ["User", "EmployeeOnboarding"], default: "User" },
     branchId: { ...objectId, ref: "Branch", required: true, index: true },
     salaryMonth: { type: String, required: true, match: /^\d{4}-(0[1-9]|1[0-2])$/, index: true },
     designation: { type: String, trim: true, maxlength: 120 },
     department: { type: String, trim: true, maxlength: 120 },
+    attendanceSummary: { type: Schema.Types.Mixed },
     paidDays: { type: Number, min: 0, max: 31, default: 0 },
     earnings: { type: salaryParts, default: {} },
     deductions: { type: deductionParts, default: {} },

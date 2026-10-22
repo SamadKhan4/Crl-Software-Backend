@@ -13,6 +13,6 @@ router.get("/employee-onboarding", view, validate(v.businessListSchema, "query")
 router.get("/employee-onboarding/:id", view, validate(v.ids, "params"), c.get);
 router.post("/employee-onboarding/:id/documents/:documentType", allow(ROLES.HR), validate(v.employeeDocumentParams, "params"), uploadEmployeeDocument, c.upload);
 router.get("/employee-onboarding/:id/documents/:documentId/file", view, validate(v.employeeDocumentFileParams, "params"), c.download);
-router.post("/employee-onboarding/:id/review", allow(ROLES.MANAGER), validate(v.ids, "params"), validate(v.employeeOnboardingReviewSchema), c.review);
+router.post("/employee-onboarding/:id/review", allow(ROLES.MANAGER, ROLES.HR), validate(v.ids, "params"), validate(v.employeeOnboardingReviewSchema), c.review);
 
 export default router;
