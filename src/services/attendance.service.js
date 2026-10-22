@@ -17,6 +17,7 @@ export async function saveAttendance(data, req) {
   const month = data.date.slice(0, 7);
   const summary = await attendanceSummary(data.employeeId, month);
   const day = summary.calendar.find((item) => item.date === data.date);
+  if (day?.future) throw new ConflictError("Attendance can only be marked up to today", "FUTURE_ATTENDANCE_DATE");
   if (!day?.eligible) throw new ConflictError("Attendance date is before the employee joining date", "INVALID_ATTENDANCE_DATE");
   const row = await Attendance.findOneAndUpdate({ employeeId: summary.employeeId, date: data.date }, { $set: { ...data, employeeId: summary.employeeId, updatedBy: req.user._id } }, { new: true, upsert: true, runValidators: true });
   await audit(null, req, "ATTENDANCE_SAVED", "Attendance", row._id, null, data);

@@ -12,6 +12,7 @@ const salaryParts = {
   _id: false,
 };
 const deductionParts = {
+  proration: { type: Number, min: 0, default: 0 },
   leave: { type: Number, min: 0, default: 0 },
   pf: { type: Number, min: 0, default: 0 },
   esi: { type: Number, min: 0, default: 0 },

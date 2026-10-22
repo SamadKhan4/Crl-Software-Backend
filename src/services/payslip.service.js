@@ -1,5 +1,5 @@
 import { attendanceSummary } from "./attendance.service.js";
-import { leaveDeduction } from "../utils/attendance.js";
+import { leaveDeduction, prorationDeduction } from "../utils/attendance.js";
 import { resolveHrEmployee } from "./hr-employee.service.js";
 import { Payslip } from "../models/index.js";
 import { ConflictError, NotFoundError } from "../utils/errors.js";
@@ -17,7 +17,7 @@ export async function createPayslip(data, req) {
   const grossEarnings = total(data.earnings);
   const summary = await attendanceSummary(data.employeeId, data.salaryMonth);
   if (summary.missingDays) throw new ConflictError(`Complete attendance for ${summary.missingDays} working days before creating this payslip`, "ATTENDANCE_INCOMPLETE");
-  const deductions = { ...data.deductions, leave: leaveDeduction(grossEarnings, summary) };
+  const deductions = { ...data.deductions, leave: leaveDeduction(grossEarnings, summary), proration: prorationDeduction(grossEarnings, summary) };
   const totalDeductions = total(deductions);
   if (totalDeductions > grossEarnings)
     throw new ConflictError("Deductions cannot exceed gross earnings", "INVALID_DEDUCTIONS");
@@ -26,7 +26,7 @@ export async function createPayslip(data, req) {
       ...data,
       branchId: employee.branchId, employeeModel,
       paidDays: summary.paidDays, deductions,
-      attendanceSummary: { workingDays: summary.workingDays, eligibleDays: summary.eligibleDays, unpaidDays: summary.unpaidDays, paidLeaveDays: summary.paidLeaveDays, paidDays: summary.paidDays },
+      attendanceSummary: { asOf: summary.asOf, calendarDays: summary.calendarDays, perDayRate: amount(grossEarnings / summary.calendarDays), workingDays: summary.workingDays, eligibleDays: summary.eligibleDays, unpaidDays: summary.unpaidDays, paidLeaveDays: summary.paidLeaveDays, paidDays: summary.paidDays },
       payslipNumber: await generateBusinessNumber("payslip", "PAY"),
       grossEarnings,
       totalDeductions,
