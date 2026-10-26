@@ -63,3 +63,13 @@ test("creates the settlement and audit in a transaction with a vendor lock", asy
   expect(result.id).toBe("settlement");
   expect(session.endSession).toHaveBeenCalledTimes(1);
 });
+
+
+test("provides editable title, reference, dates and zero defaults with recorded advance", async () => {
+  mockWork();
+  const { defaults } = await vendorSettlementWork("vendor", { role: "MANAGER" });
+  expect(defaults).toMatchObject({ title: "Commission settlement - V001 - Vendor", reference: "PRS1, TRIP1", metadata: { detention: 0, loading: 0, otherCharge: 0, tds: 0, advance: 10 } });
+  expect(defaults.documentNumber).toMatch(/^VCOM-V001-/);
+  expect(defaults.operationDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  expect(defaults.dueDate).toBe(defaults.operationDate);
+});

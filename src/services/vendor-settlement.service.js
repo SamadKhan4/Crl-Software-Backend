@@ -46,14 +46,29 @@ export async function vendorSettlementWork(vendorId, user, session = null) {
     ...manifests.map((row) => ({ ...row, type: "MANIFEST", number: row.manifestNumber, date: row.createdAt, recordedCost: 0, advance: 0 })),
     ...registers.map((row) => ({ ...row, type: row.module, number: row.recordNumber, date: row.operationDate, recordedCost: row.amount, advance: 0 })),
     ...drs.map((row) => ({ ...row, type: "DRS", number: row.drsNumber, date: row.deliveryDate, recordedCost: 0, advance: 0 })),
-  ].map((row) => ({ key: `${row.type}:${row._id}`, id: id(row), type: row.type, number: row.number, date: row.date, branchId: row.branchId, route: row.route || [row.origin, row.destination].filter(Boolean).join(" - "), vehicleNumber: row.vehicleNumber, status: row.status, shipmentIds: (row.shipmentIds || []).map(id), recordedCost: Number(row.recordedCost || 0), advance: Number(row.advance || 0), eligible: row.approvalStatus !== "PENDING" && row.approvalStatus !== "REJECTED" && row.status !== "PENDING_APPROVAL" }));
+  ].map((row) => ({ key: `${row.type}:${row._id}`, id: id(row), type: row.type, number: row.number, date: row.date, branchId: row.branchId, route: row.route || [row.origin, row.destination].filter(Boolean).join(" - "), vehicleNumber: row.vehicleNumber, status: row.status, shipmentIds: (row.shipmentIds || []).map(id), recordedCost: Number(row.recordedCost || 0), advance: Number(row.advance || 0), charges: Object.fromEntries(["detention", "loading", "otherCharge", "tds"].map((key) => [key, Number(row.metadata?.[key] || 0)])), eligible: row.approvalStatus !== "PENDING" && row.approvalStatus !== "REJECTED" && row.status !== "PENDING_APPROVAL" }));
   const availableOps = operations.filter((row) => !settledOps.has(row.key));
   const lrIds = [...new Set([...availableOps.flatMap((row) => row.shipmentIds), ...pickups.map((row) => row.shipmentId).filter(Boolean).map(id)])];
   const shipments = await Shipment.find({ _id: { $in: lrIds }, currentStatus: { $ne: "CANCELLED" } }).session(session).lean();
   const availableLrs = shipments.filter((row) => !settledLrs.has(id(row)));
   const shipmentsForBill = availableLrs.map((row) => ({ id: id(row), lrNumber: row.lrNumber, bookingDate: row.lrDetails?.bookingDate || row.createdAt, senderName: row.senderName, receiverName: row.receiverName, origin: row.lrDetails?.from, destination: row.lrDetails?.to, packageCount: row.packageCount, weightKg: row.weightKg, freight: Number(row.lrDetails?.freightCharges || 0), status: row.currentStatus }));
   const calculation = calculateVendorCommission(vendor, shipmentsForBill, availableOps);
-  return { vendor, shipments: shipmentsForBill, operations: availableOps, calculation, advance: money(availableOps.reduce((sum, row) => sum + row.advance, 0)), branchId: availableOps[0]?.branchId || shipments[0]?.originBranchId, settledLrCount: settledLrs.size };
+  const advance = money(availableOps.reduce((sum, row) => sum + row.advance, 0));
+  const operationDate = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+  const due = new Date(`${operationDate}T00:00:00Z`);
+  due.setUTCDate(due.getUTCDate() + Number(vendor.commercial?.creditDays || 0));
+  const reference = availableOps.map((row) => row.number).filter(Boolean).join(", ");
+  const sourceInvoice = registers.find((row) => row.documentNumber)?.documentNumber;
+  const defaults = {
+    title: `Commission settlement - ${vendor.vendorCode} - ${vendor.name}`.slice(0, 180),
+    operationDate,
+    dueDate: due.toISOString().slice(0, 10),
+    documentNumber: sourceInvoice || `VCOM-${vendor.vendorCode}-${operationDate.replaceAll("-", "")}`.slice(0, 120),
+    reference: reference.slice(0, 120),
+    description: `${shipmentsForBill.length} LRs; ${availableOps.length} operations. ${calculation.rateBasis}: ${calculation.units} x ${calculation.agreedRate} = ${calculation.commission}. ${reference}`.slice(0, 1000),
+    metadata: { ...Object.fromEntries(["detention", "loading", "otherCharge", "tds"].map((key) => [key, money(availableOps.reduce((sum, row) => sum + Number(row.charges[key] || 0), 0))])), advance },
+  };
+  return { vendor, shipments: shipmentsForBill, operations: availableOps, calculation, advance, defaults, branchId: availableOps[0]?.branchId || shipments[0]?.originBranchId, settledLrCount: settledLrs.size };
 }
 
 export async function prepareVendorSettlement(data, user, session = null) {
