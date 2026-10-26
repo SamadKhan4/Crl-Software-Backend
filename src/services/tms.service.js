@@ -484,7 +484,15 @@ export const listTrips = (query, user) =>
     search: ["tripNumber", "vehicleNumber", "driverName", "origin", "destination"],
     populate: ["vendorId", "branchId"],
   });
-export const getTrip = (recordId, user) => get(Trip, recordId, user, ["vendorId", "branchId", "shipmentIds"]);
+export const getTrip = async (recordId, user) => {
+  const trip = await Trip.findById(recordId)
+    .populate("vendorId branchId fromHubId toHubId shipmentIds")
+    .populate({ path: "manifestIds", populate: { path: "shipmentIds" } });
+  if (!trip) throw new NotFoundError("Trip not found", "TRIP_NOT_FOUND");
+  if (!hasCrossBranchAccess(user) && ![trip.branchId, trip.toHubId].some((branch) => id(branch) === id(user.branchId)))
+    throw new AuthorizationError("You can only access trips for your assigned branch");
+  return dto(trip);
+};
 export async function updateTripStatus(recordId, data, req) {
   const allowed = { PLANNED: ["DISPATCHED", "CANCELLED"], DISPATCHED: ["ARRIVED"], ARRIVED: ["CLOSED"] };
   const session = await mongoose.startSession();
