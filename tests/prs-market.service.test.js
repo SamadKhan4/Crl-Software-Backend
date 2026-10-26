@@ -58,6 +58,20 @@ test("creates PRS with LR entries, totals and pickup assignment in one transacti
   expect(session.endSession).toHaveBeenCalledTimes(1);
 });
 
+test("PRS without FE preserves required vendor and driver alignment fields", async () => {
+  const { payload, request, pickupRecord } = mockCreation({ agentAssignment: { sourceType: "VENDOR", vendorId: "vendor", agentName: "Vendor", driverName: "Mapped Driver", driverMobile: "9876543210" } });
+  delete payload.fieldExecutiveId;
+  await expect(createPickupRunSheet(payload, request)).resolves.toMatchObject({ status: "DISPATCHED" });
+  expect(User.findOne).not.toHaveBeenCalled();
+  expect(pickupRecord.agentAssignment).toMatchObject({ agentName: "Vendor", driverName: "Mapped Driver", driverMobile: "9876543210" });
+  const document = new PickupRequest({ agentAssignment: pickupRecord.agentAssignment });
+  const errors = document.validateSync()?.errors || {};
+  expect(errors).not.toHaveProperty("agentAssignment.agentName");
+  expect(errors).not.toHaveProperty("agentAssignment.driverName");
+  expect(errors).not.toHaveProperty("agentAssignment.driverMobile");
+  expect(Notification.create.mock.calls[0][0][0].message).not.toContain("undefined");
+});
+
 test.each([
   [{ agentAssignment: { sourceType: "VENDOR", vendorId: "other-vendor" } }, "PRS_VENDOR_MISMATCH"],
   [{ pickupRunSheetId: "existing-sheet" }, "PICKUP_REQUEST_NOT_ELIGIBLE"],

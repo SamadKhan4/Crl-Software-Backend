@@ -801,6 +801,8 @@ export async function publicTrack(lrNumber) {
     origin: shipment.lrDetails?.from || shipment.originBranchId?.city,
     destination: shipment.lrDetails?.to || shipment.destinationBranchId?.city,
     status: shipment.currentStatus,
+    movementState: shipment.movementState,
+    lastMileState: shipment.lastMileState,
     lrUploadEligible: shipment.currentStatus === SHIPMENT_STATUS.RECEIVED,
     currentLocation: shipment.currentLocation,
     bookingDate: shipment.createdAt,

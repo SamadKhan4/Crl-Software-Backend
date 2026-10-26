@@ -159,7 +159,7 @@ export const pickupRunSheetSchema = z.object({
   rateSource: z.enum(["MASTER", "MARKET"]),
   vendorId: objectId.optional(),
   marketPickupRequestId: objectId.optional(),
-  fieldExecutiveId: objectId,
+  fieldExecutiveId: objectId.optional(),
   vehicleNumber: z.string().trim().toUpperCase().min(4).max(20),
   vehicleType: z.string().trim().min(2).max(80),
   pickupDate: z.coerce.date(),

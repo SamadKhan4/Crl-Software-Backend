@@ -37,12 +37,12 @@ export async function pickupRunSheetOptions(user) {
 export async function createPickupRunSheet(data, req) {
   const [vendor, fieldExecutive, marketPickup] = await Promise.all([
     data.vendorId ? Vendor.findOne({ _id: data.vendorId, status: ACTIVE.ACTIVE }) : null,
-    User.findOne({ _id: data.fieldExecutiveId, role: ROLES.EMPLOYEE, status: ACTIVE.ACTIVE }),
+    data.fieldExecutiveId ? User.findOne({ _id: data.fieldExecutiveId, role: ROLES.EMPLOYEE, status: ACTIVE.ACTIVE }) : null,
     data.marketPickupRequestId ? PickupRequest.findOne({ _id: data.marketPickupRequestId, ...branchFilter(req.user), status: "PENDING", pickupRunSheetId: null, "agentAssignment.sourceType": "MARKET" }) : null,
   ]);
   if (data.marketPickupRequestId ? !marketPickup : !vendor) throw new ConflictError("Select an active vendor or available market vehicle", "INVALID_PRS_VENDOR");
-  if (!fieldExecutive) throw new ConflictError("Select an active FE from Employee Master", "INVALID_FIELD_EXECUTIVE");
-  if (!fieldExecutive.mobile) throw new ConflictError("Add the FE contact number in Employee Master", "FIELD_EXECUTIVE_MOBILE_REQUIRED");
+  if (data.fieldExecutiveId && !fieldExecutive) throw new ConflictError("Select an active FE from Employee Master", "INVALID_FIELD_EXECUTIVE");
+  if (fieldExecutive && !fieldExecutive.mobile) throw new ConflictError("Add the FE contact number in Employee Master", "FIELD_EXECUTIVE_MOBILE_REQUIRED");
   if (!hasFullOperationsAccess(req.user) && !req.user.branchId)
     throw new AuthorizationError("Assign an operations branch before creating PRS");
   const vehicle = marketPickup ? marketPickup.agentAssignment : vendor.vehicles.find((item) => item.vehicleNumber === data.vehicleNumber && item.status !== ACTIVE.INACTIVE);
@@ -62,7 +62,7 @@ export async function createPickupRunSheet(data, req) {
       const route = alignedRoute(firstPickup) || data.route;
       if (!route) throw new ConflictError("Enter pickup and destination cities before creating PRS", "PRS_ROUTE_REQUIRED");
       const sheetBranch = hasFullOperationsAccess(req.user)
-        ? firstPickup?.branchId || marketPickup?.branchId || req.user.branchId || fieldExecutive.branchId
+        ? firstPickup?.branchId || marketPickup?.branchId || req.user.branchId || fieldExecutive?.branchId
         : req.user.branchId;
       if (!sheetBranch) throw new ConflictError("Assign an operations branch to create PRS", "PRS_BRANCH_REQUIRED");
       sheet = (
@@ -79,9 +79,9 @@ export async function createPickupRunSheet(data, req) {
           agreedRate: data.rateSource === "MASTER" ? masterRate : data.marketAmount,
           ...(data.rateSource === "MARKET" && { marketAmount: data.marketAmount }),
           approvalStatus: data.rateSource === "MARKET" ? "PENDING" : "NOT_REQUIRED",
-          fieldExecutiveId: fieldExecutive._id,
-          fieldExecutiveName: fieldExecutive.name,
-          fieldExecutiveMobile: fieldExecutive.mobile,
+          fieldExecutiveId: fieldExecutive?._id,
+          fieldExecutiveName: fieldExecutive?.name,
+          fieldExecutiveMobile: fieldExecutive?.mobile,
           vehicleNumber: vehicle.vehicleNumber,
           vehicleType: vehicle.vehicleType || data.vehicleType,
           driverName: vehicle.driverName,
@@ -151,11 +151,11 @@ async function attachPickup(sheet, data, req, session) {
     route: pickup.agentAssignment?.route || sheet.route,
     sourceType: sheet.marketPickupRequestId ? "MARKET" : "VENDOR",
     vendorId: sheet.vendorId,
-    agentName: sheet.marketPickupRequestId ? sheet.vendorName : sheet.fieldExecutiveName,
+    agentName: sheet.vendorName || pickup.agentAssignment?.agentName || sheet.fieldExecutiveName,
     vehicleNumber: sheet.vehicleNumber,
     vehicleType: sheet.vehicleType,
-    driverName: sheet.driverName || sheet.fieldExecutiveName,
-    driverMobile: sheet.driverMobile || sheet.fieldExecutiveMobile,
+    driverName: sheet.driverName || pickup.agentAssignment?.driverName || sheet.fieldExecutiveName,
+    driverMobile: sheet.driverMobile || pickup.agentAssignment?.driverMobile || sheet.fieldExecutiveMobile,
     remarks: `Aligned through ${sheet.prsNumber}`,
     assignedAt: new Date(),
     assignedBy: req.user._id,
@@ -233,7 +233,7 @@ async function dispatchSheet(sheet, req, session) {
           mobile: pickup.shipper?.contactMobile,
           channels: ["WHATSAPP", "SMS"],
           subject: "Pickup vehicle dispatched",
-          message: `${sheet.dispatchId}: ${sheet.fieldExecutiveName} (${sheet.fieldExecutiveMobile}) has been dispatched for LR ${sheet.purEntries.find((entry) => id(entry.pickupRequestId) === id(pickup))?.lrNumber || ""}. Vehicle: ${sheet.vehicleNumber}.`,
+          message: `${sheet.dispatchId}: ${sheet.driverName || pickup.agentAssignment?.driverName || sheet.vendorName || "Pickup vehicle"}${sheet.driverMobile || pickup.agentAssignment?.driverMobile ? ` (${sheet.driverMobile || pickup.agentAssignment.driverMobile})` : ""} has been dispatched for LR ${sheet.purEntries.find((entry) => id(entry.pickupRequestId) === id(pickup))?.lrNumber || ""}. Vehicle: ${sheet.vehicleNumber}.`,
         }], { session });
       }
       await audit(session, req, "PICKUP_RUN_SHEET_DISPATCHED", "PickupRunSheet", sheet._id, null, {
