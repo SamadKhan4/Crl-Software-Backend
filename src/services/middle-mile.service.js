@@ -2,7 +2,7 @@ import { operationsOffice } from "./operations-office.service.js";
 import { locationKey, sameLocation, shipmentDestination } from "../utils/locations.js";
 import { hasCrossBranchAccess as hasFullOperationsAccess } from "../utils/access.js";
 import mongoose from "mongoose";
-import { ACTIVE, MIDDLE_MILE_STATE, SHIPMENT_STATUS, TRACKING_EVENT_STATUS } from "../constants/workflow.js";
+import { ACTIVE, LAST_MILE_STATE, MIDDLE_MILE_STATE, SHIPMENT_STATUS, TRACKING_EVENT_STATUS } from "../constants/workflow.js";
 import {
   Branch,
   BusinessMaster,
@@ -554,13 +554,13 @@ export async function arriveTrip(recordId, req) {
       if (trip.status !== "DISPATCHED") throw new ConflictError("Only a dispatched trip can arrive", "INVALID_TRIP_TRANSITION");
       trip.status = "ARRIVED"; trip.workflowStatus = "ARRIVED"; trip.arrivedAt = new Date(); await trip.save({ session });
       await MovementLeg.updateMany({ tripId: trip._id }, { $set: { arrivedAt: trip.arrivedAt } }, { session });
-      const arriving = await Shipment.find({ _id: { $in: trip.shipmentIds } }).populate("destinationBranchId", "name city").session(session);
+      const arriving = await Shipment.find({ _id: { $in: trip.shipmentIds } }).populate("destinationBranchId", "name city").populate("pickupRequestId", "recipient.city").session(session);
       const destinationBranch = await Branch.findById(trip.toHubId).session(session);
       const destination = sameLocation(trip.destination, destinationBranch?.name) ? destinationBranch.city : trip.destination;
       const final = arriving.filter((shipment) => sameLocation(shipmentDestination(shipment), destination));
       const onward = arriving.filter((shipment) => !sameLocation(shipmentDestination(shipment), destination));
       if (arriving.some((shipment) => !shipmentDestination(shipment))) throw new ConflictError("Set the LR destination before arrival", "LR_DESTINATION_REQUIRED");
-      await Shipment.updateMany({ _id: { $in: final.map((shipment) => shipment._id) } }, { $set: { currentLocation: destination } }, { session });
+      await Shipment.updateMany({ _id: { $in: final.map((shipment) => shipment._id) } }, { $set: { currentLocation: destination, lastMileState: LAST_MILE_STATE.ARRIVED } }, { session });
       for (const shipment of onward) {
         shipment.currentHubId = trip.toHubId; shipment.nextHubId = undefined; shipment.routeId = undefined;
         shipment.currentLocation = trip.destination; shipment.movementState = MIDDLE_MILE_STATE.SORTING_PENDING;

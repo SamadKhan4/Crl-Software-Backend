@@ -10,9 +10,9 @@ test.each(["ADMIN", "MANAGER", "EMPLOYEE"])("%s can assign an active delivery ag
   jest.spyOn(mongoose, "startSession").mockResolvedValue(session);
   jest.spyOn(Shipment, "find").mockReturnValue({ session: async () => [{ _id: "lr", destinationBranchId: "destination" }] });
   jest.spyOn(Manifest, "findById").mockReturnValue({ session: async () => ({ _id: "manifest", status: "CLOSED", vendorId: "vendor", shipmentIds: ["lr"] }) });
-  jest.spyOn(Vendor, "findOne").mockReturnValue({ session: async () => ({ _id: "vendor" }) });
+  jest.spyOn(Vendor, "findOne").mockReturnValue({ session: async () => ({ _id: "vendor", vehicles: [{ vehicleNumber: "MH31AB1234", driverName: "Driver", status: "ACTIVE" }] }) });
   const boundary = new Error("agent lookup reached");
   const lookup = jest.spyOn(User, "findOne").mockReturnValue({ session: async () => { throw boundary; } });
-  await expect(createDrs({ manifestId: "manifest", shipmentIds: ["lr"], branchId: "destination", deliveryAgentId: "agent" }, { user: { role, branchId: "destination" } })).rejects.toBe(boundary);
+  await expect(createDrs({ vendorId: "vendor", vehicleSource: "VV", vehicleNumber: "MH31AB1234", shipmentIds: ["lr"], branchId: "destination", deliveryAgentId: "agent" }, { user: { role, branchId: "destination" } })).rejects.toBe(boundary);
   expect(lookup).toHaveBeenCalledWith({ _id: "agent", role: "EMPLOYEE", status: "ACTIVE" });
 });

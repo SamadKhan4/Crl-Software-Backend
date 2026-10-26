@@ -269,7 +269,7 @@ export async function vendorOptions(query) {
       [field]: { $regex: escapeSearch(query.search), $options: "i" },
     }));
   return Vendor.find(filter)
-    .select("vendorCode vendorType name mobile city vehicles")
+    .select("vendorCode vendorType name mobile city vehicles hasMarketVehicles marketVehicles")
     .sort({ name: 1, _id: 1 })
     .limit(Math.min(Number(query.limit) || 100, 100))
     .lean();

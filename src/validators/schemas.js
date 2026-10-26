@@ -659,7 +659,13 @@ export const lastMileQcSchema = z.object({
   storageLocation: z.string().trim().min(1).max(120),
 }).strict();
 export const lastMileInwardSchema = z.object({ remarks: optionalText(500) }).strict();
-export const lastMileDrsSchema = drsSchema.extend({ manifestId: objectId, deliveryAgentId: objectId.optional() }).strict();
+export const lastMileDrsSchema = drsSchema.extend({
+  route: z.string().trim().min(2).max(250).optional(),
+  manifestId: objectId.optional(),
+  vendorId: objectId,
+  vehicleSource: z.enum(["MV", "VV"]),
+  deliveryAgentId: objectId.optional(),
+}).strict();
 export const deliveryAttemptSchema = z.object({
   outcome: z.enum(["DELIVERED", "UNDELIVERED", "REATTEMPT"]),
   failureReason: optionalText(300),
