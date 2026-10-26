@@ -391,6 +391,7 @@ const businessListBase = z.object({
   status: businessStatus.optional(),
   branchId: objectId.optional(),
   customerId: objectId.optional(),
+  billingType: z.enum(["CREDIT", "RETAIL"]).optional(),
   vendorId: objectId.optional(),
   routeId: objectId.optional(),
   dateFrom: z.coerce.date().optional(),
@@ -671,15 +672,18 @@ export const invoiceSchema = z
   .object({
     branchId: objectId.optional(),
     customerId: objectId,
+    billingType: z.enum(["CREDIT", "RETAIL"]).default("CREDIT"),
     shipmentIds: shipmentIdList,
     periodFrom: z.coerce.date().optional(),
     periodTo: z.coerce.date().optional(),
+    gstAvailable: z.boolean().optional(),
     gstRate: amount.max(100).default(0),
     issueDate: requiredDate,
     dueDate: z.coerce.date().optional(),
     notes: optionalText(1000),
   })
   .strict()
+  .refine((data) => data.billingType !== "RETAIL" || data.shipmentIds.length === 1, "Retail billing requires exactly one LR")
   .refine(
     (data) => !data.periodFrom || !data.periodTo || data.periodFrom <= data.periodTo,
     "Billing period is invalid",

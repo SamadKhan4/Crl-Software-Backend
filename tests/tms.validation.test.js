@@ -152,3 +152,12 @@ test("requires route LRs, verified manifest LRs, trip seal and MV cost", () => {
   expect(middleMileTripSchema.safeParse(trip).success).toBe(false);
   expect(middleMileTripSchema.safeParse({ ...trip, routeId: id }).success).toBe(true);
  });
+
+
+test("retail invoices require one LR and preserve credit billing defaults", () => {
+  const payload = { customerId: id, shipmentIds: [otherId], issueDate: "2026-10-26" };
+  expect(invoiceSchema.parse(payload).billingType).toBe("CREDIT");
+  expect(invoiceSchema.parse({ ...payload, billingType: "RETAIL" }).billingType).toBe("RETAIL");
+  expect(invoiceSchema.safeParse({ ...payload, billingType: "RETAIL", shipmentIds: [id, otherId] }).success).toBe(false);
+  expect(invoiceSchema.safeParse({ ...payload, billingType: "OTHER" }).success).toBe(false);
+});

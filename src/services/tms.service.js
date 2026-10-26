@@ -1,3 +1,4 @@
+import { createVendorSettlement } from "./vendor-settlement.service.js";
 import { hasFullOperationsAccess, hasCrossBranchAccess } from "../utils/access.js";
 import mongoose from "mongoose";
 import { ACTIVE, DOCUMENT_STATUS, LAST_MILE_STATE, SHIPMENT_STATUS, TRACKING_EVENT_STATUS } from "../constants/workflow.js";
@@ -731,25 +732,51 @@ export async function closeDrs(recordId, req) {
   }
 }
 
+export async function billingShipments(query, user) {
+  const retail = query.billingType === "RETAIL";
+  const customers = await Customer.find(retail
+    ? { customerCode: "9966" }
+    : { status: ACTIVE.ACTIVE, customerType: "CREDIT", ...(query.customerId && { _id: query.customerId }) }).distinct("_id");
+  const billed = retail ? [] : await Invoice.distinct("shipmentIds", { status: { $ne: "CANCELLED" } });
+  const filter = {
+    ...(retail ? { $or: [{ customerId: { $in: customers } }, { "lrDetails.consignorCode": "9966" }] } : {
+      customerId: { $in: customers },
+      _id: { $nin: billed },
+      currentStatus: { $in: [SHIPMENT_STATUS.COMPLETED, SHIPMENT_STATUS.CLOSED] },
+      $expr: { $gt: [{ $ifNull: ["$lrDetails.totalAmount", 0] }, { $ifNull: ["$lrDetails.gstAmount", 0] }] },
+    }),
+    ...(!hasCrossBranchAccess(user) ? { originBranchId: user.branchId } : {}),
+    ...(query.search && { lrNumber: { $regex: escapeSearch(query.search), $options: "i" } }),
+  };
+  const options = listQuery(query);
+  const [rows, total] = await Promise.all([
+    Shipment.find(filter).sort(options.sort).skip(options.skip).limit(options.limit).lean(),
+    Shipment.countDocuments(filter),
+  ]);
+  return paginated(rows.map(dto), total, options);
+}
+
 export async function createInvoice(data, req) {
-  const branchId = branchFor(data, req);
   const session = await mongoose.startSession();
   try {
     let invoice;
     await session.withTransaction(async () => {
       const customer = await Customer.findById(data.customerId).session(session);
-      if (!customer || customer.status !== ACTIVE.ACTIVE || customer.customerType !== "CREDIT")
-        throw new BusinessRuleError(
-          "Invoices can only be created for active credit customers",
-          "CREDIT_CUSTOMER_REQUIRED",
-        );
+      const retail = data.billingType === "RETAIL";
+      if (!customer || customer.status !== ACTIVE.ACTIVE || customer.customerType !== (retail ? "TO_PAY_PAID" : "CREDIT"))
+        throw new BusinessRuleError("Select an active customer matching the billing tab", "INVALID_BILLING_CUSTOMER");
+      if (retail && data.shipmentIds.length !== 1)
+        throw new BusinessRuleError("Retail billing requires exactly one LR", "RETAIL_SINGLE_LR_REQUIRED");
       const shipments = await assertShipments(
         data.shipmentIds,
-        branchId,
+        data.branchId,
         "originBranchId",
-        [SHIPMENT_STATUS.COMPLETED, SHIPMENT_STATUS.CLOSED],
+        retail
+          ? Object.values(SHIPMENT_STATUS).filter((status) => status !== SHIPMENT_STATUS.CANCELLED)
+          : [SHIPMENT_STATUS.COMPLETED, SHIPMENT_STATUS.CLOSED],
         session,
       );
+      const branchId = branchFor({ ...data, branchId: data.branchId || shipments[0].originBranchId }, req);
       if (shipments.some((shipment) => id(shipment.customerId) !== id(data.customerId)))
         throw new BusinessRuleError(
           "All selected LRs must belong to the selected customer",
@@ -765,9 +792,11 @@ export async function createInvoice(data, req) {
           return sum + Math.max(0, Number(details.totalAmount || 0) - Number(details.gstAmount || 0));
         }, 0),
       );
-      if (subtotal <= 0)
+      if (!retail && subtotal <= 0)
         throw new BusinessRuleError("Selected LRs do not contain billable charges", "NO_BILLABLE_AMOUNT");
-      const gstAmount = money((subtotal * data.gstRate) / 100);
+      const gstAvailable = data.gstAvailable ?? Number(data.gstRate || 0) > 0;
+      const gstRate = gstAvailable ? Number(data.gstRate || 0) : 0;
+      const gstAmount = money((subtotal * gstRate) / 100);
       const totalAmount = money(subtotal + gstAmount);
       const customerData = customer.toObject();
       const billTo = {
@@ -781,6 +810,22 @@ export async function createInvoice(data, req) {
         mobile: customerData.mobile,
         email: customerData.email,
       };
+      if (retail) {
+        const shipment = shipments[0];
+        const details = shipment.lrDetails?.toObject?.() ?? shipment.lrDetails ?? {};
+        const toPay = details.paymentMode === "TO_PAY";
+        Object.assign(billTo, {
+          name: toPay ? shipment.receiverName : shipment.senderName,
+          companyName: "",
+          address: toPay ? details.consigneeAddress : details.consignorAddress,
+          city: toPay ? details.to : details.from,
+          state: "",
+          pincode: toPay ? details.consigneePincode : details.consignorPincode,
+          gstNumber: toPay ? details.consigneeGstin : details.consignorGstin,
+          mobile: toPay ? shipment.receiverMobile : details.contactNo,
+          email: "",
+        });
+      }
       const lineItems = shipments.map((shipment) => {
         const details = shipment.lrDetails?.toObject?.() ?? shipment.lrDetails ?? {};
         return {
@@ -801,6 +846,8 @@ export async function createInvoice(data, req) {
               ...data,
               branchId,
               billTo,
+              gstAvailable,
+              gstRate,
               lineItems,
               subtotal,
               gstAmount,
@@ -822,7 +869,9 @@ export async function createInvoice(data, req) {
 }
 export const listInvoices = (query, user) =>
   list(Invoice, query, user, {
-    search: ["invoiceNumber", "notes"],
+    search: ["invoiceNumber", "notes", "billTo.name"],
+    where: query.billingType === "RETAIL" ? { billingType: "RETAIL" }
+      : query.billingType === "CREDIT" ? { billingType: { $ne: "RETAIL" } } : {},
     populate: ["customerId", "branchId"],
   });
 export const getInvoice = (recordId, user) => get(Invoice, recordId, user, ["customerId", "branchId", "shipmentIds"]);
@@ -1080,18 +1129,8 @@ const registerConfig = (resource) => {
 
 export async function createRegister(resource, data, req) {
   const config = registerConfig(resource);
+  if (config.module === "VENDOR_SETTLEMENT") return createVendorSettlement(data, req);
   const branchId = branchFor(data, req);
-  if (config.module === "VENDOR_SETTLEMENT") {
-    const meta = data.metadata || {};
-    const gross = ["baseAmount", "detention", "loading", "otherCharge"].reduce(
-      (sum, key) => sum + Number(meta[key] || 0),
-      0,
-    );
-    const deductions = Number(meta.tds || 0) + Number(meta.advance || 0);
-    data.amount = money(Math.max(0, gross - deductions));
-    data.taxAmount = money(Number(meta.tds || 0));
-    data.metadata = { ...meta, gross: money(gross), deductions: money(deductions), payable: data.amount };
-  }
   const record = await TmsRegister.create({
     ...data,
     module: config.module,
@@ -1128,6 +1167,8 @@ export async function updateRegister(resource, recordId, data, req) {
   assertBranchAccess(record, req.user);
   if (["COMPLETED", "PAID", "CANCELLED"].includes(record.status))
     throw new ConflictError("Closed records cannot be edited", "REGISTER_CLOSED");
+  if (config.module === "VENDOR_SETTLEMENT" && Object.keys(data).some((key) => !["status", "remarks"].includes(key)))
+    throw new BusinessRuleError("Cancel and recreate a settlement to change financial details", "SETTLEMENT_IMMUTABLE");
   const before = summary(record);
   Object.assign(record, data, { updatedBy: req.user._id });
   await record.save();

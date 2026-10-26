@@ -9,6 +9,7 @@ const invoiceSchema = new Schema(
     invoiceNumber: { type: String, required: true, unique: true, index: true },
     branchId: { ...objectId, ref: "Branch", required: true, index: true },
     customerId: { ...objectId, ref: "Customer", required: true, index: true },
+    billingType: { type: String, enum: ["CREDIT", "RETAIL"], default: "CREDIT", index: true },
     shipmentIds,
     billTo: {
       name: { type: String, trim: true },
@@ -36,6 +37,7 @@ const invoiceSchema = new Schema(
     periodFrom: Date,
     periodTo: Date,
     subtotal: { type: Number, required: true, min: 0 },
+    gstAvailable: { type: Boolean },
     gstRate: { type: Number, min: 0, max: 100, default: 0 },
     gstAmount: { type: Number, required: true, min: 0 },
     totalAmount: { type: Number, required: true, min: 0 },

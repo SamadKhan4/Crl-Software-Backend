@@ -1,3 +1,4 @@
+import { vendorSettlementWork } from "../services/vendor-settlement.service.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { success, successPaginated } from "../utils/response.js";
 import * as tms from "../services/tms.service.js";
@@ -160,3 +161,7 @@ export const updateRegister = asyncHandler(async (req, res) =>
 export const updateRegisterStatus = asyncHandler(async (req, res) =>
   success(res, 200, "TMS status updated", await tms.updateRegisterStatus(req.params.resource, req.params.id, req.body, req)),
 );
+
+export const billingShipments = list("Billable LRs fetched", tms.billingShipments);
+
+export const vendorWork = asyncHandler(async (req, res) => success(res, 200, "Vendor settlement work fetched", await vendorSettlementWork(req.params.id, req.user)));

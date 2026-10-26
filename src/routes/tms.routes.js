@@ -12,6 +12,7 @@ const adminManager = allow(ROLES.ADMIN, ROLES.MANAGER);
 router.post("/vendors", allow(ROLES.ADMIN), validate(v.vendorSchema), c.createVendor);
 router.get("/vendors/options", validate(v.businessListSchema, "query"), c.vendorOptions);
 router.get("/vendors", adminManager, validate(v.businessListSchema, "query"), c.listVendors);
+router.get("/vendors/:id/settlement-work", adminManager, validate(v.ids, "params"), c.vendorWork);
 router.get("/vendors/:id", adminManager, validate(v.ids, "params"), c.getVendor);
 router.put("/vendors/:id", allow(ROLES.ADMIN), validate(v.ids, "params"), validate(v.vendorSchema), c.updateVendor);
 router.patch(
@@ -90,6 +91,7 @@ router.post("/drs/:id/close", adminManager, validate(v.ids, "params"), c.closeDr
 
 router.post("/invoices", adminManager, validate(v.invoiceSchema), c.createInvoice);
 router.get("/invoices", adminManager, validate(v.businessListSchema, "query"), c.listInvoices);
+router.get("/invoices/billable-lrs", adminManager, validate(v.businessListSchema, "query"), c.billingShipments);
 router.get("/invoices/:id", adminManager, validate(v.ids, "params"), c.getInvoice);
 router.patch(
   "/invoices/:id/status",
