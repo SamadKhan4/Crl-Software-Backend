@@ -791,8 +791,8 @@ export async function publicTrack(lrNumber) {
   const shipment = await Shipment.findOne({ lrNumber: lrNumber.toUpperCase() })
     .populate("originBranchId destinationBranchId", "city name")
     .populate("pickupRequestId", "serviceType")
-    .populate("activeDrsId", "vehicleNumber driverName driverMobile workflowStatus")
-    .populate({ path: "activeMovementLegId", select: "tripId vehicleNumber driverName", populate: { path: "tripId", select: "vehicleNumber vehicleType vehicleCapacityKg driverName driverMobile sealNumber" } })
+    .populate("activeDrsId", "vehicleNumber driverName workflowStatus")
+    .populate({ path: "activeMovementLegId", select: "tripId vehicleNumber driverName", populate: { path: "tripId", select: "vehicleNumber vehicleType vehicleCapacityKg driverName sealNumber" } })
     .lean();
   if (!shipment) throw new NotFoundError("No shipment found for this LR number", "SHIPMENT_NOT_FOUND");
   const leg = shipment.activeMovementLegId;
@@ -813,7 +813,6 @@ export async function publicTrack(lrNumber) {
     lrUploadEligible: shipment.currentStatus === SHIPMENT_STATUS.RECEIVED,
     currentLocation: shipment.currentLocation,
     bookingDate: shipment.createdAt,
-    expectedDeliveryDate: shipment.expectedDeliveryDate,
     transportMode: shipment.pickupRequestId?.serviceType,
     packageCount: shipment.packageCount,
     grossWeightKg: shipment.lrDetails?.actualWeight ?? shipment.weightKg,
@@ -822,8 +821,8 @@ export async function publicTrack(lrNumber) {
     vehicleType: carrier?.vehicleType,
     vehicleCapacityKg: carrier?.vehicleCapacityKg,
     driverName: carrier?.driverName,
-    driverMobile: carrier?.driverMobile,
     sealNumber: carrier?.sealNumber,
     trackingHistory: events.map(eventDto),
   };
 }
+
