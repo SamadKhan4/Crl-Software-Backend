@@ -682,7 +682,7 @@ export async function uploadDrsPod(recordId, shipmentId, file, req) {
         session,
         [currentShipment],
         TRACKING_EVENT_STATUS.POD_UPLOADED,
-        savedDrs.route,
+        savedDrs.route?.trim() || currentShipment.currentLocation,
         savedDrs.branchId,
         req,
         `POD uploaded under DRS ${savedDrs.drsNumber}`,
