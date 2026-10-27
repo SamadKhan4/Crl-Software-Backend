@@ -279,6 +279,21 @@ export async function createDrs(data, req) {
       }
       const details = { ...data };
       delete details.manifestId;
+      if (data.vehicleSource === "MV") {
+        if (data.vendorCharges == null || !Number.isFinite(data.vendorCharges) || data.vendorCharges < 0)
+          throw new BusinessRuleError("Enter valid market vehicle charges", "DRS_CHARGES_REQUIRED");
+        details.vendorCharges = data.vendorCharges;
+        details.vendorRate = data.vendorCharges;
+        details.vendorRateBasis = "FIXED";
+      } else {
+        details.vendorRate = Number(vendor.commercial?.rate || 0);
+        details.vendorRateBasis = vendor.commercial?.rateBasis || "PER_TRIP";
+        const units = details.vendorRateBasis === "PER_KG"
+          ? shipments.reduce((sum, row) => sum + Number(row.weightKg || 0), 0)
+          : details.vendorRateBasis === "PER_BOX"
+            ? shipments.reduce((sum, row) => sum + Number(row.packageCount || 0), 0) : 1;
+        details.vendorCharges = Math.round(details.vendorRate * units * 100) / 100;
+      }
       details.driverName = vehicle.driverName;
       details.driverMobile = vehicle.driverMobile;
       drs = (await DeliveryRunSheet.create([{ ...details, vendorId: vendor._id, vendorType: vendor.vendorType, branchId, drsNumber: await generateBusinessNumber("drs", "DRS", session), items: shipments.map((row) => ({ shipmentId: row._id })), workflowStatus: "DISPATCHED", dispatchedAt: new Date(), dispatchedBy: req.user._id, createdBy: req.user._id }], { session }))[0];

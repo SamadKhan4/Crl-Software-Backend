@@ -72,3 +72,14 @@ test("closure requires POD for every delivered LR", async () => {
   jest.spyOn(DeliveryRunSheet, "findById").mockReturnValue({ session: async () => ({ _id: "drs", status: "OPEN", workflowStatus: "CLOSURE_PENDING", items: [{ shipmentId: "lr", attemptStatus: "DELIVERED" }], podShipmentIds: [] }) });
   await expect(closeDrs("drs", req)).rejects.toMatchObject({ errorCode: "POD_INCOMPLETE" });
 });
+
+ test.each([['PER_TRIP', 125, 125], ['PER_KG', 10, 250], ['PER_BOX', 20, 60]])('snapshots mapped %s vendor charges', async (rateBasis, rate, expected) => {
+  setup([{ _id: "lr", weightKg: 25, packageCount: 3 }], { _id: "vendor", vendorType: "LAST_MILE", commercial: { rateBasis, rate }, vehicles: [{ vehicleNumber: data.vehicleNumber, driverName: "Driver", status: "ACTIVE" }] });
+  const result = await createDrs({ ...data, vendorCharges: 9999 }, req);
+  expect(result).toMatchObject({ vendorCharges: expected, vendorRate: rate, vendorRateBasis: rateBasis });
+});
+test('requires and saves manually entered market charges', async () => {
+  setup([{ _id: "lr" }], { _id: "vendor", vendorType: "MARKET", vehicles: [{ vehicleNumber: data.vehicleNumber, driverName: "Driver", status: "ACTIVE" }] });
+  await expect(createDrs({ ...data, vehicleSource: "MV" }, req)).rejects.toMatchObject({ errorCode: "DRS_CHARGES_REQUIRED" });
+  expect(await createDrs({ ...data, vehicleSource: "MV", vendorCharges: 450 }, req)).toMatchObject({ vendorCharges: 450, vendorRateBasis: "FIXED" });
+});

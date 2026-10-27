@@ -664,6 +664,7 @@ export const lastMileDrsSchema = drsSchema.extend({
   manifestId: objectId.optional(),
   vendorId: objectId,
   vehicleSource: z.enum(["MV", "VV"]),
+  vendorCharges: amount.optional(),
   deliveryAgentId: objectId.optional(),
 }).strict();
 export const deliveryAttemptSchema = z.object({
