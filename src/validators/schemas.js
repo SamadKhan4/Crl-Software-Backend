@@ -572,7 +572,7 @@ export const middleMileManifestSchema = z.object({
 }).strict();
 
 export const middleMileTripSchema = z.object({
-  routeId: objectId,
+  routeId: objectId.optional(),
   destination: z.string().trim().min(1).max(150),
   sealNumber: z.string().trim().min(1).max(80),
   manifestIds: z.array(objectId).min(1).max(50).refine((ids) => new Set(ids).size === ids.length, "Duplicate manifest selected"),

@@ -91,7 +91,7 @@ test("sorting uses receiver Yavatmal rather than a stale Nagpur LR destination, 
 });
 
 
-test("trip creation dispatches manifests and LRs in the creation transaction", async () => {
+test.each(["route", undefined])("trip creation dispatches manifests and LRs with route %s", async (routeId) => {
   const session = transaction();
   const manifest = { _id: "manifest", origin: "Nagpur", destination: "Yavatmal", branchId: "hub", fromHubId: "hub", toHubId: "dest", shipmentIds: ["lr"], totalLrs: 1, totalPackages: 20, totalWeightKg: 200 };
   jest.spyOn(Manifest, "find").mockReturnValue({ session: async () => [manifest] });
@@ -106,7 +106,7 @@ test("trip creation dispatches manifests and LRs in the creation transaction", a
   jest.spyOn(MovementLeg, "updateMany").mockResolvedValue({ modifiedCount: 1 });
   const events = jest.spyOn(ShipmentEvent, "create").mockResolvedValue([]);
   jest.spyOn(AuditLog, "create").mockResolvedValue([]);
-  const result = await createTrip({ routeId: "route", destination: "Yavatmal", manifestIds: ["manifest"], vehicleSource: "MV", vehicleNumber: "MH31AB1234", driverName: "Driver" }, { ...req, get: () => "test" });
+  const result = await createTrip({ routeId, destination: "Yavatmal", manifestIds: ["manifest"], vehicleSource: "MV", vehicleNumber: "MH31AB1234", driverName: "Driver" }, { ...req, get: () => "test" });
   expect(result).toMatchObject({ status: "DISPATCHED", workflowStatus: "IN_TRANSIT", dispatchedAt: expect.any(Date) });
   expect(save).toHaveBeenCalledWith({ session });
   expect(manifests).toHaveBeenCalledWith(expect.anything(), { $set: { workflowStatus: "DISPATCHED" } }, { session });

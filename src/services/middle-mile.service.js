@@ -468,8 +468,7 @@ export async function createTrip(data, req) {
       if (manifests.length !== data.manifestIds.length) throw new ConflictError("Select only locked, unassigned manifests", "INVALID_MANIFEST_SELECTION");
       const first = manifests[0]; assertBranch(first, req.user);
       const route = await ensureRoute(data.routeId, session);
-      if (!route) throw new BusinessRuleError("Select a route for this trip", "ROUTE_REQUIRED");
-      if (!sameLocation(route.destination, data.destination) || !sameLocation(route.origin, first.origin)) throw new ConflictError("Route must match the trip origin and destination", "ROUTE_DESTINATION_MISMATCH");
+      if (route && (!sameLocation(route.destination, data.destination) || !sameLocation(route.origin, first.origin))) throw new ConflictError("Route must match the trip origin and destination", "ROUTE_DESTINATION_MISMATCH");
       if (!sameLocation(first.destination, data.destination)) throw new ConflictError("Manifest does not match the selected destination", "DESTINATION_MISMATCH");
       if (manifests.some((row) => row.origin !== first.origin || row.destination !== first.destination)) throw new ConflictError("Selected manifests must have the same origin and destination", "INCOMPATIBLE_MANIFESTS");
       if (data.vendorId && !(await Vendor.exists({ _id: data.vendorId, status: ACTIVE.ACTIVE }).session(session))) throw new BusinessRuleError("Select an active vendor", "INVALID_VENDOR");
@@ -490,7 +489,7 @@ export async function createTrip(data, req) {
       trip = (await Trip.create([{
         tripNumber: await generateBusinessNumber("trip", "TRIP", session), branchId: first.branchId,
         tripType: "MIDDLE_MILE", workflowStatus: "READY_FOR_DISPATCH", status: "PLANNED",
-        manifestIds: manifests.map((row) => row._id), shipmentIds, fromHubId: first.fromHubId, toHubId: first.toHubId, routeId: route._id,
+        manifestIds: manifests.map((row) => row._id), shipmentIds, fromHubId: first.fromHubId, toHubId: first.toHubId, ...(route && { routeId: route._id }),
         origin: first.origin || fromHub?.city || "Nagpur", destination: first.destination || toHub?.city || "Destination",
         sealNumber: data.sealNumber, vehicleSource: data.vehicleSource, vendorId: data.vendorId, vehicleMasterId: data.vehicleMasterId, driverMasterId: data.driverMasterId,
         vehicleNumber: data.vehicleNumber, vehicleType: data.vehicleType, vehicleCapacityKg: data.vehicleCapacityKg,
@@ -499,11 +498,11 @@ export async function createTrip(data, req) {
       }], { session }))[0];
       await Manifest.updateMany(
         { _id: { $in: manifests.map((row) => row._id) } },
-        { $set: { workflowStatus: "TRIP_ASSIGNED", tripId: trip._id, routeId: route._id } },
+        { $set: { workflowStatus: "TRIP_ASSIGNED", tripId: trip._id, ...(route && { routeId: route._id }) } },
         { session },
       );
-      await Shipment.updateMany({ _id: { $in: shipmentIds } }, { $set: { movementState: MIDDLE_MILE_STATE.TRIP_ASSIGNED, routeId: route._id } }, { session });
-      await MovementLeg.updateMany({ manifestId: { $in: manifests.map((row) => row._id) } }, { $set: { status: MIDDLE_MILE_STATE.TRIP_ASSIGNED, tripId: trip._id, routeId: route._id, vehicleNumber: trip.vehicleNumber, driverName: trip.driverName } }, { session });
+      await Shipment.updateMany({ _id: { $in: shipmentIds } }, { $set: { movementState: MIDDLE_MILE_STATE.TRIP_ASSIGNED, ...(route && { routeId: route._id }) } }, { session });
+      await MovementLeg.updateMany({ manifestId: { $in: manifests.map((row) => row._id) } }, { $set: { status: MIDDLE_MILE_STATE.TRIP_ASSIGNED, tripId: trip._id, ...(route && { routeId: route._id }), vehicleNumber: trip.vehicleNumber, driverName: trip.driverName } }, { session });
       const shipments = await Shipment.find({ _id: { $in: shipmentIds } }).session(session);
       await ShipmentEvent.create(eventRows(shipments, TRACKING_EVENT_STATUS.TRIP_ASSIGNED, trip.branchId, req.user, `Assigned to trip ${trip.tripNumber}`, { tripId: trip._id }), { session, ordered: true });
       await audit(session, req, "MIDDLE_MILE_TRIP_CREATED", "Trip", trip._id, null, { number: trip.tripNumber, manifestCount: manifests.length, shipmentCount: shipmentIds.length });

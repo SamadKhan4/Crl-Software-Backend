@@ -143,13 +143,13 @@ test("requires route LRs, verified manifest LRs, trip seal and MV cost", () => {
   expect(middleMileTripSchema.safeParse({ ...trip, sealNumber: "" }).success).toBe(false);
 });
 
- test("city sorting and tally do not require a route; trip does", () => {
+ test("city sorting, tally and trip accept an optional route", () => {
   expect(middleMileSortingSchema.safeParse({ destination: "Mumbai", destinationPincode: "400001", shipmentIds: [id] }).success).toBe(true);
   expect(middleMileSortingSchema.safeParse({ destination: "Mumbai", destinationPincode: "4000", shipmentIds: [id] }).success).toBe(false);
   expect(middleMileSortingSchema.safeParse({ shipmentIds: [id] }).success).toBe(false);
   expect(loadingTallySchema.safeParse({ segregationId: id, loadingBay: "Bay 1", vehicleType: "Truck", vehicleCapacityKg: 1000 }).success).toBe(true);
   const trip = { destination: "Mumbai", sealNumber: "SEAL", manifestIds: [id], vehicleSource: "MV", vehicleNumber: "MH31AB1234", driverName: "Driver", departureDate: "2026-10-06", freightAmount: 100 };
-  expect(middleMileTripSchema.safeParse(trip).success).toBe(false);
+  expect(middleMileTripSchema.safeParse(trip).success).toBe(true);
   expect(middleMileTripSchema.safeParse({ ...trip, routeId: id }).success).toBe(true);
  });
 
