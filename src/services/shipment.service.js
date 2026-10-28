@@ -795,6 +795,7 @@ export async function publicTrack(lrNumber) {
     .populate({ path: "activeMovementLegId", select: "tripId vehicleNumber driverName", populate: { path: "tripId", select: "vehicleNumber vehicleType vehicleCapacityKg driverName sealNumber" } })
     .lean();
   if (!shipment) throw new NotFoundError("No shipment found for this LR number", "SHIPMENT_NOT_FOUND");
+  const pod = await latestPublicPod(shipment._id);
   const leg = shipment.activeMovementLegId;
   const carrier = shipment.activeDrsId?.workflowStatus !== "CANCELLED" && shipment.activeDrsId
     ? shipment.activeDrsId : leg?.tripId || leg;
@@ -805,6 +806,7 @@ export async function publicTrack(lrNumber) {
     .lean();
   return {
     lrNumber: shipment.lrNumber,
+    podAvailable: Boolean(pod),
     origin: shipment.lrDetails?.from || shipment.originBranchId?.city,
     destination: shipment.lrDetails?.to || shipment.destinationBranchId?.city,
     status: shipment.currentStatus,
@@ -826,3 +828,16 @@ export async function publicTrack(lrNumber) {
   };
 }
 
+
+const latestPublicPod = (shipmentId) => ShipmentDocument.findOne({
+  shipmentId, documentType: "POD", verificationStatus: DOCUMENT_STATUS.VERIFIED,
+}).sort({ version: -1, createdAt: -1 }).select("+storageKey +fileUrl");
+
+export async function openPublicPod(lrNumber) {
+  const shipment = await Shipment.findOne({ lrNumber: lrNumber.toUpperCase() }).select("_id").lean();
+  if (!shipment) throw new NotFoundError("Shipment not found", "SHIPMENT_NOT_FOUND");
+  const document = await latestPublicPod(shipment._id);
+  if (!document) throw new NotFoundError("POD is not available yet", "DOCUMENT_NOT_FOUND");
+  const source = await storageService.open(document.storageKey, document.fileUrl);
+  return { ...source, originalFileName: document.originalFileName, mimeType: document.mimeType };
+}

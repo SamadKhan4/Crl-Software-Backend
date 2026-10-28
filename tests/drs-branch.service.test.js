@@ -83,3 +83,11 @@ test('requires and saves manually entered market charges', async () => {
   await expect(createDrs({ ...data, vehicleSource: "MV" }, req)).rejects.toMatchObject({ errorCode: "DRS_CHARGES_REQUIRED" });
   expect(await createDrs({ ...data, vehicleSource: "MV", vendorCharges: 450 }, req)).toMatchObject({ vendorCharges: 450, vendorRateBasis: "FIXED" });
 });
+
+test("creates DRS for a mapped vehicle without driver name or mobile", async () => {
+  setup(undefined, { _id: "vendor", vendorType: "LAST_MILE", vehicles: [{ vehicleNumber: data.vehicleNumber, status: "ACTIVE" }] });
+  const { driverName, ...withoutDriver } = data;
+  const result = await createDrs(withoutDriver, req);
+  expect(result.driverName).toBeUndefined();
+  expect(result.driverMobile).toBeUndefined();
+});

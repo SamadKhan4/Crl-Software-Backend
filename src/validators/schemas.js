@@ -618,7 +618,7 @@ export const drsSchema = z
   .object({
     branchId: objectId.optional(),
     vehicleNumber: z.string().trim().toUpperCase().min(4).max(20),
-    driverName: z.string().trim().min(2).max(120),
+    driverName: optionalText(120),
     driverMobile: mobile.optional(),
     deliveryDate: requiredDate,
     route: z.string().trim().min(2).max(250),

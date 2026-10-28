@@ -272,7 +272,6 @@ export async function createDrs(data, req) {
         : vendor.vehicles;
       const vehicle = vehicles?.find((row) => row.vehicleNumber === data.vehicleNumber && row.status === "ACTIVE");
       if (!vehicle) throw new BusinessRuleError("Select an active vehicle mapped to this vendor", "INVALID_VENDOR_VEHICLE");
-      if (!vehicle.driverName?.trim()) throw new BusinessRuleError("Map a driver to the selected vendor vehicle first", "VEHICLE_DRIVER_REQUIRED");
       if (data.deliveryAgentId) {
         const agent = await User.findOne({ _id: data.deliveryAgentId, role: "EMPLOYEE", status: "ACTIVE", ...(!isAdmin(req.user) && { branchId }) }).session(session);
         if (!agent) throw new BusinessRuleError(isAdmin(req.user) ? "Select an active employee as delivery agent" : "Select an active delivery agent from this branch", "INVALID_DELIVERY_AGENT");

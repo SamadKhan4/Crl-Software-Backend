@@ -143,7 +143,7 @@ const drsSchema = new Schema(
     ...common,
     manifestId: { ...objectId, ref: "Manifest", index: true },
     vehicleNumber: { type: String, required: true, uppercase: true, trim: true },
-    driverName: { type: String, required: true, trim: true },
+    driverName: { type: String, trim: true },
     driverMobile: { type: String, trim: true },
     deliveryDate: { type: Date, required: true },
     route: { type: String, trim: true },

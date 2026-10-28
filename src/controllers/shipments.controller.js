@@ -37,6 +37,20 @@ export const downloadDocument = asyncHandler(async (req, res) => {
   res.attachment(document.originalFileName);
   await pipeline(stream, res);
 });
+export const downloadPublicPod = asyncHandler(async (req, res) => {
+  const document = await shipments.openPublicPod(req.params.lrNumber);
+  let stream = document.stream;
+  if (document.url) {
+    const response = await fetch(document.url);
+    if (!response.ok || !response.body)
+      throw new AppError("Cloud document is unavailable", 503, "STORAGE_UNAVAILABLE");
+    stream = Readable.fromWeb(response.body);
+  }
+  res.set("Cache-Control", "private, no-store");
+  res.type(document.mimeType);
+  res.attachment(document.originalFileName);
+  await pipeline(stream, res);
+});
 export const updateShipment = asyncHandler(async (req, res) =>
   success(res, 200, "Shipment updated successfully", await shipments.updateShipment(req.params.id, req.body, req)),
 );

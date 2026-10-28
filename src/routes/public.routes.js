@@ -7,6 +7,7 @@ import { publicLimiter, publicUploadLimiter } from "./limits.js";
 import { createPublicQuotation } from "../controllers/tms.controller.js";
 
 const router = Router();
+router.get("/public/track/:lrNumber/pod", publicLimiter, validate(v.publicTrackSchema, "params"), c.downloadPublicPod);
 router.get("/public/track/:lrNumber", publicLimiter, validate(v.publicTrackSchema, "params"), c.publicTrack);
 router.get(
   "/track",
