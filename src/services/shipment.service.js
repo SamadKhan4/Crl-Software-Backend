@@ -128,8 +128,8 @@ const applyLrCalculations = (data) => {
   const details = data.lrDetails.toObject?.() ?? data.lrDetails;
   if (details.goods?.length) {
     const { packageCount, ...totals } = calculateGoods(details.goods, details.cftFactor ?? 7);
-    data.packageCount = packageCount;
-    data.weightKg = totals.actualWeight;
+    if (data.packageCount == null) data.packageCount = packageCount;
+    if (data.weightKg == null) data.weightKg = totals.actualWeight;
     Object.assign(details, totals);
   }
   data.lrDetails = { ...details, ...calculateCharges({ ...details, packageCount: data.packageCount }) };
@@ -214,14 +214,6 @@ const validatePickupRequestForLr = async (data, user, session) => {
     throw new ConflictError("LR has already been created for this pickup request", "PICKUP_REQUEST_ALREADY_LINKED");
   if (pickupRequest.customerId && String(pickupRequest.customerId) !== String(data.customerId))
     throw new ConflictError("Select the same customer used in the pickup request", "PICKUP_CUSTOMER_MISMATCH");
-  if (
-    (pickupRequest.totalBoxes != null && pickupRequest.totalBoxes !== data.packageCount) ||
-    (pickupRequest.totalWeightKg != null && Math.abs(pickupRequest.totalWeightKg - data.weightKg) > 0.001)
-  )
-    throw new ConflictError(
-      "LR box count and weight must match the pickup request",
-      "PICKUP_QUANTITY_MISMATCH",
-    );
   return pickupRequest;
 };
 
