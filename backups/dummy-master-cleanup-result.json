@@ -1,0 +1,121 @@
+{
+  "deleted": 26,
+  "masterRecordsDeleted": 20,
+  "usersPreserved": 12,
+  "backup": "backups/dummy-masters-before-2026-11-02T07-03-57-771Z.json",
+  "protectedRecords": [
+    {
+      "collection": "branches",
+      "id": "6a9c07fe9ad4197174f72c9a",
+      "label": "Nagpur Branch",
+      "reason": "Explicit demo code or example email",
+      "referencedBy": [
+        {
+          "collection": "payslips",
+          "id": "6adeebb341206dec6e6b0fd2"
+        },
+        {
+          "collection": "users",
+          "id": "6a9e9e5d9674fd6c4c5bd2c8"
+        },
+        {
+          "collection": "users",
+          "id": "6a9c07ff9ad4197174f72c9d"
+        },
+        {
+          "collection": "users",
+          "id": "6abe022248d1a6e3f5d29916"
+        },
+        {
+          "collection": "users",
+          "id": "6ac3922847a63b3c6a0af5ee"
+        },
+        {
+          "collection": "users",
+          "id": "6ac721617ac7ee9509e05a5d"
+        },
+        {
+          "collection": "users",
+          "id": "6ad5b174841267c29468ae9c"
+        },
+        {
+          "collection": "users",
+          "id": "6ad8912a841267c29468b219"
+        },
+        {
+          "collection": "users",
+          "id": "6adeeb0e41206dec6e6b0f81"
+        },
+        {
+          "collection": "users",
+          "id": "6ae4623bcbed0f96517fe122"
+        },
+        {
+          "collection": "employeeonboardings",
+          "id": "6ad89463841267c29468b25a"
+        },
+        {
+          "collection": "tmsregisters",
+          "id": "6acf52e612cf1f085dcb2df5"
+        },
+        {
+          "collection": "businessmasters",
+          "id": "6ac48e8d5491bdf29b7f6132"
+        },
+        {
+          "collection": "businessmasters",
+          "id": "6ac494a86c27f85a6726432c"
+        },
+        {
+          "collection": "businessmasters",
+          "id": "6ac49b5f38fb9536dacfa3ea"
+        },
+        {
+          "collection": "businessmasters",
+          "id": "6ac4c378e9845f5ae31d47ed"
+        },
+        {
+          "collection": "businessmasters",
+          "id": "6adaf90341206dec6e6affd6"
+        },
+        {
+          "collection": "businessmasters",
+          "id": "6adaf9a941206dec6e6b001d"
+        },
+        {
+          "collection": "businessmasters",
+          "id": "6adf03f7acdf7c9979aa4f6c"
+        },
+        {
+          "collection": "businessmasters",
+          "id": "6ae04631f6e03949b71d47d1"
+        }
+      ]
+    },
+    {
+      "collection": "branches",
+      "id": "6a9c07fe9ad4197174f72c9b",
+      "label": "Mumbai Demo Branch",
+      "reason": "Explicit demo code or example email",
+      "referencedBy": [
+        {
+          "collection": "users",
+          "id": "6a9c07ff9ad4197174f72c9e"
+        }
+      ]
+    },
+    {
+      "collection": "branches",
+      "id": "6abdf6f641690717b6e10087",
+      "label": "Bilaspur Branch",
+      "reason": "Explicit demo code or example email",
+      "referencedBy": [
+        {
+          "collection": "businessmasters",
+          "id": "6ac48e8d5491bdf29b7f6132"
+        }
+      ]
+    }
+  ],
+  "verified": true
+}
