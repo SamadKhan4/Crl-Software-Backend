@@ -34,7 +34,7 @@ const resolvePricingCustomer = async (customerId, user) => {
     { new: true, upsert: true, setDefaultsOnInsert: true, runValidators: true },
   );
 };
-const employeeLockedLrFields = [
+const lockedLrFields = [
   "shipperSignature",
   "receiverNamePrint",
   "receiverMobilePrint",
@@ -42,11 +42,11 @@ const employeeLockedLrFields = [
   "receiverSignature",
   "remarks",
 ];
-const assertSignatureAccess = (data, user) => {
-  if (user?.role !== ROLES.EMPLOYEE || !data.lrDetails) return;
+const assertSignatureAccess = (data) => {
+  if (!data.lrDetails) return;
   const details = data.lrDetails.toObject?.() ?? data.lrDetails;
-  if (employeeLockedLrFields.some((field) => details[field] !== undefined))
-    throw new AuthorizationError("Signatures and remarks can only be updated by an admin or manager");
+  if (lockedLrFields.some((field) => details[field] !== undefined))
+    throw new AuthorizationError("Signatures and remarks are locked for all roles");
 };
 const getShipment = async (id, session) => {
   const shipment = await Shipment.findById(id).session(session);

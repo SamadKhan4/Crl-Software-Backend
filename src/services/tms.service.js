@@ -1153,7 +1153,7 @@ export async function createRegister(resource, data, req) {
 export function listRegisters(resource, query, user) {
   const config = registerConfig(resource);
   return list(TmsRegister, query, user, {
-    where: { module: config.module },
+    where: { module: config.module, ...(resource === 'vendor-settlements' && query.settlementType ? { 'metadata.settlementType': query.settlementType === 'MARKET' ? 'MARKET' : { $ne: 'MARKET' } } : {}) },
     search: ["recordNumber", "title", "reference", "origin", "destination", "vehicleNumber", "driverName", "documentNumber"],
     populate: ["branchId", "vendorId", "customerId", "userId", "shipmentIds"],
   });

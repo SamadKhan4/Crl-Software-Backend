@@ -8,6 +8,8 @@ import * as v from "../validators/schemas.js";
 
 const router = Router();
 const adminManager = allow(ROLES.ADMIN, ROLES.MANAGER);
+router.get('/market-settlement-work', adminManager, c.marketWorkOptions);
+router.get('/market-settlement-work/:type/:id', adminManager, validate(v.marketSettlementParams, 'params'), c.marketWork);
 
 router.post("/vendors", allow(ROLES.ADMIN), validate(v.vendorSchema), c.createVendor);
 router.get("/vendors/options", validate(v.businessListSchema, "query"), c.vendorOptions);

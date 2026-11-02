@@ -1,4 +1,4 @@
-import { vendorSettlementWork } from "../services/vendor-settlement.service.js";
+import { vendorSettlementWork, marketSettlementOptions, marketSettlementWork } from "../services/vendor-settlement.service.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { success, successPaginated } from "../utils/response.js";
 import * as tms from "../services/tms.service.js";
@@ -165,3 +165,5 @@ export const updateRegisterStatus = asyncHandler(async (req, res) =>
 export const billingShipments = list("Billable LRs fetched", tms.billingShipments);
 
 export const vendorWork = asyncHandler(async (req, res) => success(res, 200, "Vendor settlement work fetched", await vendorSettlementWork(req.params.id, req.user)));
+export const marketWorkOptions = asyncHandler(async (req, res) => success(res, 200, 'Market vehicles fetched', await marketSettlementOptions(req.user)));
+export const marketWork = asyncHandler(async (req, res) => success(res, 200, 'Market settlement work fetched', await marketSettlementWork(`${req.params.type}:${req.params.id}`, req.user)));

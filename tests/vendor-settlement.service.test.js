@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import { jest } from "@jest/globals";
 import { Counter, AuditLog, Vendor, Shipment, PickupRequest, PickupRunSheet, Trip, Manifest, DeliveryRunSheet, TmsRegister } from "../src/models/index.js";
-import { calculateVendorCommission, vendorSettlementWork, prepareVendorSettlement, createVendorSettlement } from "../src/services/vendor-settlement.service.js";
+import { calculateVendorCommission, vendorSettlementWork, prepareVendorSettlement, createVendorSettlement, marketSettlementOptions } from "../src/services/vendor-settlement.service.js";
 
 afterEach(() => jest.restoreAllMocks());
 const lrs = [{ weightKg: 10, packageCount: 2 }, { weightKg: 20, packageCount: 3 }];
@@ -12,6 +12,26 @@ test("empty work has no fixed charge", () => {
   expect(calculateVendorCommission({ commercial: { rate: 100, rateBasis: "FIXED" } }, [], []).commission).toBe(0);
 });
 const chain = (value) => ({ session: () => ({ lean: async () => value }) });
+test('settles market operation at recorded cost with advance and excludes already settled operations', async () => {
+  jest.spyOn(PickupRunSheet, 'find').mockReturnValue(chain([]));
+  jest.spyOn(Trip, 'find').mockReturnValue(chain([{ _id: 'trip', tripNumber: 'MV1', vehicleNumber: 'MH31AB1234', branchId: 'branch', shipmentIds: ['lr'], freightAmount: 500, advanceAmount: 100, status: 'CLOSED' }]));
+  const previous = jest.spyOn(TmsRegister, 'find').mockReturnValue(chain([]));
+  jest.spyOn(Shipment, 'find').mockReturnValue(chain([{ _id: 'lr', lrNumber: 'LR1', weightKg: 10 }]));
+  const data = { metadata: { settlementType: 'MARKET', marketOperationKey: 'TRIP:trip', tds: 10 } };
+  const payload = await prepareVendorSettlement(data, { role: 'ADMIN' });
+  expect(payload).toMatchObject({ amount: 390, branchId: 'branch', vehicleNumber: 'MH31AB1234', metadata: { settlementType: 'MARKET', commission: 500, advance: 100, deductions: 110 } });
+  expect(payload.vendorId).toBeUndefined();
+  previous.mockReturnValue(chain([{ metadata: { operations: [{ key: 'TRIP:trip' }] } }]));
+  expect(await marketSettlementOptions({ role: 'ADMIN' })).toEqual([]);
+  await expect(prepareVendorSettlement(data, { role: 'ADMIN' })).rejects.toMatchObject({ errorCode: 'NO_MARKET_WORK' });
+});
+test('blocks market settlement with unapproved rates', async () => {
+  jest.spyOn(PickupRunSheet, 'find').mockReturnValue(chain([{ _id: 'prs', prsNumber: 'PRS1', approvalStatus: 'PENDING', status: 'PENDING_APPROVAL', vendorPayableAmount: 100 }]));
+  jest.spyOn(Trip, 'find').mockReturnValue(chain([]));
+  jest.spyOn(TmsRegister, 'find').mockReturnValue(chain([]));
+  jest.spyOn(Shipment, 'find').mockReturnValue(chain([]));
+  await expect(prepareVendorSettlement({ metadata: { settlementType: 'MARKET', marketOperationKey: 'PRS:prs' } }, { role: 'ADMIN' })).rejects.toMatchObject({ errorCode: 'VENDOR_RATE_APPROVAL_REQUIRED' });
+});
 function mockWork(previous = []) {
   jest.spyOn(Vendor, "findById").mockReturnValue(chain({ _id: "vendor", vendorCode: "V001", name: "Vendor", status: "ACTIVE", commercial: { rate: 2, rateBasis: "PER_KG" } }));
   jest.spyOn(PickupRunSheet, "find").mockReturnValue(chain([{ _id: "prs", prsNumber: "PRS1", branchId: "branch", shipmentIds: ["lr1"], vendorPayableAmount: 100, status: "DISPATCHED" }]));

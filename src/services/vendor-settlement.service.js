@@ -8,6 +8,32 @@ import { BusinessRuleError, NotFoundError } from "../utils/errors.js";
 const id = (value) => String(value?._id ?? value);
 const money = (value) => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
 
+export async function marketSettlementOptions(user, session = null) {
+  const scope = hasCrossBranchAccess(user) ? {} : { branchId: user.branchId };
+  const prs = await PickupRunSheet.find({ ...scope, rateSource: 'MARKET', status: { $ne: 'CANCELLED' } }).session(session).lean();
+  const trips = await Trip.find({ ...scope, vehicleSource: 'MV', status: { $ne: 'CANCELLED' } }).session(session).lean();
+  const previous = await TmsRegister.find({ ...scope, module: 'VENDOR_SETTLEMENT', status: { $ne: 'CANCELLED' } }).session(session).lean();
+  const settled = new Set(previous.flatMap(row => row.metadata?.operations || []).map(row => row.key));
+  return [
+    ...prs.map(row => ({ ...row, type: 'PRS', number: row.prsNumber, date: row.pickupDate, recordedCost: row.vendorPayableAmount, advance: 0, name: row.vendorName })),
+    ...trips.map(row => ({ ...row, type: 'TRIP', number: row.tripNumber, date: row.departureDate, recordedCost: row.freightAmount, advance: row.advanceAmount, name: row.driverName })),
+  ].map(row => ({ key: `${row.type}:${row._id}`, id: id(row), type: row.type, number: row.number, date: row.date, branchId: row.branchId, vehicleNumber: row.vehicleNumber, name: row.name, route: row.route || [row.origin, row.destination].filter(Boolean).join(' - '), shipmentIds: (row.shipmentIds || []).map(id), recordedCost: Number(row.recordedCost || 0), advance: Number(row.advance || 0), status: row.status, eligible: !['PENDING', 'REJECTED'].includes(row.approvalStatus) && row.status !== 'PENDING_APPROVAL' })).filter(row => !settled.has(row.key));
+}
+
+export async function marketSettlementWork(key, user, session = null) {
+  const operation = (await marketSettlementOptions(user, session)).find(row => row.key === key);
+  if (!operation) throw new BusinessRuleError('Market operation is unavailable or already settled', 'NO_MARKET_WORK');
+  const shipments = await Shipment.find({ _id: { $in: operation.shipmentIds }, currentStatus: { $ne: 'CANCELLED' } }).session(session).lean();
+  const date = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+  return {
+    vendor: { vendorCode: 'MARKET', name: operation.name || operation.vehicleNumber, status: 'ACTIVE' },
+    branchId: operation.branchId, operations: [operation], settledLrCount: 0, advance: operation.advance,
+    shipments: shipments.map(row => ({ id: id(row), lrNumber: row.lrNumber, bookingDate: row.lrDetails?.bookingDate || row.createdAt, senderName: row.senderName, receiverName: row.receiverName, origin: row.lrDetails?.from, destination: row.lrDetails?.to, packageCount: row.packageCount, weightKg: row.weightKg, freight: row.lrDetails?.freightCharges || 0, status: row.currentStatus })),
+    calculation: { rateBasis: 'FIXED', units: 1, agreedRate: operation.recordedCost, commission: operation.recordedCost },
+    defaults: { title: `Market settlement - ${operation.vehicleNumber} - ${operation.number}`.slice(0, 180), operationDate: date, dueDate: date, reference: operation.number, documentNumber: `MV-${operation.number}`.slice(0, 120), vehicleNumber: operation.vehicleNumber, metadata: { settlementType: 'MARKET', marketOperationKey: key, detention: 0, loading: 0, otherCharge: 0, tds: 0, advance: operation.advance } },
+  };
+}
+
 export function calculateVendorCommission(vendor, shipments, operations) {
   const rate = Number(vendor.commercial?.rate || 0);
   const basis = vendor.commercial?.rateBasis || "PER_TRIP";
@@ -25,8 +51,8 @@ export async function vendorSettlementWork(vendorId, user, session = null) {
   const scoped = hasCrossBranchAccess(user) ? {} : { branchId: user.branchId };
   const where = { vendorId, ...scoped, status: { $ne: "CANCELLED" } };
   const queries = [
-    () => PickupRunSheet.find({ ...scoped, $or: [{ vendorId }, { vendorCode: vendor.vendorCode }], status: { $ne: "CANCELLED" } }).session(session).lean(),
-    () => Trip.find(where).session(session).lean(),
+    () => PickupRunSheet.find({ ...scoped, $or: [{ vendorId }, { vendorCode: vendor.vendorCode }], rateSource: { $ne: 'MARKET' }, status: { $ne: "CANCELLED" } }).session(session).lean(),
+    () => Trip.find({ ...where, vehicleSource: { $ne: 'MV' } }).session(session).lean(),
     () => Manifest.find(where).session(session).lean(),
     () => DeliveryRunSheet.find(where).session(session).lean(),
     () => PickupRequest.find({ ...scoped, "agentAssignment.vendorId": vendorId, status: { $ne: "CANCELLED" } }).session(session).lean(),
@@ -72,8 +98,9 @@ export async function vendorSettlementWork(vendorId, user, session = null) {
 }
 
 export async function prepareVendorSettlement(data, user, session = null) {
-  if (!data.vendorId) throw new BusinessRuleError("Select a vendor", "VENDOR_REQUIRED");
-  const work = await vendorSettlementWork(data.vendorId, user, session);
+  const market = data.metadata?.settlementType === 'MARKET';
+  if (!market && !data.vendorId) throw new BusinessRuleError("Select a vendor", "VENDOR_REQUIRED");
+  const work = market ? await marketSettlementWork(data.metadata.marketOperationKey, user, session) : await vendorSettlementWork(data.vendorId, user, session);
   if (work.vendor.status !== "ACTIVE") throw new BusinessRuleError("Select an active vendor", "VENDOR_INACTIVE");
   if (!work.shipments.length && !work.operations.length) throw new BusinessRuleError("No unsettled vendor work found", "NO_VENDOR_WORK");
   if (work.operations.some((row) => !row.eligible)) throw new BusinessRuleError("Vendor work includes pending or rejected market rate approval", "VENDOR_RATE_APPROVAL_REQUIRED");
@@ -88,18 +115,23 @@ export async function prepareVendorSettlement(data, user, session = null) {
   const gross = money(work.calculation.commission + detention + loading + otherCharge);
   const deductions = money(tds + advance);
   if (deductions > gross) throw new BusinessRuleError("Deductions exceed settlement gross amount", "DEDUCTIONS_EXCEED_GROSS");
-  return { ...data, branchId: data.branchId || work.branchId, shipmentIds: work.shipments.map((row) => row.id), amount: money(gross - deductions), taxAmount: 0, metadata: { detention, loading, otherCharge, tds, advance, ...work.calculation, baseAmount: work.calculation.commission, gross, deductions, payable: money(gross - deductions), vendor: { vendorCode: work.vendor.vendorCode, name: work.vendor.name, address: work.vendor.address, gstNumber: work.vendor.gstNumber }, operations: work.operations, lrDetails: work.shipments } };
+  return { ...data, vendorId: market ? undefined : data.vendorId, vehicleNumber: market ? work.operations[0].vehicleNumber : data.vehicleNumber, branchId: market ? work.branchId : data.branchId || work.branchId, shipmentIds: work.shipments.map((row) => row.id), amount: money(gross - deductions), taxAmount: 0, metadata: { settlementType: market ? 'MARKET' : 'VENDOR', ...(market && { marketOperationKey: data.metadata.marketOperationKey }), detention, loading, otherCharge, tds, advance, ...work.calculation, baseAmount: work.calculation.commission, gross, deductions, payable: money(gross - deductions), vendor: { vendorCode: work.vendor.vendorCode, name: work.vendor.name, address: work.vendor.address, gstNumber: work.vendor.gstNumber }, operations: work.operations, lrDetails: work.shipments } };
 }
 
 
 export async function createVendorSettlement(data, req) {
-  if (!data.vendorId) throw new BusinessRuleError("Select a vendor", "VENDOR_REQUIRED");
+  const market = data.metadata?.settlementType === 'MARKET';
+  if (!market && !data.vendorId) throw new BusinessRuleError("Select a vendor", "VENDOR_REQUIRED");
+  if (market && !/^(PRS|TRIP):[a-f\d]{24}$/i.test(data.metadata.marketOperationKey || '')) throw new BusinessRuleError('Select a market operation', 'INVALID_MARKET_OPERATION');
   const session = await mongoose.startSession();
   try {
     let record;
     await session.withTransaction(async () => {
       // Serialize settlement creation per vendor so concurrent saves cannot reuse work.
-      await Vendor.updateOne({ _id: data.vendorId }, { $inc: { __v: 1 } }, { session });
+      if (market) {
+        const [type, operationId] = data.metadata.marketOperationKey.split(':');
+        await (type === 'PRS' ? PickupRunSheet : Trip).updateOne({ _id: operationId }, { $inc: { __v: 1 } }, { session });
+      } else await Vendor.updateOne({ _id: data.vendorId }, { $inc: { __v: 1 } }, { session });
       const payload = await prepareVendorSettlement(data, req.user, session);
       const branchId = hasCrossBranchAccess(req.user) ? payload.branchId : req.user.branchId;
       if (!branchId) throw new BusinessRuleError("Select an operating branch", "BRANCH_REQUIRED");

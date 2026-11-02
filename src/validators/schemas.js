@@ -21,6 +21,7 @@ const positiveNumber = z.coerce.number().positive().max(1000000000);
 const strictEmpty = z.object({}).strict();
 
 export const ids = z.object({ id: objectId }).strict();
+export const marketSettlementParams = z.object({ id: objectId, type: z.enum(['PRS', 'TRIP']) }).strict();
 export const documentIds = z.object({ id: objectId, documentId: objectId }).strict();
 export const listSchema = z
   .object({
@@ -392,6 +393,7 @@ const businessListBase = z.object({
   branchId: objectId.optional(),
   customerId: objectId.optional(),
   billingType: z.enum(["CREDIT", "RETAIL"]).optional(),
+  settlementType: z.enum(['VENDOR', 'MARKET']).optional(),
   vendorId: objectId.optional(),
   routeId: objectId.optional(),
   dateFrom: z.coerce.date().optional(),
