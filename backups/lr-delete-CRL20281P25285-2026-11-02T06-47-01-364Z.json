@@ -1,0 +1,146 @@
+{
+  "database": "crl_transport",
+  "shipments": [
+    {
+      "_id": {
+        "$oid": "6ae815eb8f2f725fc85ededc"
+      },
+      "lrNumber": "CRL20281P25285",
+      "idempotencyKey": "bc85b08d-9292-4178-9095-7943f0ee7f84",
+      "customerId": {
+        "$oid": "6abdff4041690717b6e100da"
+      },
+      "originBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "destinationBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "currentStatus": "BOOKED",
+      "currentLocation": "Nagpur",
+      "senderName": "Rohit Sharma",
+      "receiverName": "samad khan",
+      "packageCount": {
+        "$numberInt": "1"
+      },
+      "weightKg": {
+        "$numberInt": "10"
+      },
+      "description": "",
+      "expectedDeliveryDate": {
+        "$date": {
+          "$numberLong": "1793664000000"
+        }
+      },
+      "lrDetails": {
+        "cftFactor": {
+          "$numberInt": "7"
+        },
+        "goods": [
+          {
+            "packageNumber": "",
+            "description": "furniture",
+            "packageType": "",
+            "quantity": {
+              "$numberInt": "1"
+            },
+            "actualWeight": {
+              "$numberInt": "10"
+            },
+            "dimensionUnit": "IN",
+            "volume": {
+              "$numberInt": "0"
+            },
+            "volumetricWeight": {
+              "$numberInt": "0"
+            },
+            "chargedWeight": {
+              "$numberInt": "10"
+            }
+          }
+        ],
+        "volumetricWeight": {
+          "$numberInt": "0"
+        },
+        "consignorCode": "9966",
+        "consignorPincode": "440024",
+        "bookingDate": {
+          "$date": {
+            "$numberLong": "1793577600000"
+          }
+        },
+        "from": "Nagpur",
+        "to": "Chandrapur",
+        "invoiceDate": {
+          "$date": {
+            "$numberLong": "1793577600000"
+          }
+        },
+        "actualWeight": {
+          "$numberInt": "10"
+        },
+        "chargedWeight": {
+          "$numberInt": "10"
+        },
+        "volume": {
+          "$numberInt": "0"
+        },
+        "riskType": "OWNER_RISK",
+        "insuranceType": "NOT_INSURED",
+        "freightBasis": "PER_KG",
+        "freightRate": {
+          "$numberInt": "0"
+        },
+        "fuelRatePercent": {
+          "$numberInt": "0"
+        },
+        "rovRatePercent": {
+          "$numberInt": "0"
+        },
+        "freightCharges": {
+          "$numberInt": "0"
+        },
+        "fuelCharges": {
+          "$numberInt": "0"
+        },
+        "handlingCharges": {
+          "$numberInt": "0"
+        },
+        "fodCharges": {
+          "$numberInt": "0"
+        },
+        "codCharges": {
+          "$numberInt": "0"
+        },
+        "rovCharges": {
+          "$numberInt": "0"
+        },
+        "docketCharges": {
+          "$numberInt": "0"
+        },
+        "gstRate": {
+          "$numberInt": "0"
+        },
+        "gstAmount": {
+          "$numberInt": "0"
+        },
+        "totalAmount": {
+          "$numberInt": "0"
+        }
+      },
+      "createdBy": {
+        "$oid": "6a9c07ff9ad4197174f72c9c"
+      },
+      "createdAt": {
+        "$date": {
+          "$numberLong": "1793594859657"
+        }
+      },
+      "updatedAt": {
+        "$date": {
+          "$numberLong": "1793594859657"
+        }
+      }
+    }
+  ]
+}

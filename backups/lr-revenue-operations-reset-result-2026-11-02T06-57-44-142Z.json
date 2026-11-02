@@ -1,0 +1,187 @@
+{
+  "backup": "backups/full-reset-snapshot-2026-11-02T06-56-28-619Z.json",
+  "deleted": 1482,
+  "usersPreserved": 12,
+  "lrCount": 0,
+  "invoiceCount": 0,
+  "receiptCount": 0,
+  "costAndSettlementCount": 0,
+  "summary": {
+    "shipments": {
+      "before": 5,
+      "delete": 5,
+      "remaining": 0
+    },
+    "pickuprunsheets": {
+      "before": 1,
+      "delete": 1,
+      "remaining": 0
+    },
+    "counters": {
+      "before": 20,
+      "delete": 0,
+      "remaining": 20
+    },
+    "attendances": {
+      "before": 0,
+      "delete": 0,
+      "remaining": 0
+    },
+    "notifications": {
+      "before": 56,
+      "delete": 56,
+      "remaining": 0
+    },
+    "deliveryrunsheets": {
+      "before": 1,
+      "delete": 1,
+      "remaining": 0
+    },
+    "uploadsessions": {
+      "before": 0,
+      "delete": 0,
+      "remaining": 0
+    },
+    "holidays": {
+      "before": 0,
+      "delete": 0,
+      "remaining": 0
+    },
+    "payslips": {
+      "before": 2,
+      "delete": 0,
+      "remaining": 2
+    },
+    "pickuprequests": {
+      "before": 5,
+      "delete": 5,
+      "remaining": 0
+    },
+    "moneyreceipts": {
+      "before": 1,
+      "delete": 1,
+      "remaining": 0
+    },
+    "users": {
+      "before": 12,
+      "delete": 0,
+      "remaining": 12
+    },
+    "stationerytransactions": {
+      "before": 2,
+      "delete": 2,
+      "remaining": 0
+    },
+    "segregations": {
+      "before": 4,
+      "delete": 4,
+      "remaining": 0
+    },
+    "loadingtallies": {
+      "before": 4,
+      "delete": 4,
+      "remaining": 0
+    },
+    "branches": {
+      "before": 4,
+      "delete": 0,
+      "remaining": 4
+    },
+    "quotations": {
+      "before": 2,
+      "delete": 2,
+      "remaining": 0
+    },
+    "refreshtokens": {
+      "before": 163,
+      "delete": 0,
+      "remaining": 163
+    },
+    "employeeonboardings": {
+      "before": 1,
+      "delete": 0,
+      "remaining": 1
+    },
+    "bookings": {
+      "before": 0,
+      "delete": 0,
+      "remaining": 0
+    },
+    "manifests": {
+      "before": 4,
+      "delete": 4,
+      "remaining": 0
+    },
+    "vendors": {
+      "before": 6,
+      "delete": 0,
+      "remaining": 6
+    },
+    "packageunits": {
+      "before": 1068,
+      "delete": 1068,
+      "remaining": 0
+    },
+    "shipmentevents": {
+      "before": 31,
+      "delete": 31,
+      "remaining": 0
+    },
+    "ratecards": {
+      "before": 2,
+      "delete": 0,
+      "remaining": 2
+    },
+    "invoices": {
+      "before": 4,
+      "delete": 4,
+      "remaining": 0
+    },
+    "movementlegs": {
+      "before": 4,
+      "delete": 4,
+      "remaining": 0
+    },
+    "shipmentdocuments": {
+      "before": 1,
+      "delete": 1,
+      "remaining": 0
+    },
+    "customers": {
+      "before": 4,
+      "delete": 0,
+      "remaining": 4
+    },
+    "tmsregisters": {
+      "before": 13,
+      "delete": 7,
+      "remaining": 6
+    },
+    "auditlogs": {
+      "before": 321,
+      "delete": 277,
+      "remaining": 44
+    },
+    "unloadingtallies": {
+      "before": 1,
+      "delete": 1,
+      "remaining": 0
+    },
+    "trips": {
+      "before": 4,
+      "delete": 4,
+      "remaining": 0
+    },
+    "letterauthorizations": {
+      "before": 0,
+      "delete": 0,
+      "remaining": 0
+    },
+    "businessmasters": {
+      "before": 16,
+      "delete": 0,
+      "remaining": 16
+    }
+  },
+  "verified": true
+}

@@ -1,0 +1,4061 @@
+{
+  "database": "crl_transport",
+  "keep": [
+    "CRL20281P25285",
+    "CRL207302",
+    "CRL207301",
+    "CRL1003",
+    "CRL1002",
+    "CRL1001"
+  ],
+  "shipments": [
+    {
+      "_id": {
+        "$oid": "6abdf5f941690717b6e10051"
+      },
+      "lrNumber": "CRL-NGP-2026-900001",
+      "createdAt": {
+        "$date": {
+          "$numberLong": "1790834084121"
+        }
+      },
+      "createdBy": {
+        "$oid": "6a9c07ff9ad4197174f72c9d"
+      },
+      "currentLocation": "Mumbai Demo Branch",
+      "currentStatus": "CLOSED",
+      "customerId": {
+        "$oid": "6abdf5f941690717b6e1004f"
+      },
+      "description": "Industrial pump assemblies",
+      "destinationBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9b"
+      },
+      "expectedDeliveryDate": {
+        "$date": {
+          "$numberLong": "1790569800000"
+        }
+      },
+      "lrDetails": {
+        "goods": [
+          {
+            "packageNumber": "PKG-001",
+            "description": "Industrial pump assemblies",
+            "packageType": "Wooden crates",
+            "quantity": {
+              "$numberInt": "8"
+            },
+            "actualWeight": {
+              "$numberInt": "640"
+            },
+            "length": {
+              "$numberInt": "120"
+            },
+            "breadth": {
+              "$numberInt": "80"
+            },
+            "height": {
+              "$numberInt": "75"
+            },
+            "dimensionUnit": "CM",
+            "volume": {
+              "$numberDouble": "0.72"
+            },
+            "volumetricWeight": {
+              "$numberInt": "640"
+            },
+            "chargedWeight": {
+              "$numberInt": "640"
+            }
+          }
+        ],
+        "volumetricWeight": {
+          "$numberInt": "640"
+        },
+        "consignorCode": "90001",
+        "consignorAddress": "Hingna MIDC, Plot 42",
+        "consignorPincode": "440016",
+        "consignorGstin": "27ABCDE1234F1Z5",
+        "consigneeAddress": "Andheri East Industrial Area, Mumbai",
+        "consigneePincode": "400093",
+        "bookingDate": {
+          "$date": {
+            "$numberLong": "1790051400000"
+          }
+        },
+        "bookingBranch": "Nagpur Branch",
+        "from": "Nagpur",
+        "to": "Mumbai",
+        "deliveryAddress": "Andheri East Industrial Area, Mumbai",
+        "contactNo": "9819004001",
+        "invoiceNo": "VEPL/SALE/9001",
+        "invoiceDate": {
+          "$date": {
+            "$numberLong": "1790051400000"
+          }
+        },
+        "eWayBillNo": "271234567890",
+        "eWayBillDate": {
+          "$date": {
+            "$numberLong": "1790051400000"
+          }
+        },
+        "poStnNo": "PO-VEPL-7781",
+        "customerReference": "DEMO-END-TO-END-001",
+        "packageNumber": "PKG-001",
+        "packageType": "Wooden crates",
+        "actualWeight": {
+          "$numberInt": "640"
+        },
+        "chargedWeight": {
+          "$numberInt": "640"
+        },
+        "dimensions": "120 x 80 x 75 CM",
+        "volume": {
+          "$numberDouble": "0.72"
+        },
+        "declaredValue": {
+          "$numberInt": "285000"
+        },
+        "remarks": "End-to-end demo consignment",
+        "receiverNamePrint": "Prime Machine Tools",
+        "receiverMobilePrint": "9819004001",
+        "receiverDateTime": {
+          "$date": {
+            "$numberLong": "1790591400000"
+          }
+        },
+        "receiverSignature": "POD verified in demo seed",
+        "paymentMode": "CREDIT",
+        "riskType": "OWNER_RISK",
+        "insuranceType": "INSURED",
+        "freightBasis": "FIXED",
+        "freightRate": {
+          "$numberInt": "9350"
+        },
+        "fuelRatePercent": {
+          "$numberInt": "10"
+        },
+        "rovRatePercent": {
+          "$numberDouble": "0.1"
+        },
+        "freightCharges": {
+          "$numberInt": "8000"
+        },
+        "fuelCharges": {
+          "$numberInt": "800"
+        },
+        "handlingCharges": {
+          "$numberInt": "500"
+        },
+        "docketCharges": {
+          "$numberInt": "50"
+        },
+        "gstRate": {
+          "$numberInt": "18"
+        },
+        "gstAmount": {
+          "$numberInt": "1683"
+        },
+        "totalAmount": {
+          "$numberInt": "11033"
+        }
+      },
+      "originBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "packageCount": {
+        "$numberInt": "8"
+      },
+      "receivedAt": {
+        "$date": {
+          "$numberLong": "1790400600000"
+        }
+      },
+      "receivedBy": {
+        "$oid": "6a9c07ff9ad4197174f72c9d"
+      },
+      "receivedLocation": "Mumbai Demo Branch",
+      "receiverMobile": "9819004001",
+      "receiverName": "Prime Machine Tools",
+      "receivingBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9b"
+      },
+      "senderName": "Vidarbha Engineering Pvt Ltd",
+      "updatedAt": {
+        "$date": {
+          "$numberLong": "1790834337125"
+        }
+      },
+      "weightKg": {
+        "$numberInt": "640"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6abdff40ac7a8d225081eda1"
+      },
+      "lrNumber": "CRL20281P2",
+      "idempotencyKey": "6a16d889-7bb0-4a1f-acf0-9e3607c8783a",
+      "pickupRequestId": {
+        "$oid": "6abdfe77ac7a8d225081ed6a"
+      },
+      "customerId": {
+        "$oid": "6abdff4041690717b6e100da"
+      },
+      "originBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "destinationBranchId": {
+        "$oid": "6abdf6f641690717b6e10087"
+      },
+      "currentStatus": "CLOSED",
+      "currentLocation": "Delivered",
+      "senderName": "XYZ Company",
+      "receiverName": "XYZ Company",
+      "receiverMobile": "9856741236",
+      "packageCount": {
+        "$numberInt": "3"
+      },
+      "weightKg": {
+        "$numberInt": "10"
+      },
+      "description": "Goods against PUR-2026-000002",
+      "expectedDeliveryDate": {
+        "$date": {
+          "$numberLong": "1790899200000"
+        }
+      },
+      "lrDetails": {
+        "goods": [
+          {
+            "packageNumber": "1",
+            "description": "Goods against PUR-2026-000002",
+            "packageType": "BOX",
+            "quantity": {
+              "$numberInt": "3"
+            },
+            "actualWeight": {
+              "$numberInt": "10"
+            },
+            "length": {
+              "$numberInt": "2"
+            },
+            "breadth": {
+              "$numberInt": "2"
+            },
+            "height": {
+              "$numberInt": "2"
+            },
+            "dimensionUnit": "FT",
+            "volume": {
+              "$numberInt": "24"
+            },
+            "volumetricWeight": {
+              "$numberInt": "168"
+            },
+            "chargedWeight": {
+              "$numberInt": "168"
+            }
+          }
+        ],
+        "volumetricWeight": {
+          "$numberInt": "168"
+        },
+        "consignorCode": "9966",
+        "consignorAddress": "pratap nagar nagpur",
+        "consignorPincode": "440024",
+        "consigneeAddress": "pratap nagar nagpur",
+        "consigneePincode": "440024",
+        "bookingDate": {
+          "$date": {
+            "$numberLong": "1790812800000"
+          }
+        },
+        "bookingBranch": "Nagpur",
+        "from": "Nagpur",
+        "to": "Gondia",
+        "deliveryAddress": "pratap nagar nagpur",
+        "contactNo": "9856741236",
+        "invoiceDate": {
+          "$date": {
+            "$numberLong": "1790812800000"
+          }
+        },
+        "customerReference": "PUR-2026-000002",
+        "actualWeight": {
+          "$numberInt": "10"
+        },
+        "chargedWeight": {
+          "$numberInt": "168"
+        },
+        "volume": {
+          "$numberInt": "24"
+        },
+        "declaredValue": {
+          "$numberInt": "20000"
+        },
+        "receiverNamePrint": "XYZ",
+        "receiverMobilePrint": "9856741236",
+        "paymentMode": "TO_PAY",
+        "riskType": "CARRIER_RISK",
+        "insuranceType": "INSURED",
+        "freightBasis": "PER_KG",
+        "freightRate": {
+          "$numberInt": "20"
+        },
+        "fuelRatePercent": {
+          "$numberInt": "10"
+        },
+        "rovRatePercent": {
+          "$numberDouble": "0.3"
+        },
+        "freightCharges": {
+          "$numberInt": "3360"
+        },
+        "fuelCharges": {
+          "$numberInt": "336"
+        },
+        "handlingCharges": {
+          "$numberInt": "200"
+        },
+        "fodCharges": {
+          "$numberInt": "0"
+        },
+        "codCharges": {
+          "$numberInt": "0"
+        },
+        "rovCharges": {
+          "$numberInt": "60"
+        },
+        "docketCharges": {
+          "$numberInt": "200"
+        },
+        "gstRate": {
+          "$numberInt": "0"
+        },
+        "gstAmount": {
+          "$numberInt": "0"
+        },
+        "totalAmount": {
+          "$numberInt": "4156"
+        }
+      },
+      "createdBy": {
+        "$oid": "6a9c07ff9ad4197174f72c9c"
+      },
+      "createdAt": {
+        "$date": {
+          "$numberLong": "1790836544874"
+        }
+      },
+      "updatedAt": {
+        "$date": {
+          "$numberLong": "1790847951434"
+        }
+      },
+      "activeMovementLegId": {
+        "$oid": "6abe05c0c8ef455492c22f19"
+      },
+      "currentHubId": {
+        "$oid": "6abdf6f641690717b6e10087"
+      },
+      "movementState": "LAST_MILE_READY",
+      "nextHubId": {
+        "$oid": "6abdf6f641690717b6e10087"
+      },
+      "routeId": {
+        "$oid": "6abdf5fa41690717b6e10064"
+      },
+      "lastMileState": "DELIVERED",
+      "unloadingTallyId": {
+        "$oid": "6abe26f99082dc3c7cd602ab"
+      },
+      "storageLocation": "1",
+      "destinationInwardAt": {
+        "$date": {
+          "$numberLong": "1790846902199"
+        }
+      },
+      "destinationInwardBy": {
+        "$oid": "6a9c07ff9ad4197174f72c9c"
+      },
+      "receivedAt": {
+        "$date": {
+          "$numberLong": "1790846902199"
+        }
+      },
+      "receivedBy": {
+        "$oid": "6a9c07ff9ad4197174f72c9c"
+      },
+      "receivingBranchId": {
+        "$oid": "6abdf6f641690717b6e10087"
+      },
+      "lastDeliveryAttemptAt": {
+        "$date": {
+          "$numberLong": "1790847933437"
+        }
+      },
+      "deliveredAt": {
+        "$date": {
+          "$numberLong": "1790847951410"
+        }
+      },
+      "deliveredBy": {
+        "$oid": "6a9c07ff9ad4197174f72c9c"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6ac360135afc9d9f24aa7434"
+      },
+      "lrNumber": "123456",
+      "idempotencyKey": "388ea80b-dff5-4473-8d17-98d7f92e2a62",
+      "pickupRequestId": {
+        "$oid": "6ac358cd5afc9d9f24aa7383"
+      },
+      "customerId": {
+        "$oid": "6abdff4041690717b6e100da"
+      },
+      "originBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "destinationBranchId": {
+        "$oid": "6abdf6f641690717b6e10087"
+      },
+      "currentStatus": "BOOKED",
+      "currentLocation": "Nagpur Branch",
+      "senderName": "Pramod Shukla",
+      "receiverName": "CRL Pvt. Ltd.",
+      "packageCount": {
+        "$numberInt": "2"
+      },
+      "weightKg": {
+        "$numberInt": "40"
+      },
+      "description": "",
+      "expectedDeliveryDate": {
+        "$date": {
+          "$numberLong": "1791504000000"
+        }
+      },
+      "lrDetails": {
+        "cftFactor": {
+          "$numberInt": "7"
+        },
+        "goods": [
+          {
+            "packageNumber": "2",
+            "description": "Goods against PUR-2026-000004",
+            "packageType": "W/B",
+            "quantity": {
+              "$numberInt": "2"
+            },
+            "actualWeight": {
+              "$numberInt": "40"
+            },
+            "length": {
+              "$numberInt": "48"
+            },
+            "breadth": {
+              "$numberInt": "20"
+            },
+            "height": {
+              "$numberInt": "7"
+            },
+            "dimensionUnit": "IN",
+            "volume": {
+              "$numberDouble": "7.777778"
+            },
+            "volumetricWeight": {
+              "$numberDouble": "54.444444"
+            },
+            "chargedWeight": {
+              "$numberDouble": "54.444444"
+            }
+          }
+        ],
+        "volumetricWeight": {
+          "$numberDouble": "54.444444"
+        },
+        "consignorCode": "9966",
+        "consignorAddress": "Nagpur",
+        "consignorPincode": "440023",
+        "consignorGstin": "27CKQPC0432G1ZE",
+        "consigneeAddress": "Raipur - Bilaspur Expy, Rawabhata, Industrial Area, Bhanpuri, Raipur, Chhattisgarh 493221",
+        "consigneePincode": "493221",
+        "consigneeGstin": "27AANCC4313N1ZC",
+        "bookingDate": {
+          "$date": {
+            "$numberLong": "1791158400000"
+          }
+        },
+        "bookingBranch": "WADI",
+        "from": "Nagpur",
+        "to": "Raipur",
+        "contactNo": "7499358403",
+        "invoiceNo": "WB234",
+        "invoiceDate": {
+          "$date": {
+            "$numberLong": "1791158400000"
+          }
+        },
+        "poStnNo": "232",
+        "customerReference": "PUR-2026-000004",
+        "actualWeight": {
+          "$numberInt": "40"
+        },
+        "chargedWeight": {
+          "$numberDouble": "54.444444"
+        },
+        "volume": {
+          "$numberDouble": "7.777778"
+        },
+        "declaredValue": {
+          "$numberInt": "25000"
+        },
+        "paymentMode": "PAID",
+        "gstPaidBy": "TRANSPORTER",
+        "riskType": "OWNER_RISK",
+        "insuranceType": "NOT_INSURED",
+        "freightBasis": "PER_BOX",
+        "freightRate": {
+          "$numberInt": "70"
+        },
+        "fuelRatePercent": {
+          "$numberInt": "0"
+        },
+        "rovRatePercent": {
+          "$numberInt": "0"
+        },
+        "freightCharges": {
+          "$numberInt": "140"
+        },
+        "fuelCharges": {
+          "$numberInt": "0"
+        },
+        "fodCharges": {
+          "$numberInt": "0"
+        },
+        "rovCharges": {
+          "$numberInt": "0"
+        },
+        "docketCharges": {
+          "$numberInt": "0"
+        },
+        "gstRate": {
+          "$numberInt": "0"
+        },
+        "gstAmount": {
+          "$numberInt": "0"
+        },
+        "totalAmount": {
+          "$numberInt": "140"
+        }
+      },
+      "createdBy": {
+        "$oid": "6a9c07ff9ad4197174f72c9c"
+      },
+      "createdAt": {
+        "$date": {
+          "$numberLong": "1791189011702"
+        }
+      },
+      "updatedAt": {
+        "$date": {
+          "$numberLong": "1791189011702"
+        }
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6ac387f80b73c248379d7e88"
+      },
+      "lrNumber": "CRL20281P8",
+      "idempotencyKey": "13b4d342-80dc-4c8d-8aad-d2dac572a4be",
+      "pickupRequestId": {
+        "$oid": "6ac34bf85afc9d9f24aa7209"
+      },
+      "customerId": {
+        "$oid": "6abdff4041690717b6e100da"
+      },
+      "originBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "destinationBranchId": {
+        "$oid": "6abdf6f641690717b6e10087"
+      },
+      "currentStatus": "BOOKED",
+      "currentLocation": "Nagpur",
+      "senderName": "BBCC",
+      "receiverName": "QQQ Company",
+      "receiverMobile": "9856741236",
+      "packageCount": {
+        "$numberInt": "20"
+      },
+      "weightKg": {
+        "$numberInt": "200"
+      },
+      "description": "Goods against PUR-2026-000003",
+      "lrDetails": {
+        "cftFactor": {
+          "$numberInt": "7"
+        },
+        "goods": [
+          {
+            "packageNumber": "",
+            "description": "Goods against PUR-2026-000003",
+            "packageType": "BOX",
+            "quantity": {
+              "$numberInt": "20"
+            },
+            "actualWeight": {
+              "$numberInt": "200"
+            },
+            "dimensionUnit": "CM",
+            "volume": {
+              "$numberInt": "0"
+            },
+            "volumetricWeight": {
+              "$numberInt": "0"
+            },
+            "chargedWeight": {
+              "$numberInt": "200"
+            }
+          }
+        ],
+        "volumetricWeight": {
+          "$numberInt": "0"
+        },
+        "consignorCode": "9966",
+        "consignorAddress": "pratap nagar nagpur",
+        "consignorPincode": "440024",
+        "consigneeAddress": "pratap nagar nagpur",
+        "consigneePincode": "440024",
+        "bookingDate": {
+          "$date": {
+            "$numberLong": "1791158400000"
+          }
+        },
+        "from": "Nagpur",
+        "to": "Nagpur",
+        "deliveryAddress": "pratap nagar nagpur",
+        "contactNo": "9856741236",
+        "invoiceNo": "QWER2026",
+        "invoiceDate": {
+          "$date": {
+            "$numberLong": "1791158400000"
+          }
+        },
+        "eWayBillNo": "EDCBH2",
+        "customerReference": "PUR-2026-000003",
+        "actualWeight": {
+          "$numberInt": "200"
+        },
+        "chargedWeight": {
+          "$numberInt": "200"
+        },
+        "volume": {
+          "$numberInt": "0"
+        },
+        "riskType": "OWNER_RISK",
+        "insuranceType": "NOT_INSURED",
+        "freightBasis": "PER_KG",
+        "freightRate": {
+          "$numberInt": "0"
+        },
+        "fuelRatePercent": {
+          "$numberInt": "0"
+        },
+        "rovRatePercent": {
+          "$numberInt": "0"
+        },
+        "freightCharges": {
+          "$numberInt": "0"
+        },
+        "fuelCharges": {
+          "$numberInt": "0"
+        },
+        "handlingCharges": {
+          "$numberInt": "0"
+        },
+        "fodCharges": {
+          "$numberInt": "0"
+        },
+        "codCharges": {
+          "$numberInt": "0"
+        },
+        "rovCharges": {
+          "$numberInt": "0"
+        },
+        "docketCharges": {
+          "$numberInt": "0"
+        },
+        "gstRate": {
+          "$numberInt": "0"
+        },
+        "gstAmount": {
+          "$numberInt": "0"
+        },
+        "totalAmount": {
+          "$numberInt": "0"
+        }
+      },
+      "createdBy": {
+        "$oid": "6a9c07ff9ad4197174f72c9c"
+      },
+      "createdAt": {
+        "$date": {
+          "$numberLong": "1791199224366"
+        }
+      },
+      "updatedAt": {
+        "$date": {
+          "$numberLong": "1793000343633"
+        }
+      },
+      "activeMovementLegId": {
+        "$oid": "6adf0369acdf7c9979aa4e8f"
+      },
+      "currentHubId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "movementState": "MANIFESTED",
+      "nextHubId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6ac3919b47a63b3c6a0af570"
+      },
+      "lrNumber": "CRL20281P96",
+      "idempotencyKey": "0b7c81df-a104-4c21-a5d6-4ce44aca0e85",
+      "pickupRequestId": {
+        "$oid": "6aba0382d78e06499ab5bfa1"
+      },
+      "customerId": {
+        "$oid": "6abdff4041690717b6e100da"
+      },
+      "originBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "destinationBranchId": {
+        "$oid": "6abdf6f641690717b6e10087"
+      },
+      "currentStatus": "BOOKED",
+      "currentLocation": "Nagpur Branch",
+      "senderName": "BBCC",
+      "receiverName": "abc inyerprises",
+      "packageCount": {
+        "$numberInt": "28"
+      },
+      "weightKg": {
+        "$numberInt": "280"
+      },
+      "description": "Goods against PUR-2026-000001",
+      "lrDetails": {
+        "cftFactor": {
+          "$numberInt": "10"
+        },
+        "goods": [
+          {
+            "packageNumber": "",
+            "description": "Goods against PUR-2026-000001",
+            "packageType": "BOX",
+            "quantity": {
+              "$numberInt": "28"
+            },
+            "actualWeight": {
+              "$numberInt": "280"
+            },
+            "dimensionUnit": "IN",
+            "volume": {
+              "$numberInt": "0"
+            },
+            "volumetricWeight": {
+              "$numberInt": "0"
+            },
+            "chargedWeight": {
+              "$numberInt": "280"
+            }
+          }
+        ],
+        "volumetricWeight": {
+          "$numberInt": "0"
+        },
+        "consignorCode": "9966",
+        "consignorAddress": "122, Bhagiratha park, wanadongri",
+        "consignorPincode": "441110",
+        "consignorGstin": "27CKQPC0432G1ZE",
+        "consigneeAddress": "bILASPUR",
+        "consigneePincode": "495001",
+        "consigneeGstin": "27CKQPC0432G1ZE",
+        "bookingDate": {
+          "$date": {
+            "$numberLong": "1791158400000"
+          }
+        },
+        "bookingBranch": "Nagpur",
+        "from": "Nagpur",
+        "to": "Bilaspur(CGH)",
+        "contactNo": "9511610416",
+        "invoiceNo": "QWER2026",
+        "invoiceDate": {
+          "$date": {
+            "$numberLong": "1791158400000"
+          }
+        },
+        "eWayBillNo": "EDCBH2",
+        "eWayBillDate": {
+          "$date": {
+            "$numberLong": "1791244800000"
+          }
+        },
+        "customerReference": "PUR-2026-000001",
+        "actualWeight": {
+          "$numberInt": "280"
+        },
+        "chargedWeight": {
+          "$numberInt": "280"
+        },
+        "volume": {
+          "$numberInt": "0"
+        },
+        "declaredValue": {
+          "$numberInt": "20000"
+        },
+        "gstPaidBy": "CUSTOMER",
+        "riskType": "OWNER_RISK",
+        "insuranceType": "NOT_INSURED",
+        "freightBasis": "PER_KG",
+        "freightRate": {
+          "$numberInt": "20"
+        },
+        "fuelRatePercent": {
+          "$numberInt": "12"
+        },
+        "rovRatePercent": {
+          "$numberInt": "2"
+        },
+        "freightCharges": {
+          "$numberInt": "5600"
+        },
+        "fuelCharges": {
+          "$numberInt": "672"
+        },
+        "handlingCharges": {
+          "$numberInt": "200"
+        },
+        "fodCharges": {
+          "$numberInt": "200"
+        },
+        "codCharges": {
+          "$numberInt": "200"
+        },
+        "rovCharges": {
+          "$numberInt": "400"
+        },
+        "docketCharges": {
+          "$numberInt": "200"
+        },
+        "gstRate": {
+          "$numberInt": "12"
+        },
+        "gstAmount": {
+          "$numberDouble": "896.64"
+        },
+        "totalAmount": {
+          "$numberDouble": "8368.64"
+        }
+      },
+      "createdBy": {
+        "$oid": "6a9c07ff9ad4197174f72c9c"
+      },
+      "createdAt": {
+        "$date": {
+          "$numberLong": "1791201691133"
+        }
+      },
+      "updatedAt": {
+        "$date": {
+          "$numberLong": "1791203219399"
+        }
+      },
+      "activeMovementLegId": {
+        "$oid": "6ac3976c7f38c8317e451976"
+      },
+      "currentHubId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "movementState": "LOADING",
+      "nextHubId": {
+        "$oid": "6abdf6f641690717b6e10087"
+      },
+      "routeId": {
+        "$oid": "6ac364045afc9d9f24aa75c3"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6ac3962c47a63b3c6a0af6e8"
+      },
+      "lrNumber": "CRL20281P",
+      "idempotencyKey": "331897a2-7beb-4e0b-8d16-fa873b7602f0",
+      "pickupRequestId": {
+        "$oid": "6ac395b547a63b3c6a0af6ad"
+      },
+      "customerId": {
+        "$oid": "6abdff4041690717b6e100da"
+      },
+      "originBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "destinationBranchId": {
+        "$oid": "6abdf6f641690717b6e10087"
+      },
+      "currentStatus": "RECEIVED",
+      "currentLocation": "Delivery attempt failed",
+      "senderName": "BBCCgg",
+      "receiverName": "yyy Company",
+      "packageCount": {
+        "$numberInt": "2"
+      },
+      "weightKg": {
+        "$numberInt": "2000"
+      },
+      "description": "Goods against PUR-2026-000005",
+      "expectedDeliveryDate": {
+        "$date": {
+          "$numberLong": "1791244800000"
+        }
+      },
+      "lrDetails": {
+        "cftFactor": {
+          "$numberInt": "7"
+        },
+        "goods": [
+          {
+            "packageNumber": "1",
+            "description": "Goods against PUR-2026-000005",
+            "packageType": "BOX",
+            "quantity": {
+              "$numberInt": "2"
+            },
+            "actualWeight": {
+              "$numberInt": "2000"
+            },
+            "length": {
+              "$numberInt": "30"
+            },
+            "breadth": {
+              "$numberInt": "20"
+            },
+            "height": {
+              "$numberInt": "10"
+            },
+            "dimensionUnit": "IN",
+            "volume": {
+              "$numberDouble": "6.944444"
+            },
+            "volumetricWeight": {
+              "$numberDouble": "48.611111"
+            },
+            "chargedWeight": {
+              "$numberInt": "2000"
+            }
+          }
+        ],
+        "volumetricWeight": {
+          "$numberDouble": "48.611111"
+        },
+        "consignorCode": "9966",
+        "consignorAddress": "pratap nagar nagpur",
+        "consignorPincode": "440024",
+        "consigneeAddress": "pratap nagar nagpur",
+        "consigneePincode": "440024",
+        "bookingDate": {
+          "$date": {
+            "$numberLong": "1791158400000"
+          }
+        },
+        "from": "Nagpur",
+        "to": "Yavatmal",
+        "contactNo": "9856741236",
+        "invoiceNo": "QWER2026",
+        "invoiceDate": {
+          "$date": {
+            "$numberLong": "1791158400000"
+          }
+        },
+        "customerReference": "PUR-2026-000005",
+        "actualWeight": {
+          "$numberInt": "2000"
+        },
+        "chargedWeight": {
+          "$numberInt": "2000"
+        },
+        "volume": {
+          "$numberDouble": "6.944444"
+        },
+        "declaredValue": {
+          "$numberInt": "20000"
+        },
+        "paymentMode": "PAID",
+        "gstPaidBy": "TRANSPORTER",
+        "riskType": "OWNER_RISK",
+        "insuranceType": "NOT_INSURED",
+        "freightBasis": "PER_KG",
+        "freightRate": {
+          "$numberInt": "20"
+        },
+        "fuelRatePercent": {
+          "$numberInt": "12"
+        },
+        "rovRatePercent": {
+          "$numberInt": "0"
+        },
+        "freightCharges": {
+          "$numberInt": "40000"
+        },
+        "fuelCharges": {
+          "$numberInt": "4800"
+        },
+        "handlingCharges": {
+          "$numberInt": "300"
+        },
+        "fodCharges": {
+          "$numberInt": "0"
+        },
+        "codCharges": {
+          "$numberInt": "300"
+        },
+        "rovCharges": {
+          "$numberInt": "0"
+        },
+        "docketCharges": {
+          "$numberInt": "0"
+        },
+        "gstRate": {
+          "$numberInt": "20"
+        },
+        "gstAmount": {
+          "$numberInt": "9080"
+        },
+        "totalAmount": {
+          "$numberInt": "54480"
+        }
+      },
+      "createdBy": {
+        "$oid": "6a9c07ff9ad4197174f72c9c"
+      },
+      "createdAt": {
+        "$date": {
+          "$numberLong": "1791202860701"
+        }
+      },
+      "updatedAt": {
+        "$date": {
+          "$numberLong": "1793006326175"
+        }
+      },
+      "activeMovementLegId": {
+        "$oid": "6ac4979c19bfdb6b29f63894"
+      },
+      "currentHubId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "movementState": "LAST_MILE_READY",
+      "nextHubId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "routeId": {
+        "$oid": "6ac494a86c27f85a6726432c"
+      },
+      "lastMileState": "DELIVERY_FAILED",
+      "unloadingTallyId": {
+        "$oid": "6ac49f5638fb9536dacfa6fb"
+      },
+      "storageLocation": "1",
+      "destinationInwardAt": {
+        "$date": {
+          "$numberLong": "1792998376196"
+        }
+      },
+      "destinationInwardBy": {
+        "$oid": "6a9c07ff9ad4197174f72c9c"
+      },
+      "receivedAt": {
+        "$date": {
+          "$numberLong": "1792998376196"
+        }
+      },
+      "receivedBy": {
+        "$oid": "6a9c07ff9ad4197174f72c9c"
+      },
+      "receivingBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "activeDrsId": {
+        "$oid": "6adf194ef6e03949b71d3b46"
+      },
+      "lastDeliveryAttemptAt": {
+        "$date": {
+          "$numberLong": "1793006326173"
+        }
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6ac4964919bfdb6b29f63554"
+      },
+      "lrNumber": "CRL20281FF",
+      "idempotencyKey": "acb7b764-d7c7-4294-9a28-bd26c80bc25e",
+      "pickupRequestId": {
+        "$oid": "6ac4951ed9da4989ea596628"
+      },
+      "customerId": {
+        "$oid": "6abdff4041690717b6e100da"
+      },
+      "originBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "destinationBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "currentStatus": "CLOSED",
+      "currentLocation": "Delivered",
+      "senderName": "Sanjay Thakur",
+      "receiverName": "Inborn Tech",
+      "receiverMobile": "9874563214",
+      "packageCount": {
+        "$numberInt": "200"
+      },
+      "weightKg": {
+        "$numberInt": "5000"
+      },
+      "description": "Goods against PUR-2026-000006",
+      "expectedDeliveryDate": {
+        "$date": {
+          "$numberLong": "1791331200000"
+        }
+      },
+      "lrDetails": {
+        "cftFactor": {
+          "$numberInt": "7"
+        },
+        "goods": [
+          {
+            "packageNumber": "1",
+            "description": "Goods against PUR-2026-000006",
+            "packageType": "BOX",
+            "quantity": {
+              "$numberInt": "200"
+            },
+            "actualWeight": {
+              "$numberInt": "5000"
+            },
+            "length": {
+              "$numberInt": "12"
+            },
+            "breadth": {
+              "$numberInt": "20"
+            },
+            "height": {
+              "$numberInt": "13"
+            },
+            "dimensionUnit": "IN",
+            "volume": {
+              "$numberDouble": "361.111111"
+            },
+            "volumetricWeight": {
+              "$numberDouble": "2527.777778"
+            },
+            "chargedWeight": {
+              "$numberInt": "5000"
+            }
+          }
+        ],
+        "volumetricWeight": {
+          "$numberDouble": "2527.777778"
+        },
+        "consignorCode": "9966",
+        "consignorAddress": "paratp nagar",
+        "consignorPincode": "440022",
+        "consigneeAddress": "panji chowk",
+        "consigneePincode": "445001",
+        "bookingDate": {
+          "$date": {
+            "$numberLong": "1791244800000"
+          }
+        },
+        "bookingBranch": "Nagpur Branch",
+        "from": "Nagpur",
+        "to": "Yavatmal",
+        "contactNo": "8569741236",
+        "invoiceNo": "QWER2026",
+        "invoiceDate": {
+          "$date": {
+            "$numberLong": "1791244800000"
+          }
+        },
+        "eWayBillNo": "EDCBH2",
+        "customerReference": "PUR-2026-000006",
+        "actualWeight": {
+          "$numberInt": "5000"
+        },
+        "chargedWeight": {
+          "$numberInt": "5000"
+        },
+        "volume": {
+          "$numberDouble": "361.111111"
+        },
+        "declaredValue": {
+          "$numberInt": "30000"
+        },
+        "paymentMode": "PAID",
+        "gstPaidBy": "CUSTOMER",
+        "riskType": "OWNER_RISK",
+        "insuranceType": "NOT_INSURED",
+        "freightBasis": "PER_BOX",
+        "freightRate": {
+          "$numberInt": "12"
+        },
+        "fuelRatePercent": {
+          "$numberInt": "20"
+        },
+        "rovRatePercent": {
+          "$numberInt": "2"
+        },
+        "freightCharges": {
+          "$numberInt": "2400"
+        },
+        "fuelCharges": {
+          "$numberInt": "480"
+        },
+        "handlingCharges": {
+          "$numberInt": "300"
+        },
+        "fodCharges": {
+          "$numberInt": "200"
+        },
+        "codCharges": {
+          "$numberInt": "500"
+        },
+        "rovCharges": {
+          "$numberInt": "600"
+        },
+        "docketCharges": {
+          "$numberInt": "300"
+        },
+        "gstRate": {
+          "$numberInt": "12"
+        },
+        "gstAmount": {
+          "$numberDouble": "573.6"
+        },
+        "totalAmount": {
+          "$numberDouble": "5353.6"
+        }
+      },
+      "createdBy": {
+        "$oid": "6a9c07ff9ad4197174f72c9c"
+      },
+      "createdAt": {
+        "$date": {
+          "$numberLong": "1791268425576"
+        }
+      },
+      "updatedAt": {
+        "$date": {
+          "$numberLong": "1791290511731"
+        }
+      },
+      "activeMovementLegId": {
+        "$oid": "6ac4974019bfdb6b29f63867"
+      },
+      "currentHubId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "movementState": "LAST_MILE_READY",
+      "nextHubId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "routeId": {
+        "$oid": "6ac494a86c27f85a6726432c"
+      },
+      "lastMileState": "DELIVERED",
+      "unloadingTallyId": {
+        "$oid": "6ac4eb0d3d6601ee9e18e0b5"
+      },
+      "storageLocation": "1",
+      "destinationInwardAt": {
+        "$date": {
+          "$numberLong": "1791290224117"
+        }
+      },
+      "destinationInwardBy": {
+        "$oid": "6a9c07ff9ad4197174f72c9c"
+      },
+      "receivedAt": {
+        "$date": {
+          "$numberLong": "1791290224117"
+        }
+      },
+      "receivedBy": {
+        "$oid": "6a9c07ff9ad4197174f72c9c"
+      },
+      "receivingBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "lastDeliveryAttemptAt": {
+        "$date": {
+          "$numberLong": "1791290356120"
+        }
+      },
+      "deliveredAt": {
+        "$date": {
+          "$numberLong": "1791290511464"
+        }
+      },
+      "deliveredBy": {
+        "$oid": "6a9c07ff9ad4197174f72c9c"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6ac49a0738fb9536dacfa23c"
+      },
+      "lrNumber": "CRL20281P88",
+      "idempotencyKey": "b9cc802d-80a1-4a63-aee9-9254faa583d5",
+      "pickupRequestId": {
+        "$oid": "6ac499e838fb9536dacfa203"
+      },
+      "customerId": {
+        "$oid": "6abdff4041690717b6e100da"
+      },
+      "originBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "destinationBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "currentStatus": "RECEIVED",
+      "currentLocation": "Out for delivery",
+      "senderName": "BBCC",
+      "receiverName": "XppYZ Company",
+      "packageCount": {
+        "$numberInt": "2"
+      },
+      "weightKg": {
+        "$numberInt": "2000"
+      },
+      "description": "Goods against PUR-2026-000007",
+      "expectedDeliveryDate": {
+        "$date": {
+          "$numberLong": "1791331200000"
+        }
+      },
+      "lrDetails": {
+        "cftFactor": {
+          "$numberInt": "7"
+        },
+        "goods": [
+          {
+            "packageNumber": "",
+            "description": "Goods against PUR-2026-000007",
+            "packageType": "BOX",
+            "quantity": {
+              "$numberInt": "2"
+            },
+            "actualWeight": {
+              "$numberInt": "2000"
+            },
+            "dimensionUnit": "IN",
+            "volume": {
+              "$numberInt": "0"
+            },
+            "volumetricWeight": {
+              "$numberInt": "0"
+            },
+            "chargedWeight": {
+              "$numberInt": "2000"
+            }
+          }
+        ],
+        "volumetricWeight": {
+          "$numberInt": "0"
+        },
+        "consignorCode": "9966",
+        "consignorAddress": "pratap nagar nagpur",
+        "consignorPincode": "440024",
+        "consigneeAddress": "pratap nagar nagpur",
+        "consigneePincode": "445001",
+        "bookingDate": {
+          "$date": {
+            "$numberLong": "1791244800000"
+          }
+        },
+        "bookingBranch": "Nagpur Branch",
+        "from": "Nagpur",
+        "to": "Yavatmal",
+        "contactNo": "9856741236",
+        "invoiceDate": {
+          "$date": {
+            "$numberLong": "1791244800000"
+          }
+        },
+        "customerReference": "PUR-2026-000007",
+        "actualWeight": {
+          "$numberInt": "2000"
+        },
+        "chargedWeight": {
+          "$numberInt": "2000"
+        },
+        "volume": {
+          "$numberInt": "0"
+        },
+        "riskType": "OWNER_RISK",
+        "insuranceType": "NOT_INSURED",
+        "freightBasis": "PER_KG",
+        "freightRate": {
+          "$numberInt": "0"
+        },
+        "fuelRatePercent": {
+          "$numberInt": "0"
+        },
+        "rovRatePercent": {
+          "$numberInt": "0"
+        },
+        "freightCharges": {
+          "$numberInt": "0"
+        },
+        "fuelCharges": {
+          "$numberInt": "0"
+        },
+        "handlingCharges": {
+          "$numberInt": "0"
+        },
+        "fodCharges": {
+          "$numberInt": "0"
+        },
+        "codCharges": {
+          "$numberInt": "0"
+        },
+        "rovCharges": {
+          "$numberInt": "0"
+        },
+        "docketCharges": {
+          "$numberInt": "0"
+        },
+        "gstRate": {
+          "$numberInt": "0"
+        },
+        "gstAmount": {
+          "$numberInt": "0"
+        },
+        "totalAmount": {
+          "$numberInt": "0"
+        }
+      },
+      "createdBy": {
+        "$oid": "6a9c07ff9ad4197174f72c9c"
+      },
+      "createdAt": {
+        "$date": {
+          "$numberLong": "1791269383935"
+        }
+      },
+      "updatedAt": {
+        "$date": {
+          "$numberLong": "1793005903262"
+        }
+      },
+      "activeMovementLegId": {
+        "$oid": "6ac49a3738fb9536dacfa2d1"
+      },
+      "currentHubId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "movementState": "LAST_MILE_READY",
+      "nextHubId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "routeId": {
+        "$oid": "6ac494a86c27f85a6726432c"
+      },
+      "lastMileState": "OUT_FOR_DELIVERY",
+      "unloadingTallyId": {
+        "$oid": "6ac9cca5346e6cc3d2920eaf"
+      },
+      "storageLocation": "1",
+      "destinationInwardAt": {
+        "$date": {
+          "$numberLong": "1791615510277"
+        }
+      },
+      "destinationInwardBy": {
+        "$oid": "6a9c07ff9ad4197174f72c9c"
+      },
+      "receivedAt": {
+        "$date": {
+          "$numberLong": "1791615510277"
+        }
+      },
+      "receivedBy": {
+        "$oid": "6a9c07ff9ad4197174f72c9c"
+      },
+      "receivingBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "activeDrsId": {
+        "$oid": "6adf194ef6e03949b71d3b46"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6ac49baf38fb9536dacfa43a"
+      },
+      "lrNumber": "CRL20281GG",
+      "idempotencyKey": "82fb29b0-e855-4c5e-ba65-ac4c9d228a71",
+      "pickupRequestId": {
+        "$oid": "6ac49b8c38fb9536dacfa401"
+      },
+      "customerId": {
+        "$oid": "6abdff4041690717b6e100da"
+      },
+      "originBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "destinationBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "currentStatus": "BOOKED",
+      "currentLocation": "Nagpur",
+      "senderName": "Sanju",
+      "receiverName": "ggg Company",
+      "packageCount": {
+        "$numberInt": "20"
+      },
+      "weightKg": {
+        "$numberInt": "200"
+      },
+      "description": "Goods against PUR-2026-000008",
+      "lrDetails": {
+        "cftFactor": {
+          "$numberInt": "7"
+        },
+        "goods": [
+          {
+            "packageNumber": "",
+            "description": "Goods against PUR-2026-000008",
+            "packageType": "BOX",
+            "quantity": {
+              "$numberInt": "20"
+            },
+            "actualWeight": {
+              "$numberInt": "200"
+            },
+            "dimensionUnit": "IN",
+            "volume": {
+              "$numberInt": "0"
+            },
+            "volumetricWeight": {
+              "$numberInt": "0"
+            },
+            "chargedWeight": {
+              "$numberInt": "200"
+            }
+          }
+        ],
+        "volumetricWeight": {
+          "$numberInt": "0"
+        },
+        "consignorCode": "9966",
+        "consignorAddress": "pratap nagar nagpur",
+        "consignorPincode": "440024",
+        "consigneeAddress": "pratap nagar nagpur",
+        "consigneePincode": "440024",
+        "bookingDate": {
+          "$date": {
+            "$numberLong": "1791244800000"
+          }
+        },
+        "bookingBranch": "Nagpur Branch",
+        "from": "Nagpur",
+        "to": "Nagpur",
+        "contactNo": "9856741236",
+        "invoiceDate": {
+          "$date": {
+            "$numberLong": "1791244800000"
+          }
+        },
+        "customerReference": "PUR-2026-000008",
+        "actualWeight": {
+          "$numberInt": "200"
+        },
+        "chargedWeight": {
+          "$numberInt": "200"
+        },
+        "volume": {
+          "$numberInt": "0"
+        },
+        "riskType": "OWNER_RISK",
+        "insuranceType": "NOT_INSURED",
+        "freightBasis": "PER_KG",
+        "freightRate": {
+          "$numberInt": "0"
+        },
+        "fuelRatePercent": {
+          "$numberInt": "0"
+        },
+        "rovRatePercent": {
+          "$numberInt": "0"
+        },
+        "freightCharges": {
+          "$numberInt": "0"
+        },
+        "fuelCharges": {
+          "$numberInt": "0"
+        },
+        "handlingCharges": {
+          "$numberInt": "0"
+        },
+        "fodCharges": {
+          "$numberInt": "0"
+        },
+        "codCharges": {
+          "$numberInt": "0"
+        },
+        "rovCharges": {
+          "$numberInt": "0"
+        },
+        "docketCharges": {
+          "$numberInt": "0"
+        },
+        "gstRate": {
+          "$numberInt": "0"
+        },
+        "gstAmount": {
+          "$numberInt": "0"
+        },
+        "totalAmount": {
+          "$numberInt": "0"
+        }
+      },
+      "createdBy": {
+        "$oid": "6a9c07ff9ad4197174f72c9c"
+      },
+      "createdAt": {
+        "$date": {
+          "$numberLong": "1791269807626"
+        }
+      },
+      "updatedAt": {
+        "$date": {
+          "$numberLong": "1791338719701"
+        }
+      },
+      "activeMovementLegId": {
+        "$oid": "6ac5a8df3d6601ee9e18e2a8"
+      },
+      "currentHubId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "movementState": "SORTED",
+      "nextHubId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6ac4a548b9fa29188a27ab6c"
+      },
+      "lrNumber": "CRL20281P66",
+      "idempotencyKey": "9d0db6f3-241c-42c2-af63-02a13675f380",
+      "pickupRequestId": {
+        "$oid": "6ac4a47438fb9536dacfa84b"
+      },
+      "customerId": {
+        "$oid": "6abdff4041690717b6e100da"
+      },
+      "originBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "destinationBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "currentStatus": "RECEIVED",
+      "currentLocation": "Out for delivery",
+      "senderName": "BBCC",
+      "receiverName": "XYZ Company",
+      "packageCount": {
+        "$numberInt": "30"
+      },
+      "weightKg": {
+        "$numberInt": "2000"
+      },
+      "description": "Goods against PUR-2026-000009",
+      "expectedDeliveryDate": {
+        "$date": {
+          "$numberLong": "1791331200000"
+        }
+      },
+      "lrDetails": {
+        "cftFactor": {
+          "$numberInt": "7"
+        },
+        "goods": [
+          {
+            "packageNumber": "",
+            "description": "Goods against PUR-2026-000009",
+            "packageType": "BOX",
+            "quantity": {
+              "$numberInt": "30"
+            },
+            "actualWeight": {
+              "$numberInt": "2000"
+            },
+            "dimensionUnit": "IN",
+            "volume": {
+              "$numberInt": "0"
+            },
+            "volumetricWeight": {
+              "$numberInt": "0"
+            },
+            "chargedWeight": {
+              "$numberInt": "2000"
+            }
+          }
+        ],
+        "volumetricWeight": {
+          "$numberInt": "0"
+        },
+        "consignorCode": "9966",
+        "consignorAddress": "pratap nagar nagpur",
+        "consignorPincode": "440024",
+        "consigneeAddress": "pratap nagar nagpur",
+        "consigneePincode": "440024",
+        "bookingDate": {
+          "$date": {
+            "$numberLong": "1791244800000"
+          }
+        },
+        "bookingBranch": "Nagpur Branch",
+        "from": "Nagpur",
+        "to": "Yavatmal",
+        "contactNo": "9856741236",
+        "invoiceDate": {
+          "$date": {
+            "$numberLong": "1791244800000"
+          }
+        },
+        "customerReference": "PUR-2026-000009",
+        "actualWeight": {
+          "$numberInt": "2000"
+        },
+        "chargedWeight": {
+          "$numberInt": "2000"
+        },
+        "volume": {
+          "$numberInt": "0"
+        },
+        "riskType": "OWNER_RISK",
+        "insuranceType": "NOT_INSURED",
+        "freightBasis": "PER_KG",
+        "freightRate": {
+          "$numberInt": "0"
+        },
+        "fuelRatePercent": {
+          "$numberInt": "0"
+        },
+        "rovRatePercent": {
+          "$numberInt": "0"
+        },
+        "freightCharges": {
+          "$numberInt": "0"
+        },
+        "fuelCharges": {
+          "$numberInt": "0"
+        },
+        "handlingCharges": {
+          "$numberInt": "0"
+        },
+        "fodCharges": {
+          "$numberInt": "0"
+        },
+        "codCharges": {
+          "$numberInt": "0"
+        },
+        "rovCharges": {
+          "$numberInt": "0"
+        },
+        "docketCharges": {
+          "$numberInt": "0"
+        },
+        "gstRate": {
+          "$numberInt": "0"
+        },
+        "gstAmount": {
+          "$numberInt": "0"
+        },
+        "totalAmount": {
+          "$numberInt": "0"
+        }
+      },
+      "createdBy": {
+        "$oid": "6a9c07ff9ad4197174f72c9c"
+      },
+      "createdAt": {
+        "$date": {
+          "$numberLong": "1791272264447"
+        }
+      },
+      "updatedAt": {
+        "$date": {
+          "$numberLong": "1793006229213"
+        }
+      },
+      "activeMovementLegId": {
+        "$oid": "6ac4a60fb9fa29188a27ac3d"
+      },
+      "currentHubId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "movementState": "LAST_MILE_READY",
+      "nextHubId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "routeId": {
+        "$oid": "6ac494a86c27f85a6726432c"
+      },
+      "lastMileState": "OUT_FOR_DELIVERY",
+      "unloadingTallyId": {
+        "$oid": "6ac4a6b83e302b59d2b542b5"
+      },
+      "storageLocation": "1",
+      "destinationInwardAt": {
+        "$date": {
+          "$numberLong": "1791782387204"
+        }
+      },
+      "destinationInwardBy": {
+        "$oid": "6a9c07ff9ad4197174f72c9c"
+      },
+      "receivedAt": {
+        "$date": {
+          "$numberLong": "1791782387204"
+        }
+      },
+      "receivedBy": {
+        "$oid": "6a9c07ff9ad4197174f72c9c"
+      },
+      "receivingBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "activeDrsId": {
+        "$oid": "6adf194ef6e03949b71d3b46"
+      },
+      "lastDeliveryAttemptAt": {
+        "$date": {
+          "$numberLong": "1793006229208"
+        }
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6ac4c2c0e9845f5ae31d4742"
+      },
+      "lrNumber": "CRL20281P99",
+      "idempotencyKey": "46469f15-53af-4e64-8255-bf39796586be",
+      "pickupRequestId": {
+        "$oid": "6ac4c0b9e9845f5ae31d45df"
+      },
+      "customerId": {
+        "$oid": "6ab3581a1b028fcedb1375ef"
+      },
+      "originBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "destinationBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "currentStatus": "BOOKED",
+      "currentLocation": "Nagpur",
+      "senderName": "XYZ Company",
+      "receiverName": "XYZ Company",
+      "packageCount": {
+        "$numberInt": "2"
+      },
+      "weightKg": {
+        "$numberInt": "100"
+      },
+      "description": "Goods against PUR-2026-000010",
+      "expectedDeliveryDate": {
+        "$date": {
+          "$numberLong": "1791331200000"
+        }
+      },
+      "lrDetails": {
+        "cftFactor": {
+          "$numberInt": "7"
+        },
+        "goods": [
+          {
+            "packageNumber": "",
+            "description": "Goods against PUR-2026-000010",
+            "packageType": "BOX",
+            "quantity": {
+              "$numberInt": "2"
+            },
+            "actualWeight": {
+              "$numberInt": "100"
+            },
+            "dimensionUnit": "IN",
+            "volume": {
+              "$numberInt": "0"
+            },
+            "volumetricWeight": {
+              "$numberInt": "0"
+            },
+            "chargedWeight": {
+              "$numberInt": "100"
+            }
+          }
+        ],
+        "volumetricWeight": {
+          "$numberInt": "0"
+        },
+        "consignorCode": "00006",
+        "consignorAddress": "plot no 152 bada tajabad",
+        "consignorPincode": "440024",
+        "consignorGstin": "27AABCT4321K1Z2",
+        "consigneeAddress": "pratap nagar nagpur",
+        "consigneePincode": "440024",
+        "bookingDate": {
+          "$date": {
+            "$numberLong": "1791244800000"
+          }
+        },
+        "bookingBranch": "Nagpur Branch",
+        "from": "Nagpur",
+        "to": "Gondia",
+        "contactNo": "9856741236",
+        "invoiceDate": {
+          "$date": {
+            "$numberLong": "1791244800000"
+          }
+        },
+        "customerReference": "PUR-2026-000010",
+        "actualWeight": {
+          "$numberInt": "100"
+        },
+        "chargedWeight": {
+          "$numberInt": "100"
+        },
+        "volume": {
+          "$numberInt": "0"
+        },
+        "paymentMode": "CREDIT",
+        "riskType": "OWNER_RISK",
+        "insuranceType": "NOT_INSURED",
+        "freightBasis": "PER_KG",
+        "freightRate": {
+          "$numberInt": "8"
+        },
+        "fuelRatePercent": {
+          "$numberInt": "10"
+        },
+        "rovRatePercent": {
+          "$numberDouble": "0.1"
+        },
+        "freightCharges": {
+          "$numberInt": "800"
+        },
+        "fuelCharges": {
+          "$numberInt": "80"
+        },
+        "handlingCharges": {
+          "$numberInt": "200"
+        },
+        "fodCharges": {
+          "$numberInt": "200"
+        },
+        "codCharges": {
+          "$numberInt": "200"
+        },
+        "rovCharges": {
+          "$numberInt": "0"
+        },
+        "docketCharges": {
+          "$numberInt": "500"
+        },
+        "gstRate": {
+          "$numberInt": "12"
+        },
+        "gstAmount": {
+          "$numberDouble": "237.6"
+        },
+        "totalAmount": {
+          "$numberDouble": "2217.6"
+        }
+      },
+      "createdBy": {
+        "$oid": "6a9c07ff9ad4197174f72c9c"
+      },
+      "createdAt": {
+        "$date": {
+          "$numberLong": "1791279808013"
+        }
+      },
+      "updatedAt": {
+        "$date": {
+          "$numberLong": "1791284932286"
+        }
+      },
+      "activeMovementLegId": {
+        "$oid": "6ac4cccb1cbd8b3ef67817ee"
+      },
+      "currentHubId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "movementState": "MANIFESTED",
+      "nextHubId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6ac4e6cc3e4df950ebb8844f"
+      },
+      "lrNumber": "CRL20260022",
+      "idempotencyKey": "69fd3f2e-ca22-4689-b298-eed3e0d199f6",
+      "pickupRequestId": {
+        "$oid": "6ac4e6913e4df950ebb88416"
+      },
+      "customerId": {
+        "$oid": "6abdff4041690717b6e100da"
+      },
+      "originBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "destinationBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "currentStatus": "RECEIVED",
+      "currentLocation": "Out for delivery - NGP-YAV2",
+      "senderName": "Kunal",
+      "receiverName": "suraj logistic",
+      "packageCount": {
+        "$numberInt": "100"
+      },
+      "weightKg": {
+        "$numberInt": "200"
+      },
+      "description": "Goods against PUR-2026-000012",
+      "expectedDeliveryDate": {
+        "$date": {
+          "$numberLong": "1791331200000"
+        }
+      },
+      "lrDetails": {
+        "cftFactor": {
+          "$numberInt": "7"
+        },
+        "goods": [
+          {
+            "packageNumber": "",
+            "description": "Goods against PUR-2026-000012",
+            "packageType": "BOX",
+            "quantity": {
+              "$numberInt": "100"
+            },
+            "actualWeight": {
+              "$numberInt": "200"
+            },
+            "dimensionUnit": "IN",
+            "volume": {
+              "$numberInt": "0"
+            },
+            "volumetricWeight": {
+              "$numberInt": "0"
+            },
+            "chargedWeight": {
+              "$numberInt": "200"
+            }
+          }
+        ],
+        "volumetricWeight": {
+          "$numberInt": "0"
+        },
+        "consignorCode": "9966",
+        "consignorAddress": "plot no 152 bada tajabad",
+        "consignorPincode": "440024",
+        "consigneeAddress": "pratap nagar nagpur",
+        "consigneePincode": "445001",
+        "bookingDate": {
+          "$date": {
+            "$numberLong": "1791244800000"
+          }
+        },
+        "bookingBranch": "Nagpur Branch",
+        "from": "Nagpur",
+        "to": "Yavatmal",
+        "contactNo": "9856741236",
+        "invoiceDate": {
+          "$date": {
+            "$numberLong": "1791244800000"
+          }
+        },
+        "customerReference": "PUR-2026-000012",
+        "actualWeight": {
+          "$numberInt": "200"
+        },
+        "chargedWeight": {
+          "$numberInt": "200"
+        },
+        "volume": {
+          "$numberInt": "0"
+        },
+        "declaredValue": {
+          "$numberInt": "2000"
+        },
+        "riskType": "OWNER_RISK",
+        "insuranceType": "NOT_INSURED",
+        "freightBasis": "PER_KG",
+        "freightRate": {
+          "$numberInt": "0"
+        },
+        "fuelRatePercent": {
+          "$numberInt": "0"
+        },
+        "rovRatePercent": {
+          "$numberInt": "0"
+        },
+        "freightCharges": {
+          "$numberInt": "0"
+        },
+        "fuelCharges": {
+          "$numberInt": "0"
+        },
+        "handlingCharges": {
+          "$numberInt": "0"
+        },
+        "fodCharges": {
+          "$numberInt": "0"
+        },
+        "codCharges": {
+          "$numberInt": "0"
+        },
+        "rovCharges": {
+          "$numberInt": "0"
+        },
+        "docketCharges": {
+          "$numberInt": "0"
+        },
+        "gstRate": {
+          "$numberInt": "0"
+        },
+        "gstAmount": {
+          "$numberInt": "0"
+        },
+        "totalAmount": {
+          "$numberInt": "0"
+        }
+      },
+      "createdBy": {
+        "$oid": "6a9c07ff9ad4197174f72c9c"
+      },
+      "createdAt": {
+        "$date": {
+          "$numberLong": "1791289036225"
+        }
+      },
+      "updatedAt": {
+        "$date": {
+          "$numberLong": "1791782824736"
+        }
+      },
+      "activeMovementLegId": {
+        "$oid": "6ac4ea563d6601ee9e18de6a"
+      },
+      "currentHubId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "movementState": "LAST_MILE_READY",
+      "nextHubId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "routeId": {
+        "$oid": "6ac49b5f38fb9536dacfa3ea"
+      },
+      "lastMileState": "OUT_FOR_DELIVERY",
+      "unloadingTallyId": {
+        "$oid": "6ac9d72a6b8c9267e336d824"
+      },
+      "storageLocation": "1",
+      "destinationInwardAt": {
+        "$date": {
+          "$numberLong": "1791613326863"
+        }
+      },
+      "destinationInwardBy": {
+        "$oid": "6a9c07ff9ad4197174f72c9c"
+      },
+      "receivedAt": {
+        "$date": {
+          "$numberLong": "1791613326863"
+        }
+      },
+      "receivedBy": {
+        "$oid": "6a9c07ff9ad4197174f72c9c"
+      },
+      "receivingBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "activeDrsId": {
+        "$oid": "6acc6b9cc434e7523efb6aa4"
+      },
+      "lastDeliveryAttemptAt": {
+        "$date": {
+          "$numberLong": "1791782824735"
+        }
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6ac4e6e63e4df950ebb8853c"
+      },
+      "lrNumber": "CRL20280023",
+      "idempotencyKey": "b4cc0e90-5a8a-4d1e-94cb-e98e03ae5181",
+      "pickupRequestId": {
+        "$oid": "6ac4e61f3e4df950ebb883dc"
+      },
+      "customerId": {
+        "$oid": "6abdff4041690717b6e100da"
+      },
+      "originBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "destinationBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "currentStatus": "RECEIVED",
+      "currentLocation": "Out for delivery - NGP-YAV2",
+      "senderName": "suraj",
+      "receiverName": "Kunal Entrerprises",
+      "packageCount": {
+        "$numberInt": "200"
+      },
+      "weightKg": {
+        "$numberInt": "3000"
+      },
+      "description": "Goods against PUR-2026-000011",
+      "expectedDeliveryDate": {
+        "$date": {
+          "$numberLong": "1791331200000"
+        }
+      },
+      "lrDetails": {
+        "cftFactor": {
+          "$numberInt": "7"
+        },
+        "goods": [
+          {
+            "packageNumber": "",
+            "description": "Goods against PUR-2026-000011",
+            "packageType": "BOX",
+            "quantity": {
+              "$numberInt": "200"
+            },
+            "actualWeight": {
+              "$numberInt": "3000"
+            },
+            "dimensionUnit": "IN",
+            "volume": {
+              "$numberInt": "0"
+            },
+            "volumetricWeight": {
+              "$numberInt": "0"
+            },
+            "chargedWeight": {
+              "$numberInt": "3000"
+            }
+          }
+        ],
+        "volumetricWeight": {
+          "$numberInt": "0"
+        },
+        "consignorCode": "9966",
+        "consignorAddress": "plot no 152 bada tajabad",
+        "consignorPincode": "440024",
+        "consigneeAddress": "pratap nagar nagpur",
+        "consigneePincode": "445001",
+        "bookingDate": {
+          "$date": {
+            "$numberLong": "1791244800000"
+          }
+        },
+        "bookingBranch": "Nagpur Branch",
+        "from": "Nagpur",
+        "to": "Yavatmal",
+        "contactNo": "8529637412",
+        "invoiceDate": {
+          "$date": {
+            "$numberLong": "1791244800000"
+          }
+        },
+        "customerReference": "PUR-2026-000011",
+        "actualWeight": {
+          "$numberInt": "3000"
+        },
+        "chargedWeight": {
+          "$numberInt": "3000"
+        },
+        "volume": {
+          "$numberInt": "0"
+        },
+        "riskType": "OWNER_RISK",
+        "insuranceType": "NOT_INSURED",
+        "freightBasis": "PER_KG",
+        "freightRate": {
+          "$numberInt": "0"
+        },
+        "fuelRatePercent": {
+          "$numberInt": "0"
+        },
+        "rovRatePercent": {
+          "$numberInt": "0"
+        },
+        "freightCharges": {
+          "$numberInt": "0"
+        },
+        "fuelCharges": {
+          "$numberInt": "0"
+        },
+        "handlingCharges": {
+          "$numberInt": "0"
+        },
+        "fodCharges": {
+          "$numberInt": "0"
+        },
+        "codCharges": {
+          "$numberInt": "0"
+        },
+        "rovCharges": {
+          "$numberInt": "0"
+        },
+        "docketCharges": {
+          "$numberInt": "0"
+        },
+        "gstRate": {
+          "$numberInt": "0"
+        },
+        "gstAmount": {
+          "$numberInt": "0"
+        },
+        "totalAmount": {
+          "$numberInt": "0"
+        }
+      },
+      "createdBy": {
+        "$oid": "6a9c07ff9ad4197174f72c9c"
+      },
+      "createdAt": {
+        "$date": {
+          "$numberLong": "1791289062644"
+        }
+      },
+      "updatedAt": {
+        "$date": {
+          "$numberLong": "1791782816845"
+        }
+      },
+      "activeMovementLegId": {
+        "$oid": "6ac4ea573d6601ee9e18de6e"
+      },
+      "currentHubId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "movementState": "LAST_MILE_READY",
+      "nextHubId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "routeId": {
+        "$oid": "6ac49b5f38fb9536dacfa3ea"
+      },
+      "lastMileState": "OUT_FOR_DELIVERY",
+      "unloadingTallyId": {
+        "$oid": "6ac9d72a6b8c9267e336d824"
+      },
+      "storageLocation": "2",
+      "destinationInwardAt": {
+        "$date": {
+          "$numberLong": "1791613326863"
+        }
+      },
+      "destinationInwardBy": {
+        "$oid": "6a9c07ff9ad4197174f72c9c"
+      },
+      "receivedAt": {
+        "$date": {
+          "$numberLong": "1791613326863"
+        }
+      },
+      "receivedBy": {
+        "$oid": "6a9c07ff9ad4197174f72c9c"
+      },
+      "receivingBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "activeDrsId": {
+        "$oid": "6acc6b9cc434e7523efb6aa4"
+      },
+      "lastDeliveryAttemptAt": {
+        "$date": {
+          "$numberLong": "1791782816844"
+        }
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6ac741027ac7ee9509e05d8d"
+      },
+      "lrNumber": "CRL20281P58",
+      "idempotencyKey": "41e05961-b946-4f21-b1c3-945e0890c622",
+      "pickupRequestId": {
+        "$oid": "6ac73fa37ac7ee9509e05d0c"
+      },
+      "customerId": {
+        "$oid": "6abdff4041690717b6e100da"
+      },
+      "originBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "destinationBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "currentStatus": "BOOKED",
+      "currentLocation": "Nagpur",
+      "senderName": "BBB",
+      "receiverName": "BBB Company",
+      "packageCount": {
+        "$numberInt": "200"
+      },
+      "weightKg": {
+        "$numberInt": "2000"
+      },
+      "description": "Goods against PUR-2026-000013",
+      "lrDetails": {
+        "cftFactor": {
+          "$numberInt": "7"
+        },
+        "goods": [
+          {
+            "packageNumber": "1",
+            "description": "Goods against PUR-2026-000013",
+            "packageType": "BOX",
+            "quantity": {
+              "$numberInt": "200"
+            },
+            "actualWeight": {
+              "$numberInt": "2000"
+            },
+            "length": {
+              "$numberInt": "12"
+            },
+            "breadth": {
+              "$numberInt": "12"
+            },
+            "height": {
+              "$numberInt": "12"
+            },
+            "dimensionUnit": "IN",
+            "volume": {
+              "$numberInt": "200"
+            },
+            "volumetricWeight": {
+              "$numberInt": "1400"
+            },
+            "chargedWeight": {
+              "$numberInt": "2000"
+            }
+          }
+        ],
+        "volumetricWeight": {
+          "$numberInt": "1400"
+        },
+        "consignorCode": "9966",
+        "consignorAddress": "pratap nagar nagpur",
+        "consignorPincode": "440024",
+        "consigneeAddress": "Yavatmal",
+        "consigneePincode": "450001",
+        "bookingDate": {
+          "$date": {
+            "$numberLong": "1791417600000"
+          }
+        },
+        "bookingBranch": "Nagpur Branch",
+        "from": "Nagpur",
+        "to": "East Nimar",
+        "contactNo": "9000000001",
+        "invoiceDate": {
+          "$date": {
+            "$numberLong": "1791417600000"
+          }
+        },
+        "customerReference": "PUR-2026-000013",
+        "actualWeight": {
+          "$numberInt": "2000"
+        },
+        "chargedWeight": {
+          "$numberInt": "2000"
+        },
+        "volume": {
+          "$numberInt": "200"
+        },
+        "riskType": "OWNER_RISK",
+        "insuranceType": "NOT_INSURED",
+        "freightBasis": "PER_KG",
+        "freightRate": {
+          "$numberInt": "0"
+        },
+        "fuelRatePercent": {
+          "$numberInt": "0"
+        },
+        "rovRatePercent": {
+          "$numberInt": "0"
+        },
+        "freightCharges": {
+          "$numberInt": "0"
+        },
+        "fuelCharges": {
+          "$numberInt": "0"
+        },
+        "handlingCharges": {
+          "$numberInt": "0"
+        },
+        "fodCharges": {
+          "$numberInt": "0"
+        },
+        "codCharges": {
+          "$numberInt": "0"
+        },
+        "rovCharges": {
+          "$numberInt": "0"
+        },
+        "docketCharges": {
+          "$numberInt": "0"
+        },
+        "gstRate": {
+          "$numberInt": "0"
+        },
+        "gstAmount": {
+          "$numberInt": "0"
+        },
+        "totalAmount": {
+          "$numberInt": "0"
+        }
+      },
+      "createdBy": {
+        "$oid": "6a9c07ff9ad4197174f72c9c"
+      },
+      "createdAt": {
+        "$date": {
+          "$numberLong": "1791443202910"
+        }
+      },
+      "updatedAt": {
+        "$date": {
+          "$numberLong": "1791443408764"
+        }
+      },
+      "activeMovementLegId": {
+        "$oid": "6ac741807ac7ee9509e05f90"
+      },
+      "currentHubId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "movementState": "MANIFESTED",
+      "nextHubId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6aca29afc434e7523efb65fc"
+      },
+      "lrNumber": "CRL20281P255",
+      "idempotencyKey": "f4300cd0-1fdf-4520-810f-34dae3b77d7d",
+      "pickupRequestId": {
+        "$oid": "6aca2924c434e7523efb65c3"
+      },
+      "customerId": {
+        "$oid": "6abdff4041690717b6e100da"
+      },
+      "originBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "destinationBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "currentStatus": "CLOSED",
+      "currentLocation": "Delivered",
+      "senderName": "Adborn Solution",
+      "receiverName": "Elite Assocaiate",
+      "receiverMobile": "9856741236",
+      "packageCount": {
+        "$numberInt": "20"
+      },
+      "weightKg": {
+        "$numberInt": "2500"
+      },
+      "description": "Goods against PUR-2026-000014",
+      "expectedDeliveryDate": {
+        "$date": {
+          "$numberLong": "1791676800000"
+        }
+      },
+      "lrDetails": {
+        "cftFactor": {
+          "$numberInt": "8"
+        },
+        "goods": [
+          {
+            "packageNumber": "1",
+            "description": "Goods against PUR-2026-000014",
+            "packageType": "BOX",
+            "quantity": {
+              "$numberInt": "20"
+            },
+            "actualWeight": {
+              "$numberInt": "2500"
+            },
+            "length": {
+              "$numberInt": "15"
+            },
+            "breadth": {
+              "$numberInt": "20"
+            },
+            "height": {
+              "$numberInt": "30"
+            },
+            "dimensionUnit": "IN",
+            "volume": {
+              "$numberDouble": "104.166667"
+            },
+            "volumetricWeight": {
+              "$numberDouble": "833.333333"
+            },
+            "chargedWeight": {
+              "$numberInt": "2500"
+            }
+          }
+        ],
+        "volumetricWeight": {
+          "$numberDouble": "833.333333"
+        },
+        "consignorCode": "9966",
+        "consignorAddress": "plot no 152 bada tajabad",
+        "consignorPincode": "440024",
+        "consigneeAddress": "pratap nagar nagpur",
+        "consigneePincode": "445001",
+        "bookingDate": {
+          "$date": {
+            "$numberLong": "1791590400000"
+          }
+        },
+        "bookingBranch": "Nagpur Branch",
+        "from": "Nagpur",
+        "to": "Yavatmal",
+        "deliveryAddress": "pratap nagar nagpur",
+        "contactNo": "9856741236",
+        "invoiceNo": "QWER2026",
+        "invoiceDate": {
+          "$date": {
+            "$numberLong": "1791590400000"
+          }
+        },
+        "eWayBillNo": "EDCBH2",
+        "eWayBillDate": {
+          "$date": {
+            "$numberLong": "1791417600000"
+          }
+        },
+        "customerReference": "PUR-2026-000014",
+        "actualWeight": {
+          "$numberInt": "2500"
+        },
+        "chargedWeight": {
+          "$numberInt": "2500"
+        },
+        "volume": {
+          "$numberDouble": "104.166667"
+        },
+        "declaredValue": {
+          "$numberInt": "50000"
+        },
+        "paymentMode": "PAID",
+        "gstPaidBy": "TRANSPORTER",
+        "riskType": "OWNER_RISK",
+        "insuranceType": "NOT_INSURED",
+        "freightBasis": "PER_KG",
+        "freightRate": {
+          "$numberInt": "12"
+        },
+        "fuelRatePercent": {
+          "$numberInt": "20"
+        },
+        "rovRatePercent": {
+          "$numberInt": "2"
+        },
+        "freightCharges": {
+          "$numberInt": "30000"
+        },
+        "fuelCharges": {
+          "$numberInt": "6000"
+        },
+        "handlingCharges": {
+          "$numberInt": "300"
+        },
+        "fodCharges": {
+          "$numberInt": "0"
+        },
+        "codCharges": {
+          "$numberInt": "300"
+        },
+        "rovCharges": {
+          "$numberInt": "1000"
+        },
+        "docketCharges": {
+          "$numberInt": "200"
+        },
+        "gstRate": {
+          "$numberInt": "12"
+        },
+        "gstAmount": {
+          "$numberInt": "4536"
+        },
+        "totalAmount": {
+          "$numberInt": "42336"
+        }
+      },
+      "createdBy": {
+        "$oid": "6a9c07ff9ad4197174f72c9c"
+      },
+      "createdAt": {
+        "$date": {
+          "$numberLong": "1791633839856"
+        }
+      },
+      "updatedAt": {
+        "$date": {
+          "$numberLong": "1791634463715"
+        }
+      },
+      "activeMovementLegId": {
+        "$oid": "6aca2a04c434e7523efb6697"
+      },
+      "currentHubId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "movementState": "LAST_MILE_READY",
+      "nextHubId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "routeId": {
+        "$oid": "6ac494a86c27f85a6726432c"
+      },
+      "lastMileState": "DELIVERED",
+      "unloadingTallyId": {
+        "$oid": "6aca2ae0c434e7523efb6853"
+      },
+      "storageLocation": "rack",
+      "destinationInwardAt": {
+        "$date": {
+          "$numberLong": "1791634201968"
+        }
+      },
+      "destinationInwardBy": {
+        "$oid": "6a9c07ff9ad4197174f72c9c"
+      },
+      "receivedAt": {
+        "$date": {
+          "$numberLong": "1791634201968"
+        }
+      },
+      "receivedBy": {
+        "$oid": "6a9c07ff9ad4197174f72c9c"
+      },
+      "receivingBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "lastDeliveryAttemptAt": {
+        "$date": {
+          "$numberLong": "1791634416071"
+        }
+      },
+      "deliveredAt": {
+        "$date": {
+          "$numberLong": "1791634463443"
+        }
+      },
+      "deliveredBy": {
+        "$oid": "6a9c07ff9ad4197174f72c9c"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6acf522712cf1f085dcb2d81"
+      },
+      "lrNumber": "1234567890",
+      "idempotencyKey": "005cb7af-755d-4bd1-84aa-4da722df021d",
+      "pickupRequestId": {
+        "$oid": "6acf4f4b12cf1f085dcb2ce3"
+      },
+      "customerId": {
+        "$oid": "6abdff4041690717b6e100da"
+      },
+      "originBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "destinationBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "currentStatus": "COMPLETED",
+      "currentLocation": "Delivered",
+      "senderName": "ABC",
+      "receiverName": "XYZ",
+      "packageCount": {
+        "$numberInt": "28"
+      },
+      "weightKg": {
+        "$numberInt": "280"
+      },
+      "description": "Goods against PUR-2026-000015",
+      "expectedDeliveryDate": {
+        "$date": {
+          "$numberLong": "1792022400000"
+        }
+      },
+      "lrDetails": {
+        "cftFactor": {
+          "$numberInt": "7"
+        },
+        "goods": [
+          {
+            "packageNumber": "1",
+            "description": "Goods against PUR-2026-000015",
+            "packageType": "BOX",
+            "quantity": {
+              "$numberInt": "28"
+            },
+            "actualWeight": {
+              "$numberInt": "280"
+            },
+            "length": {
+              "$numberInt": "27"
+            },
+            "breadth": {
+              "$numberInt": "15"
+            },
+            "height": {
+              "$numberInt": "27"
+            },
+            "dimensionUnit": "IN",
+            "volume": {
+              "$numberDouble": "177.1875"
+            },
+            "volumetricWeight": {
+              "$numberDouble": "1240.3125"
+            },
+            "chargedWeight": {
+              "$numberDouble": "1240.3125"
+            }
+          }
+        ],
+        "volumetricWeight": {
+          "$numberDouble": "1240.3125"
+        },
+        "consignorCode": "9966",
+        "consignorAddress": "Wadi n",
+        "consignorPincode": "440023",
+        "consigneeAddress": "Ram Nagar",
+        "consigneePincode": "442401",
+        "bookingDate": {
+          "$date": {
+            "$numberLong": "1791936000000"
+          }
+        },
+        "bookingBranch": "Nagpur Branch",
+        "from": "Nagpur",
+        "to": "Chandrapur",
+        "deliveryAddress": "Ram Nagar",
+        "contactNo": "7499358403",
+        "invoiceNo": "123",
+        "invoiceDate": {
+          "$date": {
+            "$numberLong": "1791936000000"
+          }
+        },
+        "customerReference": "PUR-2026-000015",
+        "actualWeight": {
+          "$numberInt": "280"
+        },
+        "chargedWeight": {
+          "$numberDouble": "1240.3125"
+        },
+        "volume": {
+          "$numberDouble": "177.1875"
+        },
+        "declaredValue": {
+          "$numberInt": "50000"
+        },
+        "paymentMode": "TO_PAY",
+        "riskType": "OWNER_RISK",
+        "insuranceType": "NOT_INSURED",
+        "freightBasis": "PER_BOX",
+        "freightRate": {
+          "$numberInt": "100"
+        },
+        "fuelRatePercent": {
+          "$numberInt": "0"
+        },
+        "rovRatePercent": {
+          "$numberInt": "0"
+        },
+        "freightCharges": {
+          "$numberInt": "2800"
+        },
+        "fuelCharges": {
+          "$numberInt": "0"
+        },
+        "handlingCharges": {
+          "$numberInt": "0"
+        },
+        "fodCharges": {
+          "$numberInt": "0"
+        },
+        "codCharges": {
+          "$numberInt": "0"
+        },
+        "rovCharges": {
+          "$numberInt": "0"
+        },
+        "docketCharges": {
+          "$numberInt": "10"
+        },
+        "gstRate": {
+          "$numberInt": "0"
+        },
+        "gstAmount": {
+          "$numberInt": "0"
+        },
+        "totalAmount": {
+          "$numberInt": "2810"
+        }
+      },
+      "createdBy": {
+        "$oid": "6a9c07ff9ad4197174f72c9c"
+      },
+      "createdAt": {
+        "$date": {
+          "$numberLong": "1791971879194"
+        }
+      },
+      "updatedAt": {
+        "$date": {
+          "$numberLong": "1793097616133"
+        }
+      },
+      "activeMovementLegId": {
+        "$oid": "6adee10b41206dec6e6b0b0e"
+      },
+      "currentHubId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "movementState": "LAST_MILE_READY",
+      "nextHubId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "routeId": {
+        "$oid": "6adaf9a941206dec6e6b001d"
+      },
+      "lastMileState": "POD_UPLOADED",
+      "unloadingTallyId": {
+        "$oid": "6adf200df6e03949b71d3eae"
+      },
+      "destinationInwardAt": {
+        "$date": {
+          "$numberLong": "1793007651570"
+        }
+      },
+      "destinationInwardBy": {
+        "$oid": "6a9c07ff9ad4197174f72c9c"
+      },
+      "receivedAt": {
+        "$date": {
+          "$numberLong": "1793007651570"
+        }
+      },
+      "receivedBy": {
+        "$oid": "6a9c07ff9ad4197174f72c9c"
+      },
+      "receivingBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "activeDrsId": {
+        "$oid": "6ae07ae2478be0df8104ae40"
+      },
+      "lastDeliveryAttemptAt": {
+        "$date": {
+          "$numberLong": "1793096779626"
+        }
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6ad9c6b0841267c29468b74b"
+      },
+      "lrNumber": "CRL1001",
+      "idempotencyKey": "b2cd58fc-3c52-4314-812e-6981fcff1934",
+      "pickupRequestId": {
+        "$oid": "6ad9c484841267c29468b6c6"
+      },
+      "customerId": {
+        "$oid": "6abdff4041690717b6e100da"
+      },
+      "originBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "destinationBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "currentStatus": "IN_TRANSIT",
+      "currentLocation": "Chandrapur",
+      "senderName": "Priyansh CORP",
+      "receiverName": "Mr. Firoz",
+      "packageCount": {
+        "$numberInt": "26"
+      },
+      "weightKg": {
+        "$numberInt": "260"
+      },
+      "description": "Goods against PUR-2026-000018",
+      "expectedDeliveryDate": {
+        "$date": {
+          "$numberLong": "1792713600000"
+        }
+      },
+      "lrDetails": {
+        "cftFactor": {
+          "$numberInt": "7"
+        },
+        "goods": [
+          {
+            "packageNumber": "1",
+            "description": "As per Invoice",
+            "packageType": "Cartoon Box",
+            "quantity": {
+              "$numberInt": "26"
+            },
+            "actualWeight": {
+              "$numberInt": "260"
+            },
+            "length": {
+              "$numberInt": "27"
+            },
+            "breadth": {
+              "$numberInt": "15"
+            },
+            "height": {
+              "$numberInt": "27"
+            },
+            "dimensionUnit": "IN",
+            "volume": {
+              "$numberDouble": "164.53125"
+            },
+            "volumetricWeight": {
+              "$numberDouble": "1151.71875"
+            },
+            "chargedWeight": {
+              "$numberDouble": "1151.71875"
+            }
+          }
+        ],
+        "volumetricWeight": {
+          "$numberDouble": "1151.71875"
+        },
+        "consignorCode": "9966",
+        "consignorAddress": "Wadi, Nagpur",
+        "consignorPincode": "440023",
+        "consigneeAddress": "Chandrapur (MH)",
+        "consigneePincode": "442902",
+        "bookingDate": {
+          "$date": {
+            "$numberLong": "1792627200000"
+          }
+        },
+        "bookingBranch": "Nagpur Branch",
+        "from": "Wadi, Nagpur",
+        "to": "Chandrapur",
+        "contactNo": "9860662819",
+        "invoiceNo": "PCZ/37",
+        "invoiceDate": {
+          "$date": {
+            "$numberLong": "1792627200000"
+          }
+        },
+        "customerReference": "PUR-2026-000018",
+        "actualWeight": {
+          "$numberInt": "260"
+        },
+        "chargedWeight": {
+          "$numberDouble": "1151.71875"
+        },
+        "volume": {
+          "$numberDouble": "164.53125"
+        },
+        "paymentMode": "PAID",
+        "gstPaidBy": "CUSTOMER",
+        "riskType": "OWNER_RISK",
+        "insuranceType": "NOT_INSURED",
+        "freightBasis": "PER_BOX",
+        "freightRate": {
+          "$numberInt": "100"
+        },
+        "fuelRatePercent": {
+          "$numberInt": "0"
+        },
+        "rovRatePercent": {
+          "$numberInt": "0"
+        },
+        "freightCharges": {
+          "$numberInt": "2600"
+        },
+        "fuelCharges": {
+          "$numberInt": "0"
+        },
+        "handlingCharges": {
+          "$numberInt": "0"
+        },
+        "fodCharges": {
+          "$numberInt": "0"
+        },
+        "codCharges": {
+          "$numberInt": "0"
+        },
+        "rovCharges": {
+          "$numberInt": "0"
+        },
+        "docketCharges": {
+          "$numberInt": "10"
+        },
+        "gstAmount": {
+          "$numberInt": "0"
+        },
+        "totalAmount": {
+          "$numberInt": "2610"
+        }
+      },
+      "createdBy": {
+        "$oid": "6a9c07ff9ad4197174f72c9c"
+      },
+      "createdAt": {
+        "$date": {
+          "$numberLong": "1792657072759"
+        }
+      },
+      "updatedAt": {
+        "$date": {
+          "$numberLong": "1792998205540"
+        }
+      },
+      "activeMovementLegId": {
+        "$oid": "6ad9d181841267c29468bc41"
+      },
+      "currentHubId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "movementState": "IN_TRANSIT",
+      "nextHubId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "routeId": {
+        "$oid": "6adaf90341206dec6e6affd6"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6adf07dcacdf7c9979aa5191"
+      },
+      "lrNumber": "CRL1002",
+      "idempotencyKey": "1ff9edfc-f51d-456c-861f-ec8e365e68dc",
+      "pickupRequestId": {
+        "$oid": "6adf0631acdf7c9979aa5098"
+      },
+      "customerId": {
+        "$oid": "6abdff4041690717b6e100da"
+      },
+      "originBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "destinationBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "currentStatus": "BOOKED",
+      "currentLocation": "Wadi, Nagpur",
+      "senderName": "Priyaankar Corpz",
+      "receiverName": "Mr. Firoz",
+      "receiverMobile": "9423417862",
+      "packageCount": {
+        "$numberInt": "55"
+      },
+      "weightKg": {
+        "$numberInt": "550"
+      },
+      "description": "Goods against PUR-2026-000019",
+      "lrDetails": {
+        "cftFactor": {
+          "$numberInt": "7"
+        },
+        "goods": [
+          {
+            "packageNumber": "1",
+            "description": "Goods against PUR-2026-000019",
+            "packageType": "BOX",
+            "quantity": {
+              "$numberInt": "55"
+            },
+            "actualWeight": {
+              "$numberInt": "550"
+            },
+            "length": {
+              "$numberInt": "27"
+            },
+            "breadth": {
+              "$numberInt": "15"
+            },
+            "height": {
+              "$numberInt": "27"
+            },
+            "dimensionUnit": "IN",
+            "volume": {
+              "$numberDouble": "348.046875"
+            },
+            "volumetricWeight": {
+              "$numberDouble": "2436.328125"
+            },
+            "chargedWeight": {
+              "$numberDouble": "2436.328125"
+            }
+          }
+        ],
+        "volumetricWeight": {
+          "$numberDouble": "2436.328125"
+        },
+        "consignorCode": "9966",
+        "consignorAddress": "Wadi, Nagpur",
+        "consignorPincode": "440023",
+        "consigneeAddress": "Chandrapur (MH)",
+        "consigneePincode": "442401",
+        "bookingDate": {
+          "$date": {
+            "$numberLong": "1792972800000"
+          }
+        },
+        "bookingBranch": "Nagpur Branch",
+        "from": "Wadi, Nagpur",
+        "to": "Chandrapur",
+        "contactNo": "9860662819",
+        "invoiceNo": "PCZ/45",
+        "invoiceDate": {
+          "$date": {
+            "$numberLong": "1792972800000"
+          }
+        },
+        "customerReference": "PUR-2026-000019",
+        "actualWeight": {
+          "$numberInt": "550"
+        },
+        "chargedWeight": {
+          "$numberDouble": "2436.328125"
+        },
+        "volume": {
+          "$numberDouble": "348.046875"
+        },
+        "declaredValue": {
+          "$numberInt": "125655"
+        },
+        "paymentMode": "PAID",
+        "gstPaidBy": "CUSTOMER",
+        "riskType": "OWNER_RISK",
+        "insuranceType": "NOT_INSURED",
+        "freightBasis": "PER_BOX",
+        "freightRate": {
+          "$numberInt": "100"
+        },
+        "fuelRatePercent": {
+          "$numberInt": "0"
+        },
+        "rovRatePercent": {
+          "$numberInt": "0"
+        },
+        "freightCharges": {
+          "$numberInt": "5500"
+        },
+        "fuelCharges": {
+          "$numberInt": "0"
+        },
+        "handlingCharges": {
+          "$numberInt": "0"
+        },
+        "fodCharges": {
+          "$numberInt": "0"
+        },
+        "codCharges": {
+          "$numberInt": "0"
+        },
+        "rovCharges": {
+          "$numberInt": "0"
+        },
+        "docketCharges": {
+          "$numberInt": "10"
+        },
+        "gstRate": {
+          "$numberInt": "0"
+        },
+        "gstAmount": {
+          "$numberInt": "0"
+        },
+        "totalAmount": {
+          "$numberInt": "5510"
+        }
+      },
+      "createdBy": {
+        "$oid": "6a9c07ff9ad4197174f72c9c"
+      },
+      "createdAt": {
+        "$date": {
+          "$numberLong": "1793001436435"
+        }
+      },
+      "updatedAt": {
+        "$date": {
+          "$numberLong": "1793001436435"
+        }
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6adf668af6e03949b71d41cb"
+      },
+      "lrNumber": "CRL1003",
+      "idempotencyKey": "3f580791-16fd-4f8b-a2ee-465e9774e82c",
+      "pickupRequestId": {
+        "$oid": "6adf644df6e03949b71d4142"
+      },
+      "customerId": {
+        "$oid": "6abdff4041690717b6e100da"
+      },
+      "originBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "destinationBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "currentStatus": "COMPLETED",
+      "currentLocation": "Delivered",
+      "senderName": "BASANT AGRO TECH (I) LTD",
+      "receiverName": "GURU NANAK SEEDS FORM",
+      "packageCount": {
+        "$numberInt": "300"
+      },
+      "weightKg": {
+        "$numberInt": "12000"
+      },
+      "description": "Goods against PUR-2026-000020",
+      "expectedDeliveryDate": {
+        "$date": {
+          "$numberLong": "1793059200000"
+        }
+      },
+      "lrDetails": {
+        "cftFactor": {
+          "$numberInt": "7"
+        },
+        "goods": [
+          {
+            "packageNumber": "1",
+            "description": "Goods against PUR-2026-000020",
+            "packageType": "BOX",
+            "quantity": {
+              "$numberInt": "300"
+            },
+            "actualWeight": {
+              "$numberInt": "12000"
+            },
+            "length": {
+              "$numberInt": "12"
+            },
+            "breadth": {
+              "$numberInt": "12"
+            },
+            "height": {
+              "$numberInt": "20"
+            },
+            "dimensionUnit": "IN",
+            "volume": {
+              "$numberInt": "500"
+            },
+            "volumetricWeight": {
+              "$numberInt": "3500"
+            },
+            "chargedWeight": {
+              "$numberInt": "12000"
+            }
+          }
+        ],
+        "volumetricWeight": {
+          "$numberInt": "3500"
+        },
+        "consignorCode": "9966",
+        "consignorAddress": "DIGHORI ROAD",
+        "consignorAddress2": "NAGPUR",
+        "consignorPincode": "441202",
+        "consigneeAddress": "AHOK NAGAR ROAD",
+        "consigneeAddress2": "GUNA",
+        "consigneePincode": "473001",
+        "bookingDate": {
+          "$date": {
+            "$numberLong": "1792972800000"
+          }
+        },
+        "bookingBranch": "Nagpur Branch",
+        "from": "MAHALGAONN, NAGPUR",
+        "to": "GUNA",
+        "contactNo": "9766008144",
+        "invoiceNo": "NGP/PISS/26-27/0037",
+        "invoiceDate": {
+          "$date": {
+            "$numberLong": "1792972800000"
+          }
+        },
+        "customerReference": "PUR-2026-000020",
+        "actualWeight": {
+          "$numberInt": "12000"
+        },
+        "chargedWeight": {
+          "$numberInt": "12000"
+        },
+        "volume": {
+          "$numberInt": "500"
+        },
+        "paymentMode": "PAID",
+        "gstPaidBy": "CUSTOMER",
+        "riskType": "OWNER_RISK",
+        "insuranceType": "NOT_INSURED",
+        "freightBasis": "FIXED",
+        "freightRate": {
+          "$numberInt": "38000"
+        },
+        "fuelRatePercent": {
+          "$numberInt": "0"
+        },
+        "rovRatePercent": {
+          "$numberInt": "0"
+        },
+        "freightCharges": {
+          "$numberInt": "38000"
+        },
+        "fuelCharges": {
+          "$numberInt": "0"
+        },
+        "handlingCharges": {
+          "$numberInt": "0"
+        },
+        "fodCharges": {
+          "$numberInt": "0"
+        },
+        "codCharges": {
+          "$numberInt": "0"
+        },
+        "rovCharges": {
+          "$numberInt": "0"
+        },
+        "docketCharges": {
+          "$numberInt": "0"
+        },
+        "gstRate": {
+          "$numberInt": "0"
+        },
+        "gstAmount": {
+          "$numberInt": "0"
+        },
+        "totalAmount": {
+          "$numberInt": "38000"
+        }
+      },
+      "createdBy": {
+        "$oid": "6a9c07ff9ad4197174f72c9c"
+      },
+      "createdAt": {
+        "$date": {
+          "$numberLong": "1793025674310"
+        }
+      },
+      "updatedAt": {
+        "$date": {
+          "$numberLong": "1793176855168"
+        }
+      },
+      "activeMovementLegId": {
+        "$oid": "6ae03e66f6e03949b71d44bb"
+      },
+      "currentHubId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "movementState": "LAST_MILE_READY",
+      "nextHubId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "lastMileState": "POD_UPLOADED",
+      "unloadingTallyId": {
+        "$oid": "6ae193d0eefc483f1a9eeb2f"
+      },
+      "destinationInwardAt": {
+        "$date": {
+          "$numberLong": "1793169642454"
+        }
+      },
+      "destinationInwardBy": {
+        "$oid": "6a9c07ff9ad4197174f72c9c"
+      },
+      "receivedAt": {
+        "$date": {
+          "$numberLong": "1793169642454"
+        }
+      },
+      "receivedBy": {
+        "$oid": "6a9c07ff9ad4197174f72c9c"
+      },
+      "receivingBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "activeDrsId": {
+        "$oid": "6ae1b46ecbed0f96517fd8ad"
+      },
+      "lastDeliveryAttemptAt": {
+        "$date": {
+          "$numberLong": "1793176754932"
+        }
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6ae61ad38f2f725fc85ed76b"
+      },
+      "lrNumber": "CRL207301",
+      "idempotencyKey": "34a38fe3-d09f-4e0e-8182-6f527cc9136b",
+      "pickupRequestId": {
+        "$oid": "6ae5d4e2cbed0f96517fe849"
+      },
+      "customerId": {
+        "$oid": "6abdff4041690717b6e100da"
+      },
+      "originBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "destinationBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "currentStatus": "IN_TRANSIT",
+      "currentLocation": "In transit: Nagpur to Chennai",
+      "senderName": "WOODBURY ASSORTMENT PVT LTD",
+      "receiverName": "Chennai (Sandhya Infocity)",
+      "packageCount": {
+        "$numberInt": "267"
+      },
+      "weightKg": {
+        "$numberInt": "6000"
+      },
+      "description": "Goods against PUR-2026-000021",
+      "expectedDeliveryDate": {
+        "$date": {
+          "$numberLong": "1793577600000"
+        }
+      },
+      "lrDetails": {
+        "cftFactor": {
+          "$numberInt": "7"
+        },
+        "goods": [
+          {
+            "packageNumber": "267",
+            "description": "Chocklet",
+            "packageType": "Cartoon Box",
+            "quantity": {
+              "$numberInt": "267"
+            },
+            "actualWeight": {
+              "$numberInt": "6000"
+            },
+            "length": {
+              "$numberInt": "20"
+            },
+            "breadth": {
+              "$numberInt": "18"
+            },
+            "height": {
+              "$numberInt": "12"
+            },
+            "dimensionUnit": "IN",
+            "volume": {
+              "$numberDouble": "667.5"
+            },
+            "volumetricWeight": {
+              "$numberDouble": "4672.5"
+            },
+            "chargedWeight": {
+              "$numberInt": "6000"
+            }
+          }
+        ],
+        "volumetricWeight": {
+          "$numberDouble": "4672.5"
+        },
+        "consignorCode": "9966",
+        "consignorAddress": "MIDC Hingna",
+        "consignorPincode": "440016",
+        "consigneeAddress": "Mahabalipuram, Chennai",
+        "consigneePincode": "603103",
+        "bookingDate": {
+          "$date": {
+            "$numberLong": "1793404800000"
+          }
+        },
+        "bookingBranch": "Nagpur Branch",
+        "from": "Nagpur",
+        "to": "Chennai",
+        "invoiceNo": "WAPL/26-27/0571",
+        "invoiceDate": {
+          "$date": {
+            "$numberLong": "1793404800000"
+          }
+        },
+        "eWayBillNo": "292321134427",
+        "eWayBillDate": {
+          "$date": {
+            "$numberLong": "1793318400000"
+          }
+        },
+        "customerReference": "PUR-2026-000021",
+        "actualWeight": {
+          "$numberInt": "6000"
+        },
+        "chargedWeight": {
+          "$numberInt": "6000"
+        },
+        "volume": {
+          "$numberDouble": "667.5"
+        },
+        "declaredValue": {
+          "$numberInt": "133963"
+        },
+        "paymentMode": "PAID",
+        "gstPaidBy": "CUSTOMER",
+        "riskType": "OWNER_RISK",
+        "insuranceType": "NOT_INSURED",
+        "freightBasis": "FIXED",
+        "freightRate": {
+          "$numberInt": "44000"
+        },
+        "fuelRatePercent": {
+          "$numberInt": "0"
+        },
+        "rovRatePercent": {
+          "$numberInt": "0"
+        },
+        "freightCharges": {
+          "$numberInt": "44000"
+        },
+        "fuelCharges": {
+          "$numberInt": "0"
+        },
+        "handlingCharges": {
+          "$numberInt": "0"
+        },
+        "fodCharges": {
+          "$numberInt": "0"
+        },
+        "codCharges": {
+          "$numberInt": "0"
+        },
+        "rovCharges": {
+          "$numberInt": "0"
+        },
+        "docketCharges": {
+          "$numberInt": "0"
+        },
+        "gstRate": {
+          "$numberInt": "5"
+        },
+        "gstAmount": {
+          "$numberInt": "2200"
+        },
+        "totalAmount": {
+          "$numberInt": "46200"
+        }
+      },
+      "createdBy": {
+        "$oid": "6a9c07ff9ad4197174f72c9c"
+      },
+      "createdAt": {
+        "$date": {
+          "$numberLong": "1793465043181"
+        }
+      },
+      "updatedAt": {
+        "$date": {
+          "$numberLong": "1793600396185"
+        }
+      },
+      "activeMovementLegId": {
+        "$oid": "6ae82a24112497f1dc20133f"
+      },
+      "currentHubId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "movementState": "IN_TRANSIT",
+      "nextHubId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6ae622658f2f725fc85edae6"
+      },
+      "lrNumber": "CRL207302",
+      "idempotencyKey": "7a789a88-23fe-4a66-8cd1-b8fc2e4b0658",
+      "pickupRequestId": {
+        "$oid": "6ae6206d8f2f725fc85eda5b"
+      },
+      "customerId": {
+        "$oid": "6abdff4041690717b6e100da"
+      },
+      "originBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "destinationBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "currentStatus": "IN_TRANSIT",
+      "currentLocation": "In transit: Nagpur to BANGALORE",
+      "senderName": "WOODBURY ASSORTMENT PVT LTD",
+      "receiverName": "FIRST SOURSE",
+      "receiverMobile": "9845827282",
+      "packageCount": {
+        "$numberInt": "420"
+      },
+      "weightKg": {
+        "$numberInt": "6000"
+      },
+      "description": "Goods against PUR-2026-000022",
+      "expectedDeliveryDate": {
+        "$date": {
+          "$numberLong": "1793577600000"
+        }
+      },
+      "lrDetails": {
+        "cftFactor": {
+          "$numberInt": "7"
+        },
+        "goods": [
+          {
+            "packageNumber": "1",
+            "description": "Chocklet",
+            "packageType": "Cartoon Box",
+            "quantity": {
+              "$numberInt": "420"
+            },
+            "actualWeight": {
+              "$numberInt": "6000"
+            },
+            "length": {
+              "$numberInt": "18"
+            },
+            "breadth": {
+              "$numberInt": "15"
+            },
+            "height": {
+              "$numberInt": "12"
+            },
+            "dimensionUnit": "IN",
+            "volume": {
+              "$numberDouble": "787.5"
+            },
+            "volumetricWeight": {
+              "$numberDouble": "5512.5"
+            },
+            "chargedWeight": {
+              "$numberInt": "6000"
+            }
+          }
+        ],
+        "volumetricWeight": {
+          "$numberDouble": "5512.5"
+        },
+        "consignorCode": "9966",
+        "consignorAddress": "HINGNA MIDC",
+        "consignorPincode": "440016",
+        "consignorGstin": "27AACCW9264H1ZW",
+        "consigneeAddress": "Bengaluru (BTG): Brigade Tech Gardens",
+        "consigneeAddress2": "Kundalahalli village",
+        "consigneeAddress3": "Marathahally Post",
+        "consigneePincode": "560037",
+        "consigneeGstin": "27ABNCS2580C1Z8",
+        "bookingDate": {
+          "$date": {
+            "$numberLong": "1793404800000"
+          }
+        },
+        "bookingBranch": "Nagpur Branch",
+        "from": "NAGPUR",
+        "to": "BANGALORE",
+        "invoiceNo": "WAPL/26-27/0575",
+        "invoiceDate": {
+          "$date": {
+            "$numberLong": "1793404800000"
+          }
+        },
+        "eWayBillNo": "252321599017",
+        "eWayBillDate": {
+          "$date": {
+            "$numberLong": "1793404800000"
+          }
+        },
+        "customerReference": "PUR-2026-000022",
+        "actualWeight": {
+          "$numberInt": "6000"
+        },
+        "chargedWeight": {
+          "$numberInt": "6000"
+        },
+        "volume": {
+          "$numberDouble": "787.5"
+        },
+        "declaredValue": {
+          "$numberInt": "2105760"
+        },
+        "paymentMode": "PAID",
+        "gstPaidBy": "CUSTOMER",
+        "riskType": "OWNER_RISK",
+        "insuranceType": "NOT_INSURED",
+        "freightBasis": "FIXED",
+        "freightRate": {
+          "$numberInt": "45000"
+        },
+        "fuelRatePercent": {
+          "$numberInt": "0"
+        },
+        "rovRatePercent": {
+          "$numberInt": "0"
+        },
+        "freightCharges": {
+          "$numberInt": "45000"
+        },
+        "fuelCharges": {
+          "$numberInt": "0"
+        },
+        "handlingCharges": {
+          "$numberInt": "0"
+        },
+        "fodCharges": {
+          "$numberInt": "0"
+        },
+        "codCharges": {
+          "$numberInt": "0"
+        },
+        "rovCharges": {
+          "$numberInt": "0"
+        },
+        "docketCharges": {
+          "$numberInt": "0"
+        },
+        "gstRate": {
+          "$numberInt": "5"
+        },
+        "gstAmount": {
+          "$numberInt": "2250"
+        },
+        "totalAmount": {
+          "$numberInt": "47250"
+        }
+      },
+      "createdBy": {
+        "$oid": "6a9c07ff9ad4197174f72c9c"
+      },
+      "createdAt": {
+        "$date": {
+          "$numberLong": "1793466981070"
+        }
+      },
+      "updatedAt": {
+        "$date": {
+          "$numberLong": "1793601361974"
+        }
+      },
+      "activeMovementLegId": {
+        "$oid": "6ae82c69112497f1dc201592"
+      },
+      "currentHubId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "movementState": "IN_TRANSIT",
+      "nextHubId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6ae815eb8f2f725fc85ededc"
+      },
+      "lrNumber": "CRL20281P25285",
+      "idempotencyKey": "bc85b08d-9292-4178-9095-7943f0ee7f84",
+      "customerId": {
+        "$oid": "6abdff4041690717b6e100da"
+      },
+      "originBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "destinationBranchId": {
+        "$oid": "6a9c07fe9ad4197174f72c9a"
+      },
+      "currentStatus": "BOOKED",
+      "currentLocation": "Nagpur",
+      "senderName": "Rohit Sharma",
+      "receiverName": "samad khan",
+      "packageCount": {
+        "$numberInt": "1"
+      },
+      "weightKg": {
+        "$numberInt": "10"
+      },
+      "description": "",
+      "expectedDeliveryDate": {
+        "$date": {
+          "$numberLong": "1793664000000"
+        }
+      },
+      "lrDetails": {
+        "cftFactor": {
+          "$numberInt": "7"
+        },
+        "goods": [
+          {
+            "packageNumber": "",
+            "description": "furniture",
+            "packageType": "",
+            "quantity": {
+              "$numberInt": "1"
+            },
+            "actualWeight": {
+              "$numberInt": "10"
+            },
+            "dimensionUnit": "IN",
+            "volume": {
+              "$numberInt": "0"
+            },
+            "volumetricWeight": {
+              "$numberInt": "0"
+            },
+            "chargedWeight": {
+              "$numberInt": "10"
+            }
+          }
+        ],
+        "volumetricWeight": {
+          "$numberInt": "0"
+        },
+        "consignorCode": "9966",
+        "consignorPincode": "440024",
+        "bookingDate": {
+          "$date": {
+            "$numberLong": "1793577600000"
+          }
+        },
+        "from": "Nagpur",
+        "to": "Chandrapur",
+        "invoiceDate": {
+          "$date": {
+            "$numberLong": "1793577600000"
+          }
+        },
+        "actualWeight": {
+          "$numberInt": "10"
+        },
+        "chargedWeight": {
+          "$numberInt": "10"
+        },
+        "volume": {
+          "$numberInt": "0"
+        },
+        "riskType": "OWNER_RISK",
+        "insuranceType": "NOT_INSURED",
+        "freightBasis": "PER_KG",
+        "freightRate": {
+          "$numberInt": "0"
+        },
+        "fuelRatePercent": {
+          "$numberInt": "0"
+        },
+        "rovRatePercent": {
+          "$numberInt": "0"
+        },
+        "freightCharges": {
+          "$numberInt": "0"
+        },
+        "fuelCharges": {
+          "$numberInt": "0"
+        },
+        "handlingCharges": {
+          "$numberInt": "0"
+        },
+        "fodCharges": {
+          "$numberInt": "0"
+        },
+        "codCharges": {
+          "$numberInt": "0"
+        },
+        "rovCharges": {
+          "$numberInt": "0"
+        },
+        "docketCharges": {
+          "$numberInt": "0"
+        },
+        "gstRate": {
+          "$numberInt": "0"
+        },
+        "gstAmount": {
+          "$numberInt": "0"
+        },
+        "totalAmount": {
+          "$numberInt": "0"
+        }
+      },
+      "createdBy": {
+        "$oid": "6a9c07ff9ad4197174f72c9c"
+      },
+      "createdAt": {
+        "$date": {
+          "$numberLong": "1793594859657"
+        }
+      },
+      "updatedAt": {
+        "$date": {
+          "$numberLong": "1793594859657"
+        }
+      }
+    }
+  ]
+}

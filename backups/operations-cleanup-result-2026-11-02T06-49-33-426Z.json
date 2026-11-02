@@ -1,0 +1,95 @@
+{
+  "database": "crl_transport",
+  "keep": [
+    "CRL1001",
+    "CRL1002",
+    "CRL1003",
+    "CRL207301",
+    "CRL207302"
+  ],
+  "backup": "backups/operations-before-cleanup-2026-11-02T06-49-33-426Z.json",
+  "deleted": 1135,
+  "summary": {
+    "shipments": {
+      "before": 5,
+      "delete": 0,
+      "remaining": 5
+    },
+    "pickuprequests": {
+      "before": 23,
+      "delete": 18,
+      "remaining": 5
+    },
+    "pickuprunsheets": {
+      "before": 15,
+      "delete": 14,
+      "remaining": 1
+    },
+    "bookings": {
+      "before": 1,
+      "delete": 1,
+      "remaining": 0
+    },
+    "segregations": {
+      "before": 18,
+      "delete": 14,
+      "remaining": 4
+    },
+    "loadingtallies": {
+      "before": 17,
+      "delete": 13,
+      "remaining": 4
+    },
+    "manifests": {
+      "before": 16,
+      "delete": 12,
+      "remaining": 4
+    },
+    "trips": {
+      "before": 13,
+      "delete": 9,
+      "remaining": 4
+    },
+    "movementlegs": {
+      "before": 19,
+      "delete": 15,
+      "remaining": 4
+    },
+    "unloadingtallies": {
+      "before": 10,
+      "delete": 9,
+      "remaining": 1
+    },
+    "deliveryrunsheets": {
+      "before": 8,
+      "delete": 7,
+      "remaining": 1
+    },
+    "packageunits": {
+      "before": 1927,
+      "delete": 859,
+      "remaining": 1068
+    },
+    "shipmentevents": {
+      "before": 184,
+      "delete": 153,
+      "remaining": 31
+    },
+    "shipmentdocuments": {
+      "before": 7,
+      "delete": 6,
+      "remaining": 1
+    },
+    "uploadsessions": {
+      "before": 0,
+      "delete": 0,
+      "remaining": 0
+    },
+    "tmsregisters": {
+      "before": 18,
+      "delete": 5,
+      "remaining": 13
+    }
+  },
+  "verified": true
+}
