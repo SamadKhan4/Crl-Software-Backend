@@ -1,0 +1,360 @@
+{
+  "backup": "backups/dummy-masters-before-2026-11-02T07-03-57-771Z.json",
+  "plan": {
+    "shipments": [],
+    "pickuprunsheets": [],
+    "counters": [],
+    "attendances": [],
+    "notifications": [],
+    "deliveryrunsheets": [],
+    "uploadsessions": [],
+    "holidays": [],
+    "payslips": [],
+    "pickuprequests": [],
+    "moneyreceipts": [],
+    "users": [],
+    "stationerytransactions": [],
+    "segregations": [],
+    "loadingtallies": [],
+    "branches": [],
+    "quotations": [],
+    "refreshtokens": [],
+    "employeeonboardings": [],
+    "bookings": [],
+    "manifests": [],
+    "vendors": [
+      {
+        "$oid": "6abdf5f941690717b6e10050"
+      },
+      {
+        "$oid": "6ac390b547a63b3c6a0af50b"
+      },
+      {
+        "$oid": "6ad89ba2841267c29468b373"
+      }
+    ],
+    "packageunits": [],
+    "shipmentevents": [],
+    "ratecards": [
+      {
+        "$oid": "6abdf5fa41690717b6e10069"
+      },
+      {
+        "$oid": "6abdf5fa41690717b6e1006a"
+      }
+    ],
+    "invoices": [],
+    "movementlegs": [],
+    "shipmentdocuments": [],
+    "customers": [
+      {
+        "$oid": "6ab357931b028fcedb1375e6"
+      },
+      {
+        "$oid": "6ab3581a1b028fcedb1375ef"
+      },
+      {
+        "$oid": "6abdf5f941690717b6e1004f"
+      }
+    ],
+    "tmsregisters": [
+      {
+        "$oid": "6abdf5fa41690717b6e10070"
+      },
+      {
+        "$oid": "6abdf5fa41690717b6e10071"
+      },
+      {
+        "$oid": "6abdf5fa41690717b6e10075"
+      },
+      {
+        "$oid": "6abdf5fa41690717b6e10078"
+      },
+      {
+        "$oid": "6ac390e847a63b3c6a0af521"
+      }
+    ],
+    "auditlogs": [
+      {
+        "$oid": "6ab357931b028fcedb1375e8"
+      },
+      {
+        "$oid": "6ab3581b1b028fcedb1375f1"
+      },
+      {
+        "$oid": "6ac390b547a63b3c6a0af50e"
+      },
+      {
+        "$oid": "6ac390e847a63b3c6a0af524"
+      },
+      {
+        "$oid": "6ac722217ac7ee9509e05a80"
+      },
+      {
+        "$oid": "6ad89ba3841267c29468b376"
+      }
+    ],
+    "unloadingtallies": [],
+    "trips": [],
+    "letterauthorizations": [],
+    "businessmasters": [
+      {
+        "$oid": "6abdf5fa41690717b6e10062"
+      },
+      {
+        "$oid": "6abdf5fa41690717b6e10063"
+      },
+      {
+        "$oid": "6abdf5fa41690717b6e10064"
+      },
+      {
+        "$oid": "6abdf5fa41690717b6e10065"
+      },
+      {
+        "$oid": "6abdf5fa41690717b6e10066"
+      },
+      {
+        "$oid": "6abdf5fa41690717b6e10067"
+      },
+      {
+        "$oid": "6abdf5fa41690717b6e10068"
+      }
+    ]
+  },
+  "targets": [
+    {
+      "collection": "vendors",
+      "id": "6abdf5f941690717b6e10050",
+      "label": "Western India Co-Loaders",
+      "reason": "Explicit demo code or example email"
+    },
+    {
+      "collection": "vendors",
+      "id": "6ac390b547a63b3c6a0af50b",
+      "label": "XYZ Company",
+      "reason": "User-confirmed XYZ dummy"
+    },
+    {
+      "collection": "vendors",
+      "id": "6ad89ba2841267c29468b373",
+      "label": "XYZ Transport",
+      "reason": "User-confirmed XYZ dummy"
+    },
+    {
+      "collection": "ratecards",
+      "id": "6abdf5fa41690717b6e10069",
+      "label": "DEMO-CLIENT-RATE-001",
+      "reason": "Explicit demo code or example email"
+    },
+    {
+      "collection": "ratecards",
+      "id": "6abdf5fa41690717b6e1006a",
+      "label": "DEMO-VENDOR-RATE-001",
+      "reason": "Explicit demo code or example email"
+    },
+    {
+      "collection": "customers",
+      "id": "6ab357931b028fcedb1375e6",
+      "label": "XYZ",
+      "reason": "User-confirmed XYZ dummy"
+    },
+    {
+      "collection": "customers",
+      "id": "6ab3581a1b028fcedb1375ef",
+      "label": "samad khan",
+      "reason": "User-confirmed XYZ dummy"
+    },
+    {
+      "collection": "customers",
+      "id": "6abdf5f941690717b6e1004f",
+      "label": "Rohit Sharma",
+      "reason": "Explicit demo code or example email"
+    },
+    {
+      "collection": "tmsregisters",
+      "id": "6abdf5fa41690717b6e10070",
+      "label": "DEMO-FLEET-2026-001",
+      "reason": "Explicit demo code or example email"
+    },
+    {
+      "collection": "tmsregisters",
+      "id": "6abdf5fa41690717b6e10071",
+      "label": "DEMO-DRIVER-2026-001",
+      "reason": "Explicit demo code or example email"
+    },
+    {
+      "collection": "tmsregisters",
+      "id": "6abdf5fa41690717b6e10075",
+      "label": "DEMO-HR-2026-001",
+      "reason": "Explicit demo code or example email"
+    },
+    {
+      "collection": "tmsregisters",
+      "id": "6abdf5fa41690717b6e10078",
+      "label": "DEMO-SYSTEM_SETTING-2026-001",
+      "reason": "Explicit demo code or example email"
+    },
+    {
+      "collection": "businessmasters",
+      "id": "6abdf5fa41690717b6e10062",
+      "label": "CRL Nagpur Operations",
+      "reason": "Explicit demo code or example email"
+    },
+    {
+      "collection": "businessmasters",
+      "id": "6abdf5fa41690717b6e10063",
+      "label": "Andheri East Delivery Area",
+      "reason": "Explicit demo code or example email"
+    },
+    {
+      "collection": "businessmasters",
+      "id": "6abdf5fa41690717b6e10064",
+      "label": "Nagpur to Andheri PTL",
+      "reason": "Explicit demo code or example email"
+    },
+    {
+      "collection": "businessmasters",
+      "id": "6abdf5fa41690717b6e10065",
+      "label": "Industrial pump assemblies",
+      "reason": "Explicit demo code or example email"
+    },
+    {
+      "collection": "businessmasters",
+      "id": "6abdf5fa41690717b6e10066",
+      "label": "Heavy wooden crate",
+      "reason": "Explicit demo code or example email"
+    },
+    {
+      "collection": "businessmasters",
+      "id": "6abdf5fa41690717b6e10067",
+      "label": "MH40AB1201",
+      "reason": "Explicit demo code or example email"
+    },
+    {
+      "collection": "businessmasters",
+      "id": "6abdf5fa41690717b6e10068",
+      "label": "Sanjay Yadav",
+      "reason": "Explicit demo code or example email"
+    },
+    {
+      "collection": "tmsregisters",
+      "id": "6ac390e847a63b3c6a0af521",
+      "label": "rajat",
+      "reason": "Attached to dummy party"
+    }
+  ],
+  "protectedRecords": [
+    {
+      "collection": "branches",
+      "id": "6a9c07fe9ad4197174f72c9a",
+      "label": "Nagpur Branch",
+      "reason": "Explicit demo code or example email",
+      "referencedBy": [
+        {
+          "collection": "payslips",
+          "id": "6adeebb341206dec6e6b0fd2"
+        },
+        {
+          "collection": "users",
+          "id": "6a9e9e5d9674fd6c4c5bd2c8"
+        },
+        {
+          "collection": "users",
+          "id": "6a9c07ff9ad4197174f72c9d"
+        },
+        {
+          "collection": "users",
+          "id": "6abe022248d1a6e3f5d29916"
+        },
+        {
+          "collection": "users",
+          "id": "6ac3922847a63b3c6a0af5ee"
+        },
+        {
+          "collection": "users",
+          "id": "6ac721617ac7ee9509e05a5d"
+        },
+        {
+          "collection": "users",
+          "id": "6ad5b174841267c29468ae9c"
+        },
+        {
+          "collection": "users",
+          "id": "6ad8912a841267c29468b219"
+        },
+        {
+          "collection": "users",
+          "id": "6adeeb0e41206dec6e6b0f81"
+        },
+        {
+          "collection": "users",
+          "id": "6ae4623bcbed0f96517fe122"
+        },
+        {
+          "collection": "employeeonboardings",
+          "id": "6ad89463841267c29468b25a"
+        },
+        {
+          "collection": "tmsregisters",
+          "id": "6acf52e612cf1f085dcb2df5"
+        },
+        {
+          "collection": "businessmasters",
+          "id": "6ac48e8d5491bdf29b7f6132"
+        },
+        {
+          "collection": "businessmasters",
+          "id": "6ac494a86c27f85a6726432c"
+        },
+        {
+          "collection": "businessmasters",
+          "id": "6ac49b5f38fb9536dacfa3ea"
+        },
+        {
+          "collection": "businessmasters",
+          "id": "6ac4c378e9845f5ae31d47ed"
+        },
+        {
+          "collection": "businessmasters",
+          "id": "6adaf90341206dec6e6affd6"
+        },
+        {
+          "collection": "businessmasters",
+          "id": "6adaf9a941206dec6e6b001d"
+        },
+        {
+          "collection": "businessmasters",
+          "id": "6adf03f7acdf7c9979aa4f6c"
+        },
+        {
+          "collection": "businessmasters",
+          "id": "6ae04631f6e03949b71d47d1"
+        }
+      ]
+    },
+    {
+      "collection": "branches",
+      "id": "6a9c07fe9ad4197174f72c9b",
+      "label": "Mumbai Demo Branch",
+      "reason": "Explicit demo code or example email",
+      "referencedBy": [
+        {
+          "collection": "users",
+          "id": "6a9c07ff9ad4197174f72c9e"
+        }
+      ]
+    },
+    {
+      "collection": "branches",
+      "id": "6abdf6f641690717b6e10087",
+      "label": "Bilaspur Branch",
+      "reason": "Explicit demo code or example email",
+      "referencedBy": [
+        {
+          "collection": "businessmasters",
+          "id": "6ac48e8d5491bdf29b7f6132"
+        }
+      ]
+    }
+  ]
+}
